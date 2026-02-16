@@ -1,0 +1,21 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      - TZ=America/Los_Angeles
+    volumes:
+      - ha-config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8123 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  ha-config:
+    name: homeassistant-config
