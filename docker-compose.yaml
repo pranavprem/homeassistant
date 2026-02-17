@@ -8,7 +8,7 @@ services:
     environment:
       - TZ=America/Los_Angeles
     volumes:
-      - ha-config:/config
+      - ${HA_CONFIG_PATH}:/config
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8123 || exit 1"]
       interval: 30s
@@ -16,6 +16,4 @@ services:
       retries: 3
       start_period: 60s
 
-volumes:
-  ha-config:
-    name: homeassistant-config
+# No named volumes — config path set via HA_CONFIG_PATH in .env
