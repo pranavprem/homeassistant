@@ -4,11 +4,12 @@ services:
     container_name: homeassistant
     restart: unless-stopped
     network_mode: host
-    privileged: true
     environment:
       - TZ=America/Los_Angeles
     volumes:
       - ${HA_CONFIG_PATH}:/config
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8123 || exit 1"]
       interval: 30s
@@ -16,4 +17,22 @@ services:
       retries: 3
       start_period: 60s
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ha-cloudflared
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 # No named volumes — config path set via HA_CONFIG_PATH in .env
+# Dedicated Cloudflare tunnel: home.pranavprem.com → http://localhost:8123
