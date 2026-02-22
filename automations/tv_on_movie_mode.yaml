@@ -1,6 +1,6 @@
-# TV on — movie mode (close curtains, dim lights)
+# TV on — movie mode (close curtains during day, dim lights)
 alias: "TV On - Movie Mode"
-description: "When the living room TV turns on, close curtains and dim lights"
+description: "When the living room TV turns on, close curtains (daytime only) and dim lights"
 mode: single
 trigger:
   - platform: state
@@ -16,21 +16,27 @@ trigger:
     from: "off"
     to: "idle"
 action:
-  # Close all curtains
-  - action: cover.close_cover
-    target:
-      entity_id:
-        - cover.backyard_curtain
-        - cover.backyard_curtain_2
-        - cover.deck_curtain
-        - cover.deck_curtain_2
-  # Dim living room lights to 15%
+  # Close curtains only during daytime (more than 30 min before sunset)
+  - if:
+      - condition: template
+        value_template: >
+          {{ as_timestamp(state_attr('sun.sun', 'next_setting')) - as_timestamp(now()) > 1800 }}
+      - condition: sun
+        after: sunrise
+    then:
+      - action: cover.close_cover
+        target:
+          entity_id:
+            - cover.backyard_curtain
+            - cover.backyard_curtain_2
+            - cover.deck_curtain
+            - cover.deck_curtain_2
+  # Always dim lights regardless of time
   - action: light.turn_on
     target:
       entity_id: light.living_room
     data:
       brightness_pct: 15
-  # Dim couch lamp
   - action: light.turn_on
     target:
       entity_id: light.couch_lamp
