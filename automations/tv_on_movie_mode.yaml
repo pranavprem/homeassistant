@@ -48,4 +48,4 @@ action:
     target:
       entity_id: light.living_room_light_bar
     data:
-      brightness_pct: 5
+      brightness_pct: 1
