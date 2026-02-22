@@ -1,0 +1,35 @@
+# TV off — restore curtains and lights
+alias: "TV Off - Restore"
+description: "When the living room TV turns off, open curtains and restore lights"
+mode: single
+trigger:
+  - platform: state
+    entity_id: media_player.living_room
+    to: "off"
+    for:
+      minutes: 1
+condition:
+  # Only open curtains during daytime
+  - condition: sun
+    after: sunrise
+    before: sunset
+action:
+  # Open all curtains (only during day)
+  - action: cover.open_cover
+    target:
+      entity_id:
+        - cover.backyard_curtain
+        - cover.backyard_curtain_2
+        - cover.deck_curtain
+        - cover.deck_curtain_2
+  # Restore living room lights to normal
+  - action: light.turn_on
+    target:
+      entity_id: light.living_room
+    data:
+      brightness_pct: 80
+  - action: light.turn_on
+    target:
+      entity_id: light.couch_lamp
+    data:
+      brightness_pct: 80

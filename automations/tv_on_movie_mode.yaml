@@ -1,0 +1,38 @@
+# TV on — movie mode (close curtains, dim lights)
+alias: "TV On - Movie Mode"
+description: "When the living room TV turns on, close curtains and dim lights"
+mode: single
+trigger:
+  - platform: state
+    entity_id: media_player.living_room
+    from: "off"
+    to: "on"
+  - platform: state
+    entity_id: media_player.living_room
+    from: "off"
+    to: "playing"
+  - platform: state
+    entity_id: media_player.living_room
+    from: "off"
+    to: "idle"
+action:
+  # Close all curtains
+  - action: cover.close_cover
+    target:
+      entity_id:
+        - cover.backyard_curtain
+        - cover.backyard_curtain_2
+        - cover.deck_curtain
+        - cover.deck_curtain_2
+  # Dim living room lights to 15%
+  - action: light.turn_on
+    target:
+      entity_id: light.living_room
+    data:
+      brightness_pct: 15
+  # Dim couch lamp
+  - action: light.turn_on
+    target:
+      entity_id: light.couch_lamp
+    data:
+      brightness_pct: 10

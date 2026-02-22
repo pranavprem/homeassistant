@@ -1,0 +1,32 @@
+# Low Tesla range bedtime reminder
+alias: "Tesla Low Range Bedtime Reminder"
+description: "Remind to plug in Tesla if range < 100mi when going to bed"
+mode: single
+trigger:
+  # Trigger when Pranav gets into bed
+  - platform: state
+    entity_id: binary_sensor.pranav_s_eight_sleep_side_bed_presence
+    to: "on"
+    for:
+      minutes: 2
+condition:
+  # Tesla range below 100 miles
+  - condition: numeric_state
+    entity_id: sensor.killua_battery_range
+    below: 100
+  # Tesla is NOT plugged in
+  - condition: state
+    entity_id: binary_sensor.killua_charge_cable
+    state: "off"
+  # Nighttime
+  - condition: time
+    after: "20:00:00"
+    before: "02:00:00"
+action:
+  - action: notify.mobile_app_pranavs_pocket_tv
+    data:
+      title: "🔋 Plug in Killua!"
+      message: "Tesla is at {{ states('sensor.killua_battery_range') | round(0) }} mi range and not plugged in"
+      data:
+        priority: high
+        ttl: 0
