@@ -35,6 +35,7 @@ action:
         - light.guest_room
         - light.hue_color_lamp_1
         - light.living_room
+        - light.living_room_light_bar
         - light.master_bedroom
         - light.painting_light
         - light.reading_corner

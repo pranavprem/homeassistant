@@ -33,3 +33,9 @@ action:
       entity_id: light.couch_lamp
     data:
       brightness_pct: 80
+  # Restore Govee light bar
+  - action: light.turn_on
+    target:
+      entity_id: light.living_room_light_bar
+    data:
+      brightness_pct: 80
