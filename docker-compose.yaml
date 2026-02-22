@@ -17,6 +17,42 @@ services:
       retries: 3
       start_period: 60s
 
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ${HA_CONFIG_PATH}/../mosquitto/config:/mosquitto/config
+      - ${HA_CONFIG_PATH}/../mosquitto/data:/mosquitto/data
+      - ${HA_CONFIG_PATH}/../mosquitto/log:/mosquitto/log
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-u", "${MQTT_USER:-mqtt}", "-P", "${MQTT_PASSWORD:-mqtt}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  govee2mqtt:
+    image: ghcr.io/wez/govee2mqtt:latest
+    container_name: govee2mqtt
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - GOVEE_EMAIL=${GOVEE_EMAIL}
+      - GOVEE_PASSWORD=${GOVEE_PASSWORD}
+      - GOVEE_API_KEY=${GOVEE_API_KEY}
+      - GOVEE_MQTT_HOST=127.0.0.1
+      - GOVEE_MQTT_PORT=1883
+      - GOVEE_MQTT_USER=${MQTT_USER:-mqtt}
+      - GOVEE_MQTT_PASSWORD=${MQTT_PASSWORD:-mqtt}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: ha-cloudflared
