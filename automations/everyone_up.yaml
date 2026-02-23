@@ -1,26 +1,13 @@
 # Everyone out of bed — turn off sleep equipment
+# Uses custom bed_empty sensor (10min delay built in)
 alias: "Everyone Up - Sleep Mode Off"
 description: "When both Pranav and Abhinaya leave the bed, turn off sleep mode"
 mode: single
 trigger:
   - platform: state
-    entity_id: binary_sensor.pranav_s_eight_sleep_side_bed_presence
-    to: "off"
-    for:
-      minutes: 5
-  - platform: state
-    entity_id: binary_sensor.abhinaya_s_eight_sleep_side_bed_presence
-    to: "off"
-    for:
-      minutes: 5
-condition:
-  # Both must be out of bed
-  - condition: state
-    entity_id: binary_sensor.pranav_s_eight_sleep_side_bed_presence
-    state: "off"
-  - condition: state
-    entity_id: binary_sensor.abhinaya_s_eight_sleep_side_bed_presence
-    state: "off"
+    entity_id: binary_sensor.bed_empty
+    to: "on"
+condition: []
 action:
   # Turn off Eight Sleep climate
   - action: climate.turn_off

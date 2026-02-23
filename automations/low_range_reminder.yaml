@@ -5,10 +5,8 @@ mode: single
 trigger:
   # Trigger when Pranav gets into bed
   - platform: state
-    entity_id: binary_sensor.pranav_s_eight_sleep_side_bed_presence
+    entity_id: binary_sensor.pranav_bed_occupied
     to: "on"
-    for:
-      minutes: 2
 condition:
   # Tesla range below 100 miles
   - condition: numeric_state

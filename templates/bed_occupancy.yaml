@@ -1,0 +1,56 @@
+# Bed occupancy sensors based on Eight Sleep biometric data
+# More reliable than built-in presence detection
+# Uses heart rate, breathing rate, and HRV to determine if someone is in bed
+# delay_on: 30s to avoid false triggers (sitting on bed, etc.)
+# delay_off: 10min to ignore brief bathroom trips / moving around
+
+- binary_sensor:
+    - name: "Pranav Bed Occupied"
+      unique_id: neo_pranav_bed_occupied
+      device_class: occupancy
+      delay_on:
+        seconds: 30
+      delay_off:
+        minutes: 10
+      state: >
+        {% set hr = states('sensor.pranav_s_eight_sleep_side_heart_rate') %}
+        {% set br = states('sensor.pranav_s_eight_sleep_side_breath_rate') %}
+        {% set hrv = states('sensor.pranav_s_eight_sleep_side_hrv') %}
+        {{ 
+          (hr not in ['unknown','unavailable','none','0'] and hr|float(0) > 30) or
+          (br not in ['unknown','unavailable','none','0'] and br|float(0) > 5) or
+          (hrv not in ['unknown','unavailable','none','0'] and hrv|float(0) > 1)
+        }}
+
+    - name: "Abhinaya Bed Occupied"
+      unique_id: neo_abhinaya_bed_occupied
+      device_class: occupancy
+      delay_on:
+        seconds: 30
+      delay_off:
+        minutes: 10
+      state: >
+        {% set hr = states('sensor.abhinaya_s_eight_sleep_side_heart_rate') %}
+        {% set br = states('sensor.abhinaya_s_eight_sleep_side_breath_rate') %}
+        {% set hrv = states('sensor.abhinaya_s_eight_sleep_side_hrv') %}
+        {{ 
+          (hr not in ['unknown','unavailable','none','0'] and hr|float(0) > 30) or
+          (br not in ['unknown','unavailable','none','0'] and br|float(0) > 5) or
+          (hrv not in ['unknown','unavailable','none','0'] and hrv|float(0) > 1)
+        }}
+
+    - name: "Bed Occupied Anyone"
+      unique_id: neo_bed_occupied_anyone
+      device_class: occupancy
+      state: >
+        {{ is_state('binary_sensor.pranav_bed_occupied', 'on') or
+           is_state('binary_sensor.abhinaya_bed_occupied', 'on') }}
+
+    - name: "Bed Empty"
+      unique_id: neo_bed_empty
+      device_class: occupancy
+      delay_on:
+        minutes: 10
+      state: >
+        {{ is_state('binary_sensor.pranav_bed_occupied', 'off') and
+           is_state('binary_sensor.abhinaya_bed_occupied', 'off') }}

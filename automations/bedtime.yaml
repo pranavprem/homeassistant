@@ -1,19 +1,15 @@
 # Bedtime automation — triggers when either person gets into bed
-# Eight Sleep bed presence → lights off, Eight Sleep climate on, white noise, Dreo on
+# Uses custom biometric-based bed occupancy sensors (heart rate, breathing, HRV)
 alias: "Bedtime Mode"
 description: "When either Pranav or Abhinaya gets into bed, activate sleep mode"
 mode: single
 trigger:
   - platform: state
-    entity_id: binary_sensor.pranav_s_eight_sleep_side_bed_presence
+    entity_id: binary_sensor.pranav_bed_occupied
     to: "on"
-    for:
-      minutes: 2
   - platform: state
-    entity_id: binary_sensor.abhinaya_s_eight_sleep_side_bed_presence
+    entity_id: binary_sensor.abhinaya_bed_occupied
     to: "on"
-    for:
-      minutes: 2
 condition:
   # Only trigger after 9 PM and before 3 AM
   - condition: time

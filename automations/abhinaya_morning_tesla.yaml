@@ -4,7 +4,7 @@ description: "Turn on Tesla climate 30 min after Abhinaya wakes up on weekdays"
 mode: single
 trigger:
   - platform: state
-    entity_id: binary_sensor.abhinaya_s_eight_sleep_side_bed_presence
+    entity_id: binary_sensor.abhinaya_bed_occupied
     to: "off"
     for:
       minutes: 30
@@ -23,7 +23,7 @@ condition:
     before: "10:00:00"
   # Make sure she hasn't gone back to bed
   - condition: state
-    entity_id: binary_sensor.abhinaya_s_eight_sleep_side_bed_presence
+    entity_id: binary_sensor.abhinaya_bed_occupied
     state: "off"
 action:
   # Wake up Tesla first
