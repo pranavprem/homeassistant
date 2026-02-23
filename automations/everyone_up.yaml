@@ -12,6 +12,20 @@ triggers:
   entity_id: bca3bc42dd8019d37d826da756b5d5de
   domain: binary_sensor
   trigger: device
+# Biometric fallback — no heart rate / breathing means nobody in bed
+- trigger: template
+  value_template: >
+    {% set p_hr = states('sensor.pranav_s_eight_sleep_side_heart_rate') %}
+    {% set p_br = states('sensor.pranav_s_eight_sleep_side_breath_rate') %}
+    {% set a_hr = states('sensor.abhinaya_s_eight_sleep_side_heart_rate') %}
+    {% set a_br = states('sensor.abhinaya_s_eight_sleep_side_breath_rate') %}
+    {% set pranav_in = (p_hr not in ['unknown','unavailable','none','0'] and p_hr|float(0) > 30) or
+                       (p_br not in ['unknown','unavailable','none','0'] and p_br|float(0) > 5) %}
+    {% set abhinaya_in = (a_hr not in ['unknown','unavailable','none','0'] and a_hr|float(0) > 30) or
+                         (a_br not in ['unknown','unavailable','none','0'] and a_br|float(0) > 5) %}
+    {{ not pranav_in and not abhinaya_in }}
+  for:
+    minutes: 10
 conditions:
 - type: is_not_occupied
   condition: device

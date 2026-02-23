@@ -12,6 +12,23 @@ triggers:
   entity_id: bca3bc42dd8019d37d826da756b5d5de
   domain: binary_sensor
   trigger: device
+# Biometric fallback — heart rate / breathing / HRV indicates someone in bed
+- trigger: template
+  value_template: >
+    {% set hr = states('sensor.pranav_s_eight_sleep_side_heart_rate') %}
+    {% set br = states('sensor.pranav_s_eight_sleep_side_breath_rate') %}
+    {{ (hr not in ['unknown','unavailable','none','0'] and hr|float(0) > 30) or
+       (br not in ['unknown','unavailable','none','0'] and br|float(0) > 5) }}
+  for:
+    seconds: 30
+- trigger: template
+  value_template: >
+    {% set hr = states('sensor.abhinaya_s_eight_sleep_side_heart_rate') %}
+    {% set br = states('sensor.abhinaya_s_eight_sleep_side_breath_rate') %}
+    {{ (hr not in ['unknown','unavailable','none','0'] and hr|float(0) > 30) or
+       (br not in ['unknown','unavailable','none','0'] and br|float(0) > 5) }}
+  for:
+    seconds: 30
 conditions:
 - condition: time
   after: '21:00:00'
