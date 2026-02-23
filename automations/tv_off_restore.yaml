@@ -40,3 +40,8 @@ action:
       entity_id: light.living_room_light_bar
     data:
       brightness_pct: 80
+  # Notify
+  - action: notify.mobile_app_pranavs_pocket_tv
+    data:
+      title: "📺 TV Off"
+      message: "Lights restored, curtains opened"

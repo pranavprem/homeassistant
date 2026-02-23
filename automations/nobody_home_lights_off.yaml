@@ -47,3 +47,8 @@ action:
   - action: climate.turn_off
     target:
       entity_id: climate.dreyo_air_conditioner
+  # Notify
+  - action: notify.mobile_app_pranavs_pocket_tv
+    data:
+      title: "🏠 Nobody Home"
+      message: "All lights and Dreo turned off"

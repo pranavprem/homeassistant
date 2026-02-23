@@ -58,3 +58,8 @@ action:
               entity_id: climate.dreyo_air_conditioner
             data:
               hvac_mode: cool
+  # Notify
+  - action: notify.mobile_app_pranavs_pocket_tv
+    data:
+      title: "🛏️ Bedtime Mode"
+      message: "Lights off, Eight Sleep on, Dreo on. Goodnight!"
