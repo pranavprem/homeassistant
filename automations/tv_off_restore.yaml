@@ -1,47 +1,43 @@
-# TV off — restore curtains and lights
-alias: "TV Off - Restore"
-description: "When the living room TV turns off, open curtains and restore lights"
+id: neo_tv_off_restore
+alias: TV Off - Restore
+description: When the living room TV turns off, open curtains and restore lights
+triggers:
+- device_id: 5e06bf35d9d360c4c95626d36e554852
+  domain: media_player
+  entity_id: 8d7bf6c57fb9554c23325df17846126a
+  type: turned_off
+  trigger: device
+  for:
+    hours: 0
+    minutes: 1
+    seconds: 0
+conditions: []
+actions:
+- action: cover.open_cover
+  target:
+    entity_id:
+    - cover.backyard_curtain
+    - cover.backyard_curtain_2
+    - cover.deck_curtain
+    - cover.deck_curtain_2
+  data: {}
+- action: light.turn_on
+  target:
+    entity_id: light.living_room
+  data:
+    brightness_pct: 80
+- action: light.turn_on
+  target:
+    entity_id: light.couch_lamp
+  data:
+    brightness_pct: 80
+- action: light.turn_on
+  target:
+    entity_id: light.living_room_light_bar
+  data:
+    brightness_pct: 80
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 📺 TV Off
+    message: Lights restored, curtains opened
 mode: single
-trigger:
-  # LG webOS TV (reliable on/off detection)
-  - platform: state
-    entity_id: media_player.screeny_mscreenface
-    to: "off"
-    for:
-      minutes: 1
-condition:
-  # Only open curtains during daytime
-  - condition: state
-    entity_id: sun.sun
-    state: "above_horizon"
-action:
-  # Open all curtains
-  - action: cover.open_cover
-    target:
-      entity_id:
-        - cover.backyard_curtain
-        - cover.backyard_curtain_2
-        - cover.deck_curtain
-        - cover.deck_curtain_2
-  # Restore living room lights to normal
-  - action: light.turn_on
-    target:
-      entity_id: light.living_room
-    data:
-      brightness_pct: 80
-  - action: light.turn_on
-    target:
-      entity_id: light.couch_lamp
-    data:
-      brightness_pct: 80
-  # Restore Govee light bar
-  - action: light.turn_on
-    target:
-      entity_id: light.living_room_light_bar
-    data:
-      brightness_pct: 80
-  # Notify
-  - action: notify.mobile_app_pranavs_pocket_tv
-    data:
-      title: "📺 TV Off"
-      message: "Lights restored, curtains opened"

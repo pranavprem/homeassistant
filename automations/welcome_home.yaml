@@ -1,64 +1,65 @@
-# Welcome home — first person arrives
-alias: "Welcome Home"
-description: "When the first person arrives home, open curtains and turn on lights"
-mode: single
-trigger:
-  - platform: state
-    entity_id: person.pranav
-    from: "not_home"
-    to: "home"
-  - platform: state
-    entity_id: person.abhinaya
-    from: "not_home"
-    to: "home"
-condition: []
-action:
-  # Open curtains (daytime only)
-  - if:
-      - condition: state
-        entity_id: sun.sun
-        state: "above_horizon"
-    then:
-      - action: cover.open_cover
-        target:
-          entity_id:
-            - cover.backyard_curtain
-            - cover.backyard_curtain_2
-            - cover.deck_curtain
-            - cover.deck_curtain_2
-  # Turn on lights — brightness depends on time of day
-  - if:
-      - condition: state
-        entity_id: sun.sun
-        state: "above_horizon"
-    then:
-      - action: light.turn_on
-        target:
-          entity_id:
-            - light.living_room
-            - light.couch_lamp
-        data:
-          brightness_pct: 80
-      - action: light.turn_on
-        target:
-          entity_id: light.living_room_light_bar
-        data:
-          brightness_pct: 50
-    else:
-      - action: light.turn_on
-        target:
-          entity_id:
-            - light.living_room
-            - light.couch_lamp
-        data:
-          brightness_pct: 40
-      - action: light.turn_on
-        target:
-          entity_id: light.living_room_light_bar
-        data:
-          brightness_pct: 20
-  # Notify
-  - action: notify.mobile_app_pranavs_pocket_tv
+id: neo_welcome_home
+alias: Welcome Home
+description: When the first person arrives home, open curtains and turn on lights
+triggers:
+- entity_id: person.pranav
+  from: not_home
+  to: home
+  trigger: state
+- entity_id: person.abhinaya
+  from: not_home
+  to: home
+  trigger: state
+conditions: []
+actions:
+- if:
+  - condition: state
+    entity_id: sun.sun
+    state: above_horizon
+  then:
+  - action: cover.open_cover
+    target:
+      entity_id:
+      - cover.backyard_curtain
+      - cover.backyard_curtain_2
+      - cover.deck_curtain
+      - cover.deck_curtain_2
+- if:
+  - condition: state
+    entity_id: sun.sun
+    state: above_horizon
+  then:
+  - action: light.turn_on
+    target:
+      entity_id:
+      - light.living_room
+      - light.couch_lamp
     data:
-      title: "🏡 Welcome Home!"
-      message: "Lights on{{ ', curtains opened' if is_state('sun.sun', 'above_horizon') else '' }}"
+      brightness_pct: 80
+  - action: light.turn_on
+    target:
+      entity_id: light.living_room_light_bar
+    data:
+      brightness_pct: 50
+  else:
+  - action: light.turn_on
+    target:
+      entity_id:
+      - light.living_room
+      - light.couch_lamp
+    data:
+      brightness_pct: 40
+  - action: light.turn_on
+    target:
+      entity_id: light.living_room_light_bar
+    data:
+      brightness_pct: 20
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🏡 Welcome Home!
+    message: Lights on{{ ', curtains opened' if is_state('sun.sun', 'above_horizon') else '' }}
+- action: notify.mobile_app_iphone_14_pro
+  metadata: {}
+  data:
+    title: 🏡 Welcome Home!
+mode: single

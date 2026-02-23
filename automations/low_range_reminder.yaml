@@ -1,30 +1,30 @@
-# Low Tesla range bedtime reminder
-alias: "Tesla Low Range Bedtime Reminder"
-description: "Remind to plug in Tesla if range < 100mi when going to bed"
-mode: single
-trigger:
-  # Trigger when Pranav gets into bed
-  - platform: state
-    entity_id: binary_sensor.pranav_bed_occupied
-    to: "on"
-condition:
-  # Tesla range below 100 miles
-  - condition: numeric_state
-    entity_id: sensor.killua_battery_range
-    below: 100
-  # Tesla is NOT plugged in
-  - condition: state
-    entity_id: binary_sensor.killua_charge_cable
-    state: "off"
-  # Nighttime
-  - condition: time
-    after: "20:00:00"
-    before: "02:00:00"
-action:
-  - action: notify.mobile_app_pranavs_pocket_tv
+id: neo_low_range_reminder
+alias: Tesla Low Range Bedtime Reminder
+description: Remind to plug in Tesla if range < 100mi when going to bed
+triggers:
+- trigger: time
+  at: '20:00:00'
+conditions:
+- condition: numeric_state
+  entity_id: sensor.killua_battery_range
+  below: 100
+- condition: state
+  entity_id: binary_sensor.killua_charge_cable
+  state: 'off'
+actions:
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🔋 Plug in Killua!
+    message: Tesla is at {{ states('sensor.killua_battery_range') | round(0) }} mi range and not plugged in
     data:
-      title: "🔋 Plug in Killua!"
-      message: "Tesla is at {{ states('sensor.killua_battery_range') | round(0) }} mi range and not plugged in"
-      data:
-        priority: high
-        ttl: 0
+      priority: high
+      ttl: 0
+- action: notify.mobile_app_iphone_14_pro
+  metadata: {}
+  data:
+    message: Tesla is at {{ states('sensor.killua_battery_range') | round(0) }} mi range and not plugged in
+    data:
+      priority: high
+      ttl: 0
+    title: 🔋 Plug in Killua!
+mode: single

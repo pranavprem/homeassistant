@@ -1,43 +1,41 @@
-# Laundry done notification
-alias: "Laundry Done Notification"
-description: "Notify when washer or dryer finishes a cycle"
+id: neo_laundry_done
+alias: Laundry Done Notification
+description: Notify when washer or dryer finishes a cycle
+triggers:
+- platform: state
+  entity_id: sensor.blastoise_current_status
+  to: completed
+  id: washer_done
+- platform: state
+  entity_id: sensor.blastoise_current_status
+  to: standby
+  from: running
+  id: washer_done
+- platform: state
+  entity_id: sensor.dryer_current_status
+  to: completed
+  id: dryer_done
+- platform: state
+  entity_id: sensor.dryer_current_status
+  to: standby
+  from: running
+  id: dryer_done
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: washer_done
+    sequence:
+    - action: notify.mobile_app_pranavs_pocket_tv
+      data:
+        title: 🧺 Washer Done!
+        message: Blastoise finished the wash cycle — time to move clothes to the dryer
+  - conditions:
+    - condition: trigger
+      id: dryer_done
+    sequence:
+    - action: notify.mobile_app_pranavs_pocket_tv
+      data:
+        title: 🧺 Dryer Done!
+        message: Dryer finished — clothes are ready to fold
 mode: parallel
-trigger:
-  # Washer (Blastoise) finishes
-  - platform: state
-    entity_id: sensor.blastoise_current_status
-    to: "completed"
-    id: washer_done
-  - platform: state
-    entity_id: sensor.blastoise_current_status
-    to: "standby"
-    from: "running"
-    id: washer_done
-  # Dryer finishes
-  - platform: state
-    entity_id: sensor.dryer_current_status
-    to: "completed"
-    id: dryer_done
-  - platform: state
-    entity_id: sensor.dryer_current_status
-    to: "standby"
-    from: "running"
-    id: dryer_done
-action:
-  - choose:
-      - conditions:
-          - condition: trigger
-            id: washer_done
-        sequence:
-          - action: notify.mobile_app_pranavs_pocket_tv
-            data:
-              title: "🧺 Washer Done!"
-              message: "Blastoise finished the wash cycle — time to move clothes to the dryer"
-      - conditions:
-          - condition: trigger
-            id: dryer_done
-        sequence:
-          - action: notify.mobile_app_pranavs_pocket_tv
-            data:
-              title: "🧺 Dryer Done!"
-              message: "Dryer finished — clothes are ready to fold"

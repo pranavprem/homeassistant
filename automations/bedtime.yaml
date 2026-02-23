@@ -1,61 +1,59 @@
-# Bedtime automation — triggers when either person gets into bed
-# Uses custom biometric-based bed occupancy sensors (heart rate, breathing, HRV)
-alias: "Bedtime Mode"
-description: "When either Pranav or Abhinaya gets into bed, activate sleep mode"
-mode: single
-trigger:
-  - platform: state
-    entity_id: binary_sensor.pranav_bed_occupied
-    to: "on"
-  - platform: state
-    entity_id: binary_sensor.abhinaya_bed_occupied
-    to: "on"
-condition:
-  # Only trigger after 9 PM and before 3 AM
-  - condition: time
-    after: "21:00:00"
-    before: "03:00:00"
-action:
-  # Turn off master bedroom lights
-  - action: light.turn_off
-    target:
-      entity_id: light.master_bedroom
-  # Turn on Eight Sleep climate for both sides
-  - action: climate.turn_on
-    target:
-      entity_id:
-        - climate.pranav_s_eight_sleep_side_climate
-        - climate.abhinaya_s_eight_sleep_side_climate
-  # Start white noise on Eight Sleep speaker
-  - action: media_player.play_media
-    target:
-      entity_id: media_player.wigglytuff_base_speaker
-    data:
-      media_content_type: music
+id: neo_bedtime
+alias: Bedtime Mode
+description: When either Pranav or Abhinaya gets into bed, activate sleep mode
+triggers:
+- type: occupied
+  device_id: f694659a26815997b804b098681229b3
+  entity_id: 05e5c4da6b63c59af8b16c18afbd3055
+  domain: binary_sensor
+  trigger: device
+- type: occupied
+  device_id: 01b23888cff5aaaf007f3a7f20595f8a
+  entity_id: bca3bc42dd8019d37d826da756b5d5de
+  domain: binary_sensor
+  trigger: device
+conditions:
+- condition: time
+  after: '21:00:00'
+  before: 03:00:00
+actions:
+- action: light.turn_off
+  target:
+    entity_id: light.master_bedroom
+- action: climate.turn_on
+  target:
+    entity_id:
+    - climate.pranav_s_eight_sleep_side_climate
+    - climate.abhinaya_s_eight_sleep_side_climate
+- action: media_player.play_media
+  target:
+    entity_id: media_player.wigglytuff_base_speaker
+  data:
+    media:
       media_content_id: white_noise
-  # Turn on Dreo — mode depends on season
-  # Winter (Nov-Mar): fan mode / Summer (Apr-Oct): AC mode
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ now().month in [11, 12, 1, 2, 3] }}"
-        sequence:
-          - action: climate.set_hvac_mode
-            target:
-              entity_id: climate.dreyo_air_conditioner
-            data:
-              hvac_mode: fan_only
-      - conditions:
-          - condition: template
-            value_template: "{{ now().month in [4, 5, 6, 7, 8, 9, 10] }}"
-        sequence:
-          - action: climate.set_hvac_mode
-            target:
-              entity_id: climate.dreyo_air_conditioner
-            data:
-              hvac_mode: cool
-  # Notify
-  - action: notify.mobile_app_pranavs_pocket_tv
-    data:
-      title: "🛏️ Bedtime Mode"
-      message: "Lights off, Eight Sleep on, Dreo on. Goodnight!"
+      media_content_type: music
+      metadata: {}
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ now().month in [11, 12, 1, 2, 3] }}'
+    sequence:
+    - action: climate.set_hvac_mode
+      target:
+        entity_id: climate.dreyo_air_conditioner
+      data:
+        hvac_mode: fan_only
+  - conditions:
+    - condition: template
+      value_template: '{{ now().month in [4, 5, 6, 7, 8, 9, 10] }}'
+    sequence:
+    - action: climate.set_hvac_mode
+      target:
+        entity_id: climate.dreyo_air_conditioner
+      data:
+        hvac_mode: cool
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🛏️ Bedtime Mode
+    message: Lights off, Eight Sleep on, Dreo on. Goodnight!
+mode: single

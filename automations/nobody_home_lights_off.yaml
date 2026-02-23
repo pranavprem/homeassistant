@@ -1,76 +1,68 @@
-# Nobody home — turn off everything
-alias: "Nobody Home - Everything Off"
-description: "Turn off all lights, TV, Eight Sleep, Dreo, and more when nobody is home"
+id: neo_nobody_home_lights_off
+alias: Nobody Home - Everything Off
+description: Turn off all lights, TV, Eight Sleep, Dreo, and more when nobody is home
+triggers:
+- platform: state
+  entity_id: person.pranav
+  from: home
+  to: not_home
+  for:
+    minutes: 5
+- platform: state
+  entity_id: person.abhinaya
+  from: home
+  to: not_home
+  for:
+    minutes: 5
+conditions:
+- condition: state
+  entity_id: person.pranav
+  state: not_home
+- condition: state
+  entity_id: person.abhinaya
+  state: not_home
+actions:
+- action: light.turn_off
+  target:
+    entity_id:
+    - light.ambient_light
+    - light.closet
+    - light.closet_side
+    - light.couch_lamp
+    - light.guest_room
+    - light.hue_color_lamp_1
+    - light.living_room
+    - light.living_room_light_bar
+    - light.master_bedroom
+    - light.painting_light
+    - light.reading_corner
+    - light.reading_light
+    - light.studio
+    - light.window
+    - light.window_side
+- action: media_player.turn_off
+  target:
+    entity_id: media_player.screeny_mscreenface
+- action: climate.turn_off
+  target:
+    entity_id: climate.dreyo_air_conditioner
+- action: climate.turn_off
+  target:
+    entity_id:
+    - climate.pranav_s_eight_sleep_side_climate
+    - climate.abhinaya_s_eight_sleep_side_climate
+- action: media_player.turn_off
+  target:
+    entity_id: media_player.wigglytuff_base_speaker
+- action: cover.close_cover
+  target:
+    entity_id:
+    - cover.backyard_curtain
+    - cover.backyard_curtain_2
+    - cover.deck_curtain
+    - cover.deck_curtain_2
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🏠 Nobody Home
+    message: Everything turned off — lights, TV, Eight Sleep, Dreo, curtains closed
 mode: single
-trigger:
-  - platform: state
-    entity_id: person.pranav
-    from: "home"
-    to: "not_home"
-    for:
-      minutes: 5
-  - platform: state
-    entity_id: person.abhinaya
-    from: "home"
-    to: "not_home"
-    for:
-      minutes: 5
-condition:
-  # Both must be away
-  - condition: state
-    entity_id: person.pranav
-    state: "not_home"
-  - condition: state
-    entity_id: person.abhinaya
-    state: "not_home"
-action:
-  # Turn off all lights
-  - action: light.turn_off
-    target:
-      entity_id:
-        - light.ambient_light
-        - light.closet
-        - light.closet_side
-        - light.couch_lamp
-        - light.guest_room
-        - light.hue_color_lamp_1
-        - light.living_room
-        - light.living_room_light_bar
-        - light.master_bedroom
-        - light.painting_light
-        - light.reading_corner
-        - light.reading_light
-        - light.studio
-        - light.window
-        - light.window_side
-  # Turn off TV
-  - action: media_player.turn_off
-    target:
-      entity_id: media_player.screeny_mscreenface
-  # Turn off Dreo
-  - action: climate.turn_off
-    target:
-      entity_id: climate.dreyo_air_conditioner
-  # Turn off Eight Sleep climate (both sides)
-  - action: climate.turn_off
-    target:
-      entity_id:
-        - climate.pranav_s_eight_sleep_side_climate
-        - climate.abhinaya_s_eight_sleep_side_climate
-  # Stop Eight Sleep speaker
-  - action: media_player.turn_off
-    target:
-      entity_id: media_player.wigglytuff_base_speaker
-  # Close all curtains for privacy/security
-  - action: cover.close_cover
-    target:
-      entity_id:
-        - cover.backyard_curtain
-        - cover.backyard_curtain_2
-        - cover.deck_curtain
-        - cover.deck_curtain_2
-  # Notify
-  - action: notify.mobile_app_pranavs_pocket_tv
-    data:
-      title: "🏠 Nobody Home"
-      message: "Everything turned off — lights, TV, Eight Sleep, Dreo, curtains closed"

@@ -1,57 +1,57 @@
-# TV on — movie mode (close curtains during day, dim lights)
-alias: "TV On - Movie Mode"
-description: "When the living room TV turns on, close curtains (daytime only) and dim lights"
+id: neo_tv_on_movie_mode
+alias: TV On - Movie Mode
+description: When the living room TV turns on, close curtains (daytime only) and dim lights
+triggers:
+- entity_id: media_player.screeny_mscreenface
+  from: 'off'
+  to: 'on'
+  trigger: state
+- entity_id: media_player.screeny_mscreenface
+  from: 'off'
+  to: playing
+  trigger: state
+- entity_id: media_player.screeny_mscreenface
+  from: 'off'
+  to: idle
+  trigger: state
+- device_id: 5e06bf35d9d360c4c95626d36e554852
+  domain: webostv
+  type: webostv.turn_on
+  trigger: device
+actions:
+- if:
+  - condition: state
+    entity_id: sun.sun
+    state: above_horizon
+  - condition: template
+    value_template: '{{ state_attr(''sun.sun'', ''elevation'') | float > 3 }}
+
+      '
+  then:
+  - action: cover.close_cover
+    target:
+      entity_id:
+      - cover.backyard_curtain
+      - cover.backyard_curtain_2
+      - cover.deck_curtain
+      - cover.deck_curtain_2
+- action: light.turn_on
+  target:
+    entity_id: light.living_room
+  data:
+    brightness_pct: 15
+- action: light.turn_on
+  target:
+    entity_id: light.couch_lamp
+  data:
+    brightness_pct: 10
+- action: light.turn_on
+  target:
+    entity_id: light.living_room_light_bar
+  data:
+    brightness_pct: 1
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 📺 Movie Mode
+    message: TV on — lights dimmed
 mode: single
-trigger:
-  # LG webOS TV (reliable on/off detection)
-  - platform: state
-    entity_id: media_player.screeny_mscreenface
-    from: "off"
-    to: "on"
-  - platform: state
-    entity_id: media_player.screeny_mscreenface
-    from: "off"
-    to: "playing"
-  - platform: state
-    entity_id: media_player.screeny_mscreenface
-    from: "off"
-    to: "idle"
-action:
-  # Close curtains only during daytime (sun above horizon + elevation > 3°)
-  - if:
-      - condition: state
-        entity_id: sun.sun
-        state: "above_horizon"
-      - condition: template
-        value_template: >
-          {{ state_attr('sun.sun', 'elevation') | float > 3 }}
-    then:
-      - action: cover.close_cover
-        target:
-          entity_id:
-            - cover.backyard_curtain
-            - cover.backyard_curtain_2
-            - cover.deck_curtain
-            - cover.deck_curtain_2
-  # Always dim lights regardless of time
-  - action: light.turn_on
-    target:
-      entity_id: light.living_room
-    data:
-      brightness_pct: 15
-  - action: light.turn_on
-    target:
-      entity_id: light.couch_lamp
-    data:
-      brightness_pct: 10
-  # Dim Govee light bar for ambient movie vibe
-  - action: light.turn_on
-    target:
-      entity_id: light.living_room_light_bar
-    data:
-      brightness_pct: 1
-  # Notify
-  - action: notify.mobile_app_pranavs_pocket_tv
-    data:
-      title: "📺 Movie Mode"
-      message: "TV on — lights dimmed"
