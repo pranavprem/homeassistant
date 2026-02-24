@@ -1,0 +1,30 @@
+id: neo_garage_close_on_leave
+alias: Garage Door - Close When Leaving
+description: Close the garage door when Pranav or Abhinaya leaves home proximity
+triggers:
+- platform: state
+  entity_id: person.pranav
+  from: home
+  to: not_home
+  for:
+    minutes: 2
+- platform: state
+  entity_id: person.abhinaya
+  from: home
+  to: not_home
+  for:
+    minutes: 2
+conditions:
+- condition: state
+  entity_id: cover.ratgdo_garage_door
+  state: open
+actions:
+- action: cover.close_cover
+  target:
+    entity_id: cover.ratgdo_garage_door
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🚗 Garage Door Closed
+    message: >-
+      {{ trigger.to_state.attributes.friendly_name }} left home — garage door closed automatically.
+mode: single

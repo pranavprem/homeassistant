@@ -1,0 +1,24 @@
+id: neo_garage_open_on_arrive
+alias: Garage Door - Open When Arriving
+description: Open the garage door when Pranav or Abhinaya arrives home
+triggers:
+- platform: zone
+  entity_id:
+  - person.pranav
+  - person.abhinaya
+  zone: zone.home
+  event: enter
+conditions:
+- condition: state
+  entity_id: cover.ratgdo_garage_door
+  state: closed
+actions:
+- action: cover.open_cover
+  target:
+    entity_id: cover.ratgdo_garage_door
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🏡 Garage Door Opened
+    message: >-
+      {{ trigger.to_state.attributes.friendly_name }} is arriving — garage door opened automatically.
+mode: single
