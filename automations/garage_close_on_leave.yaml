@@ -2,18 +2,12 @@ id: neo_garage_close_on_leave
 alias: Garage Door - Close When Leaving
 description: Close the garage door when Pranav or Abhinaya leaves home proximity
 triggers:
-- platform: state
-  entity_id: person.pranav
-  from: home
-  to: not_home
-  for:
-    minutes: 2
-- platform: state
-  entity_id: person.abhinaya
-  from: home
-  to: not_home
-  for:
-    minutes: 2
+- platform: zone
+  entity_id:
+  - person.pranav
+  - person.abhinaya
+  zone: zone.home
+  event: leave
 conditions:
 - condition: state
   entity_id: cover.ratgdo_garage_door
