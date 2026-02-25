@@ -2,49 +2,25 @@ id: neo_everyone_up
 alias: Everyone Up - Sleep Mode Off
 description: When both Pranav and Abhinaya leave the bed, turn off sleep mode
 triggers:
-- type: not_occupied
-  device_id: f694659a26815997b804b098681229b3
-  entity_id: 05e5c4da6b63c59af8b16c18afbd3055
-  domain: binary_sensor
-  trigger: device
-- type: not_occupied
-  device_id: 01b23888cff5aaaf007f3a7f20595f8a
-  entity_id: bca3bc42dd8019d37d826da756b5d5de
-  domain: binary_sensor
-  trigger: device
-# Biometric fallback — no heart rate / breathing means nobody in bed
-- trigger: template
-  value_template: >
-    {% set p_hr = states('sensor.pranav_s_eight_sleep_side_heart_rate') %}
-    {% set p_br = states('sensor.pranav_s_eight_sleep_side_breath_rate') %}
-    {% set a_hr = states('sensor.abhinaya_s_eight_sleep_side_heart_rate') %}
-    {% set a_br = states('sensor.abhinaya_s_eight_sleep_side_breath_rate') %}
-    {% set pranav_in = (p_hr not in ['unknown','unavailable','none','0'] and p_hr|float(0) > 30) or
-                       (p_br not in ['unknown','unavailable','none','0'] and p_br|float(0) > 5) %}
-    {% set abhinaya_in = (a_hr not in ['unknown','unavailable','none','0'] and a_hr|float(0) > 30) or
-                         (a_br not in ['unknown','unavailable','none','0'] and a_br|float(0) > 5) %}
-    {{ not pranav_in and not abhinaya_in }}
+- entity_id:
+  - binary_sensor.abhinaya_s_eight_sleep_side_bed_presence
+  to: 'off'
   for:
-    minutes: 10
-conditions:
-# 12-hour cooldown
-- condition: template
-  value_template: >
-    {{ (as_timestamp(now()) - as_timestamp(state_attr('automation.everyone_up_sleep_mode_off', 'last_triggered') | default(0))) > 43200 }}
-- type: is_not_occupied
-  condition: device
-  device_id: f694659a26815997b804b098681229b3
-  entity_id: 05e5c4da6b63c59af8b16c18afbd3055
-  domain: binary_sensor
-  for:
-    hours: 0
     minutes: 2
-    seconds: 0
-- type: is_not_occupied
-  condition: device
-  device_id: 01b23888cff5aaaf007f3a7f20595f8a
-  entity_id: bca3bc42dd8019d37d826da756b5d5de
-  domain: binary_sensor
+  trigger: state
+- entity_id:
+  - binary_sensor.pranav_s_eight_sleep_side_bed_presence
+  to: 'off'
+  for:
+    minutes: 2
+  trigger: state
+conditions:
+- condition: state
+  entity_id: binary_sensor.abhinaya_s_eight_sleep_side_bed_presence
+  state: 'off'
+- condition: state
+  entity_id: binary_sensor.pranav_s_eight_sleep_side_bed_presence
+  state: 'off'
 actions:
 - action: climate.turn_off
   target:
