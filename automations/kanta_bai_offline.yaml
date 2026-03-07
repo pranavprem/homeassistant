@@ -1,0 +1,19 @@
+id: neo_kanta_bai_offline
+alias: Kanta Bai Offline Alert
+description: Notify when Kanta Bai goes unavailable so she can be put back on her base
+triggers:
+- platform: state
+  entity_id: vacuum.kanta_bai
+  to: unavailable
+  for:
+    minutes: 30
+conditions: []
+actions:
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🤖 Kanta Bai Offline!
+    message: Kanta Bai has been unavailable for 30 minutes — she probably needs to be put back on her base
+    data:
+      priority: high
+      ttl: 0
+mode: single
