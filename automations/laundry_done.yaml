@@ -4,22 +4,13 @@ description: Notify when washer or dryer finishes a cycle
 triggers:
 - platform: state
   entity_id: sensor.blastoise_current_status
-  to: completed
-  id: washer_done
-- platform: state
-  entity_id: sensor.blastoise_current_status
-  to: standby
-  from: running
+  to: end
   id: washer_done
 - platform: state
   entity_id: sensor.dryer_current_status
-  to: completed
+  to: end
   id: dryer_done
-- platform: state
-  entity_id: sensor.dryer_current_status
-  to: standby
-  from: running
-  id: dryer_done
+conditions: []
 actions:
 - choose:
   - conditions:

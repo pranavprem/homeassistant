@@ -1,0 +1,34 @@
+id: neo_dishwasher_done
+alias: Dishwasher Done Notification
+description: Notify when dishwasher finishes and alert if rinse aid needs refilling
+triggers:
+- platform: state
+  entity_id: sensor.dishwasher_current_status
+  to: end
+  id: cycle_done
+- platform: state
+  entity_id: binary_sensor.dishwasher_rinse_refill_needed
+  to: 'on'
+  id: rinse_refill
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: cycle_done
+    sequence:
+    - action: notify.mobile_app_pranavs_pocket_tv
+      data:
+        title: 🍽️ Dishwasher Done!
+        message: >-
+          Cycle complete — time to unload!
+          {% if is_state('binary_sensor.dishwasher_rinse_refill_needed', 'on') %}⚠️ Rinse aid needs refilling!{% endif %}
+  - conditions:
+    - condition: trigger
+      id: rinse_refill
+    sequence:
+    - action: notify.mobile_app_pranavs_pocket_tv
+      data:
+        title: ⚠️ Dishwasher Rinse Aid
+        message: Rinse aid dispenser needs refilling
+mode: single

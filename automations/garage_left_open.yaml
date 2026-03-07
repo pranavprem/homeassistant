@@ -1,0 +1,19 @@
+id: neo_garage_left_open
+alias: Garage Left Open Reminder
+description: Remind if garage door has been open for more than 30 minutes
+triggers:
+- platform: state
+  entity_id: cover.ratgdo_garage_door
+  to: open
+  for:
+    minutes: 30
+conditions: []
+actions:
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: ⚠️ Garage Still Open!
+    message: The garage door has been open for 30 minutes
+    data:
+      priority: high
+      ttl: 0
+mode: single
