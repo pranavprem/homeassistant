@@ -30,11 +30,8 @@ actions:
 - action: media_player.turn_off
   target:
     entity_id: media_player.wigglytuff_base_speaker
-- action: climate.turn_off
-  target:
-    entity_id: climate.dreyo_air_conditioner
 - action: notify.mobile_app_pranavs_pocket_tv
   data:
     title: ☀️ Good Morning!
-    message: Everyone's up — Eight Sleep, white noise, and Dreo turned off
+    message: Everyone's up — Eight Sleep and white noise turned off
 mode: single

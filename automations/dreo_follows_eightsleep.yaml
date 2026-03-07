@@ -1,0 +1,68 @@
+id: neo_dreo_follows_eightsleep
+alias: Dreo Follows Eight Sleep
+description: Dreo turns on when either Eight Sleep side turns on, off when both are off
+triggers:
+# Either side turns on
+- entity_id:
+  - climate.pranav_s_eight_sleep_side_climate
+  - climate.abhinaya_s_eight_sleep_side_climate
+  trigger: state
+  to: heat_cool
+# Either side turns off — check if both are off
+- entity_id:
+  - climate.pranav_s_eight_sleep_side_climate
+  - climate.abhinaya_s_eight_sleep_side_climate
+  trigger: state
+  to: 'off'
+conditions: []
+actions:
+- choose:
+  # If either Eight Sleep side is active → Dreo on (seasonal mode)
+  - conditions:
+    - condition: or
+      conditions:
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: climate.pranav_s_eight_sleep_side_climate
+          state: 'off'
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: climate.abhinaya_s_eight_sleep_side_climate
+          state: 'off'
+    sequence:
+    - choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ now().month in [11, 12, 1, 2, 3] }}'
+        sequence:
+        - action: climate.set_hvac_mode
+          target:
+            entity_id: climate.dreyo_air_conditioner
+          data:
+            hvac_mode: fan_only
+      - conditions:
+        - condition: template
+          value_template: '{{ now().month in [4, 5, 6, 7, 8, 9, 10] }}'
+        sequence:
+        - action: climate.set_hvac_mode
+          target:
+            entity_id: climate.dreyo_air_conditioner
+          data:
+            hvac_mode: cool
+    - action: notify.mobile_app_pranavs_pocket_tv
+      data:
+        title: 🌀 Dreo On
+        message: >-
+          Eight Sleep is active — Dreo set to {{ 'fan' if now().month in [11,12,1,2,3] else 'cool' }} mode
+  # Both Eight Sleep sides off → Dreo off
+  default:
+  - action: climate.turn_off
+    target:
+      entity_id: climate.dreyo_air_conditioner
+  - action: notify.mobile_app_pranavs_pocket_tv
+    data:
+      title: 🌀 Dreo Off
+      message: Both Eight Sleep sides off — Dreo turned off
+mode: single
