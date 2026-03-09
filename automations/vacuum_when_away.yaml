@@ -1,6 +1,6 @@
 id: neo_vacuum_when_away
 alias: Vacuum When Everyone Leaves
-description: Start Shanta Bai when everyone leaves home (once per day max)
+description: Start Kanta Bai when everyone leaves home (once per day max)
 triggers:
 - platform: state
   entity_id: person.pranav
@@ -32,17 +32,14 @@ conditions:
     {{ (as_timestamp(now()) - as_timestamp(state_attr('automation.vacuum_when_everyone_leaves', 'last_triggered') | default(0))) > 43200 }}
 # Vacuum must be docked and charged
 - condition: state
-  entity_id: vacuum.shanta_bai
+  entity_id: vacuum.kanta_bai
   state: docked
-- condition: numeric_state
-  entity_id: sensor.shanta_bai_battery
-  above: 50
 actions:
 - action: vacuum.start
   target:
-    entity_id: vacuum.shanta_bai
+    entity_id: vacuum.kanta_bai
 - action: notify.mobile_app_pranavs_pocket_tv
   data:
-    title: 🤖 Shanta Bai Deployed!
-    message: Everyone's away — Shanta Bai is cleaning the house
+    title: 🤖 Kanta Bai Deployed!
+    message: Everyone's away — Kanta Bai is cleaning the house
 mode: single
