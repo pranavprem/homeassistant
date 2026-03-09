@@ -40,4 +40,8 @@ actions:
   data:
     title: 📺 TV Off
     message: Lights restored, curtains opened
+- action: notify.mobile_app_iphone_14_pro
+  data:
+    title: 📺 TV Off
+    message: Lights restored, curtains opened
 mode: single

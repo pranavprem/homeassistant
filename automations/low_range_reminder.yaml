@@ -15,14 +15,16 @@ actions:
 - action: notify.mobile_app_pranavs_pocket_tv
   data:
     title: 🔋 Plug in Killua!
-    message: Tesla is at {{ states('sensor.killua_battery_range') | round(0) }} mi range and not plugged in
+    message: Tesla is at {{ states('sensor.killua_battery_range') | round(0) }} mi
+      range and not plugged in
     data:
       priority: high
       ttl: 0
 - action: notify.mobile_app_iphone_14_pro
   metadata: {}
   data:
-    message: Tesla is at {{ states('sensor.killua_battery_range') | round(0) }} mi range and not plugged in
+    message: Tesla is at {{ states('sensor.killua_battery_range') | round(0) }} mi
+      range and not plugged in
     data:
       priority: high
       ttl: 0

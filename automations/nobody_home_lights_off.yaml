@@ -65,4 +65,8 @@ actions:
   data:
     title: 🏠 Nobody Home
     message: Everything turned off — lights, TV, Eight Sleep, Dreo, curtains closed
+- action: notify.mobile_app_iphone_14_pro
+  data:
+    title: 🏠 Nobody Home
+    message: Everything turned off — lights, TV, Eight Sleep, Dreo, curtains closed
 mode: single

@@ -15,22 +15,20 @@ triggers:
   for:
     minutes: 5
 conditions:
-# Both must be away
 - condition: state
   entity_id: person.pranav
   state: not_home
 - condition: state
   entity_id: person.abhinaya
   state: not_home
-# Only run between 8am-8pm (respect DND hours)
 - condition: time
-  after: '08:00:00'
+  after: 08:00:00
   before: '20:00:00'
-# Only run once per day
 - condition: template
-  value_template: >
-    {{ (as_timestamp(now()) - as_timestamp(state_attr('automation.vacuum_when_everyone_leaves', 'last_triggered') | default(0))) > 43200 }}
-# Vacuum must be docked and charged
+  value_template: '{{ (as_timestamp(now()) - as_timestamp(state_attr(''automation.vacuum_when_everyone_leaves'',
+    ''last_triggered'') | default(0))) > 43200 }}
+
+    '
 - condition: state
   entity_id: vacuum.kanta_bai
   state: docked
@@ -39,6 +37,10 @@ actions:
   target:
     entity_id: vacuum.kanta_bai
 - action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🤖 Kanta Bai Deployed!
+    message: Everyone's away — Kanta Bai is cleaning the house
+- action: notify.mobile_app_iphone_14_pro
   data:
     title: 🤖 Kanta Bai Deployed!
     message: Everyone's away — Kanta Bai is cleaning the house

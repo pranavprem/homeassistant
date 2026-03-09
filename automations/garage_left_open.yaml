@@ -16,4 +16,11 @@ actions:
     data:
       priority: high
       ttl: 0
+- action: notify.mobile_app_iphone_14_pro
+  data:
+    title: ⚠️ Garage Still Open!
+    message: The garage door has been open for 30 minutes
+    data:
+      priority: high
+      ttl: 0
 mode: single

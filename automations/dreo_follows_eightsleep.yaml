@@ -1,14 +1,13 @@
 id: neo_dreo_follows_eightsleep
 alias: Dreo Follows Eight Sleep
-description: Dreo turns on when either Eight Sleep side turns on, off when both are off. Mode based on room temperature.
+description: Dreo turns on when either Eight Sleep side turns on, off when both are
+  off. Mode based on room temperature.
 triggers:
-# Either side turns on
 - entity_id:
   - climate.pranav_s_eight_sleep_side_climate
   - climate.abhinaya_s_eight_sleep_side_climate
   trigger: state
   to: heat_cool
-# Either side turns off — check if both are off
 - entity_id:
   - climate.pranav_s_eight_sleep_side_climate
   - climate.abhinaya_s_eight_sleep_side_climate
@@ -17,7 +16,6 @@ triggers:
 conditions: []
 actions:
 - choose:
-  # If either Eight Sleep side is active → Dreo on (temp-based mode)
   - conditions:
     - condition: or
       conditions:
@@ -33,7 +31,6 @@ actions:
           state: 'off'
     sequence:
     - choose:
-      # Room > 74°F → AC mode
       - conditions:
         - condition: numeric_state
           entity_id: sensor.wigglytuff_eight_sleep_hub_room_temperature
@@ -44,7 +41,6 @@ actions:
             entity_id: climate.dreyo_air_conditioner
           data:
             hvac_mode: cool
-      # Room ≤ 74°F → Fan mode
       default:
       - action: climate.set_hvac_mode
         target:
@@ -54,14 +50,24 @@ actions:
     - action: notify.mobile_app_pranavs_pocket_tv
       data:
         title: 🌀 Dreo On
-        message: >-
-          Eight Sleep is active — Dreo set to {{ 'cool' if states('sensor.wigglytuff_eight_sleep_hub_room_temperature') | float(0) > 74 else 'fan' }} mode (room {{ states('sensor.wigglytuff_eight_sleep_hub_room_temperature') | round(1) }}°F)
-  # Both Eight Sleep sides off → Dreo off
+        message: Eight Sleep is active — Dreo set to {{ 'cool' if states('sensor.wigglytuff_eight_sleep_hub_room_temperature')
+          | float(0) > 74 else 'fan' }} mode (room {{ states('sensor.wigglytuff_eight_sleep_hub_room_temperature')
+          | round(1) }}°F)
+    - action: notify.mobile_app_iphone_14_pro
+      data:
+        title: 🌀 Dreo On
+        message: Eight Sleep is active — Dreo set to {{ 'cool' if states('sensor.wigglytuff_eight_sleep_hub_room_temperature')
+          | float(0) > 74 else 'fan' }} mode (room {{ states('sensor.wigglytuff_eight_sleep_hub_room_temperature')
+          | round(1) }}°F)
   default:
   - action: climate.turn_off
     target:
       entity_id: climate.dreyo_air_conditioner
   - action: notify.mobile_app_pranavs_pocket_tv
+    data:
+      title: 🌀 Dreo Off
+      message: Both Eight Sleep sides off — Dreo turned off
+  - action: notify.mobile_app_iphone_14_pro
     data:
       title: 🌀 Dreo Off
       message: Both Eight Sleep sides off — Dreo turned off
