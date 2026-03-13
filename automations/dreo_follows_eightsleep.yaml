@@ -60,6 +60,11 @@ actions:
           | float(0) > 74 else 'fan' }} mode (room {{ states('sensor.wigglytuff_eight_sleep_hub_room_temperature')
           | round(1) }}°F)
   default:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: climate.dreyo_air_conditioner
+      state: 'off'
   - action: climate.turn_off
     target:
       entity_id: climate.dreyo_air_conditioner
