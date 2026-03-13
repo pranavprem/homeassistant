@@ -8,11 +8,17 @@ triggers:
   - climate.abhinaya_s_eight_sleep_side_climate
   trigger: state
   to: heat_cool
+  not_from:
+  - unavailable
+  - unknown
 - entity_id:
   - climate.pranav_s_eight_sleep_side_climate
   - climate.abhinaya_s_eight_sleep_side_climate
   trigger: state
   to: 'off'
+  not_from:
+  - unavailable
+  - unknown
 conditions: []
 actions:
 - choose:
