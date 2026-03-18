@@ -25,7 +25,7 @@ actions:
     entity_id: sun.sun
     state: above_horizon
   - condition: template
-    value_template: '{{ state_attr(''sun.sun'', ''elevation'') | float > 3 }}
+    value_template: '{{ state_attr(''sun.sun'', ''elevation'') | float > 10 }}
 
       '
   then:
