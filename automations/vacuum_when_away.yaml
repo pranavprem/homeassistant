@@ -2,7 +2,7 @@ id: neo_vacuum_when_away
 alias: Vacuum When Everyone Leaves
 description: Start Kanta Bai when everyone leaves home (once per day max)
 triggers:
-- platform: state
+- trigger: state
   entity_id:
   - person.pranav
   - person.abhinaya
@@ -17,13 +17,14 @@ conditions:
 - condition: time
   after: 08:00:00
   before: '20:00:00'
-- condition: template
-  value_template: '{{ (as_timestamp(now()) - as_timestamp(state_attr(''automation.vacuum_when_everyone_leaves'',
-    ''last_triggered'') | default(0))) > 43200 }}'
 - condition: state
   entity_id: vacuum.kanta_bai
   state: docked
 actions:
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: "\U0001F916 Kanta Bai Deploying..."
+    message: Both away — starting vacuum in 2 minutes (cancel by coming home)
 - delay:
     minutes: 2
 - condition: state
