@@ -1,0 +1,21 @@
+id: neo_projector_off_restore
+alias: Projector Off - Restore
+description: When guest bedroom projector turns off, restore lights
+triggers:
+- trigger: state
+  entity_id: media_player.guest_bedroom_tv
+  to: 'off'
+  for:
+    minutes: 1
+conditions: []
+actions:
+- action: light.turn_on
+  target:
+    entity_id: light.guest_room
+  data:
+    brightness_pct: 80
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: "\U0001F3AC Projector Off"
+    message: Guest room lights restored
+mode: single
