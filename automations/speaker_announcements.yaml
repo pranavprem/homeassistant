@@ -1,0 +1,91 @@
+id: neo_speaker_announcements
+alias: Speaker Announcements
+description: Announce key home events on speakers instead of just phone notifications
+triggers:
+- trigger: state
+  entity_id: vacuum.kanta_bai
+  to: cleaning
+  id: kanta_cleaning
+- trigger: state
+  entity_id: vacuum.kanta_bai
+  to: docked
+  from: returning
+  id: kanta_done
+- trigger: state
+  entity_id: vacuum.shanta_bai
+  to: docked
+  from: returning
+  id: shanta_done
+- trigger: state
+  entity_id:
+  - sensor.blastoise_energy_yesterday
+  attribute: washer_state
+  id: skip_washer
+  enabled: false
+- trigger: state
+  entity_id: binary_sensor.shanta_bai_water_shortage
+  to: 'on'
+  id: water_shortage
+- trigger: state
+  entity_id: cover.ratgdo_garage_door
+  to: open
+  for:
+    minutes: 15
+  id: garage_open
+conditions:
+- condition: time
+  after: '08:00:00'
+  before: '22:00:00'
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: kanta_cleaning
+    sequence:
+    - action: tts.speak
+      target:
+        entity_id: tts.google_translate_en_com
+      data:
+        media_player_entity_id: media_player.full_house
+        message: "Kanta Bai has started cleaning upstairs."
+  - conditions:
+    - condition: trigger
+      id: kanta_done
+    sequence:
+    - action: tts.speak
+      target:
+        entity_id: tts.google_translate_en_com
+      data:
+        media_player_entity_id: media_player.full_house
+        message: "Kanta Bai has finished cleaning and is back at the dock."
+  - conditions:
+    - condition: trigger
+      id: shanta_done
+    sequence:
+    - action: tts.speak
+      target:
+        entity_id: tts.google_translate_en_com
+      data:
+        media_player_entity_id: media_player.full_house
+        message: "Shanta Bai has finished cleaning downstairs."
+  - conditions:
+    - condition: trigger
+      id: water_shortage
+    sequence:
+    - action: tts.speak
+      target:
+        entity_id: tts.google_translate_en_com
+      data:
+        media_player_entity_id: media_player.full_house
+        message: "Shanta Bai's water tank needs refilling."
+  - conditions:
+    - condition: trigger
+      id: garage_open
+    sequence:
+    - action: tts.speak
+      target:
+        entity_id: tts.google_translate_en_com
+      data:
+        media_player_entity_id: media_player.full_house
+        message: "The garage door has been open for 15 minutes."
+mode: queued

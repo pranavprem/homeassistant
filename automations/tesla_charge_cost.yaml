@@ -1,0 +1,32 @@
+id: neo_tesla_charge_cost
+alias: Tesla Charge Session Cost
+description: When Tesla finishes charging, notify with energy used and estimated cost
+triggers:
+- trigger: state
+  entity_id: binary_sensor.tesla_wall_connector_vehicle_connected
+  from: 'on'
+  to: 'off'
+- trigger: state
+  entity_id: sensor.tesla_wall_connector_status
+  to: not_connected
+  from: charging
+conditions: []
+actions:
+- variables:
+    session_kwh: "{{ states('sensor.tesla_wall_connector_session_energy') | float(0) }}"
+    cost_per_kwh: 0.30
+    session_cost: "{{ (session_kwh * cost_per_kwh) | round(2) }}"
+    total_kwh: "{{ states('sensor.tesla_wall_connector_energy') | float(0) }}"
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: "⚡ Killua Charge Complete"
+    message: >
+      Session: {{ session_kwh | round(1) }} kWh (~${{ session_cost }})
+      Lifetime: {{ total_kwh | round(0) }} kWh (~${{ (total_kwh * cost_per_kwh) | round(0) }})
+- action: notify.mobile_app_iphone_14_pro
+  data:
+    title: "⚡ Killua Charge Complete"
+    message: >
+      Session: {{ session_kwh | round(1) }} kWh (~${{ session_cost }})
+      Lifetime: {{ total_kwh | round(0) }} kWh (~${{ (total_kwh * cost_per_kwh) | round(0) }})
+mode: single

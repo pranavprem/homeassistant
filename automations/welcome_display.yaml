@@ -1,0 +1,18 @@
+id: neo_welcome_display
+alias: Welcome Home - Doorway Display Message
+description: Show a welcome message on the doorway display when someone arrives home
+triggers:
+- trigger: state
+  entity_id:
+  - person.pranav
+  - person.abhinaya
+  to: home
+actions:
+- action: tts.speak
+  target:
+    entity_id: tts.google_translate_en_com
+  data:
+    media_player_entity_id: media_player.doorway_display
+    message: >
+      Welcome home {{ trigger.to_state.attributes.friendly_name }}!
+mode: restart

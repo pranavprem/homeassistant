@@ -1,13 +1,24 @@
 id: neo_air_purifier_mode
 alias: Air Purifiers - Smart Mode
-description: Quiet (sleep) when home, full speed when everyone away. Checks every 30 min.
+description: Quiet (sleep) when home, full speed when everyone away
 triggers:
-- trigger: time_pattern
-  minutes: "/30"
-conditions: []
+- trigger: state
+  entity_id:
+  - person.pranav
+  - person.abhinaya
+  to: not_home
+  id: someone_left
+- trigger: state
+  entity_id:
+  - person.pranav
+  - person.abhinaya
+  to: home
+  id: someone_home
 actions:
 - choose:
   - conditions:
+    - condition: trigger
+      id: someone_left
     - condition: state
       entity_id: person.pranav
       state: not_home
@@ -15,14 +26,6 @@ actions:
       entity_id: person.abhinaya
       state: not_home
     sequence:
-    - action: fan.set_preset_mode
-      target:
-        entity_id:
-        - fan.studio_filter
-        - fan.master_bedroom_filter
-        - fan.living_room_filter
-      data:
-        preset_mode: sleep
     - action: fan.turn_on
       target:
         entity_id:
@@ -37,19 +40,22 @@ actions:
         - fan.living_room_filter
       data:
         percentage: 100
-  default:
-  - action: fan.turn_on
-    target:
-      entity_id:
-      - fan.studio_filter
-      - fan.master_bedroom_filter
-      - fan.living_room_filter
-  - action: fan.set_preset_mode
-    target:
-      entity_id:
-      - fan.studio_filter
-      - fan.master_bedroom_filter
-      - fan.living_room_filter
-    data:
-      preset_mode: sleep
-mode: single
+  - conditions:
+    - condition: trigger
+      id: someone_home
+    sequence:
+    - action: fan.turn_on
+      target:
+        entity_id:
+        - fan.studio_filter
+        - fan.master_bedroom_filter
+        - fan.living_room_filter
+    - action: fan.set_preset_mode
+      target:
+        entity_id:
+        - fan.studio_filter
+        - fan.master_bedroom_filter
+        - fan.living_room_filter
+      data:
+        preset_mode: sleep
+mode: restart
