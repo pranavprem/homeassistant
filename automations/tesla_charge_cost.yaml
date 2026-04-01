@@ -14,19 +14,35 @@ conditions: []
 actions:
 - variables:
     session_kwh: "{{ states('sensor.tesla_wall_connector_session_energy') | float(0) }}"
-    cost_per_kwh: 0.30
-    session_cost: "{{ (session_kwh * cost_per_kwh) | round(2) }}"
     total_kwh: "{{ states('sensor.tesla_wall_connector_energy') | float(0) }}"
+    hour: "{{ now().hour }}"
+    month: "{{ now().month }}"
+    is_summer: "{{ month >= 6 and month <= 9 }}"
+    rate: >
+      {% if is_summer %}
+        {% if hour >= 16 and hour < 21 %}0.54
+        {% elif (hour >= 15 and hour < 16) or (hour >= 21 and hour < 24) %}0.43
+        {% else %}0.23{% endif %}
+      {% else %}
+        {% if hour >= 16 and hour < 21 %}0.41
+        {% elif (hour >= 15 and hour < 16) or (hour >= 21 and hour < 24) %}0.39
+        {% else %}0.23{% endif %}
+      {% endif %}
+    avg_offpeak_rate: 0.23
+    session_cost: "{{ (session_kwh * avg_offpeak_rate) | round(2) }}"
+    total_cost: "{{ (total_kwh * avg_offpeak_rate) | round(0) }}"
 - action: notify.mobile_app_pranavs_pocket_tv
   data:
     title: "⚡ Killua Charge Complete"
     message: >
-      Session: {{ session_kwh | round(1) }} kWh (~${{ session_cost }})
-      Lifetime: {{ total_kwh | round(0) }} kWh (~${{ (total_kwh * cost_per_kwh) | round(0) }})
+      Session: {{ session_kwh | round(1) }} kWh (~${{ session_cost }} at off-peak)
+      Current rate: ${{ rate }}/kWh (EV2-A {{ 'summer' if is_summer else 'winter' }})
+      Lifetime: {{ total_kwh | round(0) }} kWh (~${{ total_cost }})
 - action: notify.mobile_app_iphone_14_pro
   data:
     title: "⚡ Killua Charge Complete"
     message: >
-      Session: {{ session_kwh | round(1) }} kWh (~${{ session_cost }})
-      Lifetime: {{ total_kwh | round(0) }} kWh (~${{ (total_kwh * cost_per_kwh) | round(0) }})
+      Session: {{ session_kwh | round(1) }} kWh (~${{ session_cost }} at off-peak)
+      Current rate: ${{ rate }}/kWh (EV2-A {{ 'summer' if is_summer else 'winter' }})
+      Lifetime: {{ total_kwh | round(0) }} kWh (~${{ total_cost }})
 mode: single
