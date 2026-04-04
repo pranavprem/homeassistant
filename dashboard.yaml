@@ -33,6 +33,50 @@ views:
       - type: grid
         title: Quick Controls
         cards:
+          - type: custom:mushroom-template-card
+            primary: All Lights On
+            icon: mdi:lightbulb-group
+            icon_color: amber
+            tap_action:
+              action: call-service
+              service: light.turn_on
+              target:
+                entity_id:
+                  - light.living_room
+                  - light.couch_lamp
+                  - light.painting_light
+                  - light.master_bedroom
+                  - light.reading_light
+                  - light.guest_room
+                  - light.studio
+                  - light.closet
+                  - light.living_room_accent
+              data:
+                brightness_pct: 80
+          - type: custom:mushroom-template-card
+            primary: All Lights Off
+            icon: mdi:lightbulb-group-off
+            icon_color: grey
+            tap_action:
+              action: call-service
+              service: light.turn_off
+              target:
+                entity_id:
+                  - light.living_room
+                  - light.couch_lamp
+                  - light.painting_light
+                  - light.master_bedroom
+                  - light.reading_light
+                  - light.guest_room
+                  - light.studio
+                  - light.closet
+                  - light.ambient_light
+                  - light.closet_side
+                  - light.reading_corner
+                  - light.window_side
+                  - light.window
+                  - light.hue_color_lamp_1
+                  - light.living_room_accent
           - type: custom:mushroom-climate-card
             entity: climate.dreyo_air_conditioner
             name: Bedroom Cooler
