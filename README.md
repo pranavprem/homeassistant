@@ -17,6 +17,8 @@ Both containers run with `network_mode: host` so cloudflared can reach HA on loc
 | Container | Image | Purpose |
 |-----------|-------|---------|
 | `homeassistant` | `ghcr.io/home-assistant/home-assistant:stable` | Smart home hub |
+| `mosquitto` | `eclipse-mosquitto:2` | MQTT broker for Govee LAN control |
+| `govee2mqtt` | `ghcr.io/wez/govee2mqtt:latest` | Govee device bridge via MQTT |
 | `ha-cloudflared` | `cloudflare/cloudflared:latest` | Dedicated tunnel for external access |
 
 ## Setup
@@ -73,15 +75,23 @@ This is served via a **Cloudflare Worker** (`tesla-public-key`) on the `home.pra
 | Tesla Fleet | Model 3 + Wall Connector | Cloud |
 | Eight Sleep (HACS) | Pod | Cloud |
 | Dreo | Fan/heater | Cloud |
-| Govee | Light bar (H607C) | Cloud (needs govee2mqtt for LAN) |
+| Govee | Light bar (H607C) | Cloud + LAN via govee2mqtt |
 | Apple TV | Media player | Local |
 | Canon Printer | Printer | Local (IPP) |
 | Chromecast | Projector | Local |
 
 ### Pending
-- **Konnected blaQ** — garage door (hardware on order)
-- **Govee LAN** — govee2mqtt + Mosquitto for local control
+- **Konnected blaQ** — garage door (hardware on order; currently using ratgdo)
+- **Levoit / VeSync** — 4x Levoit Core 200S air purifiers (WiFi enabled)
 - **Non-Hue Philips light** — TBD
+
+## Dashboard
+
+The main dashboard ("Agraharam") uses [Mushroom cards](https://github.com/piitaya/lovelace-mushroom) from HACS. Configuration is in `dashboard.yaml`.
+
+## Automations
+
+25 automations in `automations/` covering lights, garage, vacuum, laundry, Tesla charging, movie mode, air purifiers, and more. See `CLAUDE.md` for the full list.
 
 ## Security
 
