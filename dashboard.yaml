@@ -1,0 +1,372 @@
+title: Agraharam
+views:
+  - title: Home
+    path: home
+    type: sections
+    max_columns: 3
+    sections:
+      # === STATUS BAR ===
+      - type: grid
+        cards:
+          - type: custom:mushroom-chips-card
+            chips:
+              - type: entity
+                entity: person.pranav
+                content_info: name
+              - type: entity
+                entity: person.abhinaya
+                content_info: name
+              - type: weather
+                entity: weather.forecast_home
+                show_temperature: true
+                show_conditions: true
+              - type: template
+                icon: mdi:lightbulb-group
+                icon_color: "{{ 'amber' if states.light | selectattr('state', 'eq', 'on') | list | count > 0 else 'grey' }}"
+                content: "{{ states.light | selectattr('state', 'eq', 'on') | list | count }} lights"
+              - type: entity
+                entity: cover.ratgdo_garage_door
+                icon_color: "{{ 'red' if is_state('cover.ratgdo_garage_door', 'open') else 'green' }}"
+                content_info: none
+
+      # === QUICK CONTROLS ===
+      - type: grid
+        title: Quick Controls
+        cards:
+          - type: custom:mushroom-climate-card
+            entity: climate.dreyo_air_conditioner
+            name: Bedroom Cooler
+            icon: mdi:fan
+            show_temperature_control: true
+            hvac_modes:
+              - cool
+              - fan_only
+              - "off"
+            collapsible_controls: true
+          - type: custom:mushroom-cover-card
+            entity: cover.ratgdo_garage_door
+            name: Garage Door
+            icon: mdi:garage
+            show_buttons_control: true
+            show_position_control: false
+          - type: custom:mushroom-light-card
+            entity: light.living_room
+            name: Living Room
+            show_brightness_control: true
+            use_light_color: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.master_bedroom
+            name: Master Bedroom
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-entity-card
+            entity: media_player.screeny_mscreenface
+            name: TV
+            icon: mdi:television
+            tap_action:
+              action: toggle
+          - type: custom:mushroom-template-card
+            primary: All Curtains
+            icon: mdi:curtains
+            icon_color: "{{ 'teal' if is_state('cover.backyard_curtain', 'open') else 'grey' }}"
+            tap_action:
+              action: call-service
+              service: cover.toggle
+              target:
+                entity_id:
+                  - cover.backyard_curtain
+                  - cover.backyard_curtain_2
+                  - cover.deck_curtain
+                  - cover.deck_curtain_2
+
+      # === LIVING ROOM ===
+      - type: grid
+        title: Living Room
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.living_room
+            name: Main Light
+            show_brightness_control: true
+            show_color_control: true
+            use_light_color: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.couch_lamp
+            name: Couch Lamp
+            show_brightness_control: true
+            use_light_color: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.painting_light
+            name: Painting Light
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.living_room_accent
+            name: Accent Light
+            show_brightness_control: true
+            use_light_color: true
+            collapsible_controls: true
+          - type: custom:mushroom-entity-card
+            entity: media_player.screeny_mscreenface
+            name: Screeny McScreenface
+            icon: mdi:television
+          - type: custom:mushroom-cover-card
+            entity: cover.backyard_curtain
+            name: Backyard Curtain 1
+            show_buttons_control: true
+          - type: custom:mushroom-cover-card
+            entity: cover.backyard_curtain_2
+            name: Backyard Curtain 2
+            show_buttons_control: true
+          - type: custom:mushroom-cover-card
+            entity: cover.deck_curtain
+            name: Deck Curtain 1
+            show_buttons_control: true
+          - type: custom:mushroom-cover-card
+            entity: cover.deck_curtain_2
+            name: Deck Curtain 2
+            show_buttons_control: true
+          - type: custom:mushroom-fan-card
+            entity: fan.living_room_filter
+            name: Air Purifier
+            show_percentage_control: true
+            collapsible_controls: true
+
+      # === MASTER BEDROOM ===
+      - type: grid
+        title: Master Bedroom
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.master_bedroom
+            name: Bedroom Light
+            show_brightness_control: true
+            use_light_color: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.reading_light
+            name: Reading Light
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.closet
+            name: Closet
+            tap_action:
+              action: toggle
+          - type: custom:mushroom-climate-card
+            entity: climate.dreyo_air_conditioner
+            name: Bedroom Cooler
+            show_temperature_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-template-card
+            primary: Eight Sleep
+            secondary: >
+              {% if is_state('climate.pranav_s_eight_sleep_side_climate', 'heat_cool') %}
+                Pranav: Active
+              {% else %}
+                Pranav: Off
+              {% endif %}
+              {% if is_state('climate.abhinaya_s_eight_sleep_side_climate', 'heat_cool') %}
+                · Abi: Active
+              {% else %}
+                · Abi: Off
+              {% endif %}
+            icon: mdi:bed
+            icon_color: >
+              {{ 'indigo' if is_state('climate.pranav_s_eight_sleep_side_climate', 'heat_cool') or
+                 is_state('climate.abhinaya_s_eight_sleep_side_climate', 'heat_cool') else 'grey' }}
+          - type: custom:mushroom-template-card
+            primary: Room
+            secondary: "{{ states('sensor.wigglytuff_eight_sleep_hub_room_temperature') | round(0) }}°F · {{ states('sensor.dreyo_humidity') }}% humidity"
+            icon: mdi:thermometer
+            icon_color: >
+              {% set temp = states('sensor.wigglytuff_eight_sleep_hub_room_temperature') | float(70) %}
+              {{ 'red' if temp > 78 else 'blue' if temp < 65 else 'green' }}
+          - type: custom:mushroom-fan-card
+            entity: fan.master_bedroom_filter
+            name: Air Purifier
+            show_percentage_control: true
+            collapsible_controls: true
+
+      # === GUEST ROOM & STUDIO ===
+      - type: grid
+        title: Guest Room & Studio
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.guest_room
+            name: Guest Room
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-entity-card
+            entity: media_player.guest_bedroom_tv
+            name: Projector
+            icon: mdi:projector
+          - type: custom:mushroom-light-card
+            entity: light.studio
+            name: Studio
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-fan-card
+            entity: fan.studio_filter
+            name: Studio Air Purifier
+            show_percentage_control: true
+            collapsible_controls: true
+
+      # === VACUUMS ===
+      - type: grid
+        title: Vacuums
+        cards:
+          - type: custom:mushroom-vacuum-card
+            entity: vacuum.shanta_bai
+            name: "Shanta Bai (Downstairs)"
+            commands:
+              - start_pause
+              - stop
+              - return_home
+          - type: custom:mushroom-template-card
+            primary: Shanta Bai Status
+            secondary: >
+              {{ states('sensor.shanta_bai_status') | title }}
+              {% if is_state('binary_sensor.shanta_bai_water_shortage', 'on') %}· 💧 WATER LOW{% endif %}
+              · Battery: {{ states('sensor.shanta_bai_battery') }}%
+            icon: mdi:robot-vacuum
+            icon_color: >
+              {{ 'green' if is_state('vacuum.shanta_bai', 'cleaning') else
+                 'red' if is_state('binary_sensor.shanta_bai_water_shortage', 'on') else 'grey' }}
+          - type: custom:mushroom-vacuum-card
+            entity: vacuum.kanta_bai
+            name: "Kanta Bai (Upstairs)"
+            commands:
+              - start_pause
+              - stop
+              - return_home
+
+      # === TESLA ===
+      - type: grid
+        title: "Killua (Tesla)"
+        cards:
+          - type: custom:mushroom-template-card
+            primary: Killua
+            secondary: >
+              🔋 {{ states('sensor.killua_battery_level') | default('?') }}%
+              · {{ states('sensor.killua_range') | default('?') }} mi
+              {% if is_state('binary_sensor.tesla_wall_connector_vehicle_connected', 'on') %}
+              · ⚡ Charging
+              {% endif %}
+            icon: mdi:car-electric
+            icon_color: >
+              {% set batt = states('sensor.killua_battery_level') | int(50) %}
+              {{ 'red' if batt < 20 else 'amber' if batt < 50 else 'green' }}
+          - type: custom:mushroom-entity-card
+            entity: lock.killua_lock
+            name: Door Lock
+            tap_action:
+              action: toggle
+          - type: custom:mushroom-entity-card
+            entity: switch.killua_sentry_mode
+            name: Sentry Mode
+            tap_action:
+              action: toggle
+          - type: custom:mushroom-template-card
+            primary: Temperatures
+            secondary: "Inside: {{ states('sensor.killua_inside_temperature') }}°F · Outside: {{ states('sensor.killua_outside_temperature') }}°F"
+            icon: mdi:thermometer-auto
+            icon_color: cyan
+          - type: custom:mushroom-template-card
+            primary: Charging Stats
+            secondary: >
+              Session: {{ states('sensor.tesla_wall_connector_session_energy') | round(1) }} kWh
+              · Lifetime: {{ states('sensor.tesla_wall_connector_energy') | round(0) }} kWh
+              · ~${{ (states('sensor.tesla_wall_connector_energy') | float(0) * 0.23) | round(0) }}
+            icon: mdi:ev-station
+            icon_color: amber
+
+      # === GARAGE & SECURITY ===
+      - type: grid
+        title: Garage & Security
+        cards:
+          - type: custom:mushroom-cover-card
+            entity: cover.ratgdo_garage_door
+            name: Garage Door
+            show_buttons_control: true
+          - type: picture-entity
+            entity: camera.front_door_doorbell
+            name: Front Door
+            show_state: false
+            camera_view: live
+          - type: picture-entity
+            entity: camera.garage_camera
+            name: Garage
+            show_state: false
+            camera_view: live
+          - type: picture-entity
+            entity: camera.backyard_camera
+            name: Backyard
+            show_state: false
+            camera_view: live
+
+      # === STATS ===
+      - type: grid
+        title: Stats & Maintenance
+        cards:
+          - type: custom:mushroom-template-card
+            primary: Curtain Batteries
+            secondary: >
+              Backyard 1: {{ states('sensor.backyard_curtain_battery') }}%
+              · Backyard 2: {{ states('sensor.backyard_curtain_2_battery') }}%
+              · Deck 1: {{ states('sensor.deck_curtain_battery') }}%
+              · Deck 2: {{ states('sensor.deck_curtain_2_battery') }}%
+            icon: mdi:battery
+            icon_color: >
+              {% set min_batt = [
+                states('sensor.backyard_curtain_battery') | int(100),
+                states('sensor.backyard_curtain_2_battery') | int(100),
+                states('sensor.deck_curtain_battery') | int(100),
+                states('sensor.deck_curtain_2_battery') | int(100)
+              ] | min %}
+              {{ 'red' if min_batt < 20 else 'amber' if min_batt < 40 else 'green' }}
+          - type: custom:mushroom-template-card
+            primary: Air Purifier Filters
+            secondary: >
+              Living: {{ states('sensor.living_room_filter_filter_lifetime') }}%
+              · Studio: {{ states('sensor.studio_filter_filter_lifetime') }}%
+              · Bedroom: {{ states('sensor.master_bedroom_filter_filter_lifetime') }}%
+            icon: mdi:air-filter
+            icon_color: >
+              {% set min_life = [
+                states('sensor.living_room_filter_filter_lifetime') | int(100),
+                states('sensor.studio_filter_filter_lifetime') | int(100),
+                states('sensor.master_bedroom_filter_filter_lifetime') | int(100)
+              ] | min %}
+              {{ 'red' if min_life < 15 else 'amber' if min_life < 40 else 'green' }}
+          - type: custom:mushroom-template-card
+            primary: Shanta Bai Maintenance
+            secondary: >
+              Filter: {{ states('sensor.shanta_bai_filter_time_left') | round(0) }}h
+              · Side brush: {{ states('sensor.shanta_bai_side_brush_time_left') | round(0) }}h
+              · Sensor: {{ states('sensor.shanta_bai_sensor_time_left') | round(0) }}h
+              · Total cleans: {{ states('sensor.shanta_bai_total_cleaning_count') }}
+            icon: mdi:robot-vacuum
+            icon_color: >
+              {{ 'red' if states('sensor.shanta_bai_side_brush_time_left') | float(999) < 0 else 'green' }}
+          - type: custom:mushroom-template-card
+            primary: Washer Energy
+            secondary: >
+              This month: {{ states('sensor.blastoise_energy_this_month') }} Wh
+              · Last month: {{ states('sensor.blastoise_energy_last_month') }} Wh
+            icon: mdi:washing-machine
+            icon_color: cyan
+          - type: custom:mushroom-template-card
+            primary: Home
+            secondary: >
+              {{ states('sensor.entryway_temperature') | round(0) }}°F · {{ states('sensor.entryway_humidity') }}% humidity
+            icon: mdi:home-thermometer
+            icon_color: teal
+          - type: custom:mushroom-template-card
+            primary: UPS Battery
+            secondary: "{{ states('sensor.nas_ups_battery_charge') }}%"
+            icon: mdi:battery-charging
+            icon_color: >
+              {% set charge = states('sensor.nas_ups_battery_charge') | int(100) %}
+              {{ 'red' if charge < 50 else 'green' }}
