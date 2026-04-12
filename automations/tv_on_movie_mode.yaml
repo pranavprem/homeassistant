@@ -48,7 +48,7 @@ actions:
     brightness_pct: 10
 - action: light.turn_on
   target:
-    entity_id: light.living_room_light_bar
+    entity_id: light.living_room_accent
   data:
     brightness_pct: 1
 - action: notify.mobile_app_pranavs_pocket_tv
