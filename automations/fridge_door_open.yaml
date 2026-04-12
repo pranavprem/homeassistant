@@ -1,6 +1,6 @@
 id: neo_fridge_door_open
 alias: Fridge Door Left Open
-description: Notify if the fridge door has been open for more than 5 minutes
+description: Notify if the fridge door is still open after 5 minutes, with a short grace re-check to avoid false alerts
 triggers:
 - trigger: state
   entity_id: binary_sensor.refrigerator_door
@@ -9,12 +9,17 @@ triggers:
     minutes: 5
 conditions: []
 actions:
+- delay:
+    seconds: 15
+- condition: state
+  entity_id: binary_sensor.refrigerator_door
+  state: 'on'
 - action: notify.mobile_app_pranavs_pocket_tv
   data:
     title: "\U0001F9CA Fridge Door Open!"
-    message: The fridge has been open for 5 minutes
+    message: The fridge has been open for over 5 minutes
 - action: notify.mobile_app_iphone_14_pro
   data:
     title: "\U0001F9CA Fridge Door Open!"
-    message: The fridge has been open for 5 minutes
-mode: single
+    message: The fridge has been open for over 5 minutes
+mode: restart
