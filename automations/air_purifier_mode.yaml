@@ -1,24 +1,24 @@
 id: neo_air_purifier_mode
 alias: Air Purifiers - Smart Mode
-description: Quiet (sleep) when home, full speed when everyone away
+description: Quiet (sleep) when home, full speed when everyone away, re-enforced every 30 minutes
 triggers:
 - trigger: state
   entity_id:
   - person.pranav
   - person.abhinaya
   to: not_home
-  id: someone_left
 - trigger: state
   entity_id:
   - person.pranav
   - person.abhinaya
   to: home
-  id: someone_home
+- trigger: time_pattern
+  minutes: "/30"
+- trigger: homeassistant
+  event: start
 actions:
 - choose:
   - conditions:
-    - condition: trigger
-      id: someone_left
     - condition: state
       entity_id: person.pranav
       state: not_home
@@ -27,12 +27,14 @@ actions:
       state: not_home
     sequence:
     - action: fan.turn_on
+      continue_on_error: true
       target:
         entity_id:
         - fan.studio_filter
         - fan.master_bedroom_filter
         - fan.living_room_filter
     - action: fan.set_percentage
+      continue_on_error: true
       target:
         entity_id:
         - fan.studio_filter
@@ -40,22 +42,21 @@ actions:
         - fan.living_room_filter
       data:
         percentage: 100
-  - conditions:
-    - condition: trigger
-      id: someone_home
-    sequence:
-    - action: fan.turn_on
-      target:
-        entity_id:
-        - fan.studio_filter
-        - fan.master_bedroom_filter
-        - fan.living_room_filter
-    - action: fan.set_preset_mode
-      target:
-        entity_id:
-        - fan.studio_filter
-        - fan.master_bedroom_filter
-        - fan.living_room_filter
-      data:
-        preset_mode: sleep
+  default:
+  - action: fan.turn_on
+    continue_on_error: true
+    target:
+      entity_id:
+      - fan.studio_filter
+      - fan.master_bedroom_filter
+      - fan.living_room_filter
+  - action: fan.set_preset_mode
+    continue_on_error: true
+    target:
+      entity_id:
+      - fan.studio_filter
+      - fan.master_bedroom_filter
+      - fan.living_room_filter
+    data:
+      preset_mode: sleep
 mode: restart
