@@ -51,6 +51,7 @@ views:
                   - light.studio
                   - light.closet
                   - light.living_room_accent
+                  - light.masted_bed_light_bar
               data:
                 brightness_pct: 80
           - type: custom:mushroom-template-card
@@ -77,6 +78,7 @@ views:
                   - light.window
                   - light.hue_color_lamp_1
                   - light.living_room_accent
+                  - light.masted_bed_light_bar
           - type: custom:mushroom-climate-card
             entity: climate.dreyo_air_conditioner
             name: Bedroom Cooler
@@ -192,6 +194,12 @@ views:
             entity: light.reading_light
             name: Reading Light
             show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.masted_bed_light_bar
+            name: Master Bed Light Bar
+            show_brightness_control: true
+            use_light_color: true
             collapsible_controls: true
           - type: custom:mushroom-light-card
             entity: light.closet

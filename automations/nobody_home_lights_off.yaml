@@ -34,6 +34,7 @@ actions:
     - light.living_room
     - light.living_room_accent
     - light.master_bedroom
+    - light.masted_bed_light_bar
     - light.painting_light
     - light.reading_corner
     - light.reading_light
