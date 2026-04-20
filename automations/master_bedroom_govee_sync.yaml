@@ -1,0 +1,50 @@
+id: neo_master_bedroom_govee_sync
+alias: Master Bedroom Govee - Mirror Hue Lights
+description: Keep the master bed Govee light bar in sync with the Hue lights controlled in the master bedroom
+triggers:
+- trigger: state
+  entity_id:
+    - light.master_bedroom
+    - light.reading_light
+    - light.closet_side
+    - light.hue_color_lamp_1
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: template
+      value_template: >-
+        {{
+          is_state('light.master_bedroom', 'on')
+          or is_state('light.reading_light', 'on')
+          or is_state('light.closet_side', 'on')
+          or is_state('light.hue_color_lamp_1', 'on')
+        }}
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: light.masted_bed_light_bar
+        state: 'on'
+    sequence:
+    - action: light.turn_on
+      target:
+        entity_id: light.masted_bed_light_bar
+  - conditions:
+    - condition: template
+      value_template: >-
+        {{
+          is_state('light.master_bedroom', 'off')
+          and is_state('light.reading_light', 'off')
+          and is_state('light.closet_side', 'off')
+          and is_state('light.hue_color_lamp_1', 'off')
+        }}
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: light.masted_bed_light_bar
+        state: 'off'
+    sequence:
+    - action: light.turn_off
+      target:
+        entity_id: light.masted_bed_light_bar
+mode: restart
