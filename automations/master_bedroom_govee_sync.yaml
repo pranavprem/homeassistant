@@ -7,7 +7,6 @@ triggers:
     - light.master_bedroom
     - light.reading_light
     - light.closet_side
-    - light.hue_color_lamp_1
 conditions: []
 actions:
 - choose:
@@ -18,7 +17,6 @@ actions:
           is_state('light.master_bedroom', 'on')
           or is_state('light.reading_light', 'on')
           or is_state('light.closet_side', 'on')
-          or is_state('light.hue_color_lamp_1', 'on')
         }}
     - condition: not
       conditions:
@@ -36,7 +34,6 @@ actions:
           is_state('light.master_bedroom', 'off')
           and is_state('light.reading_light', 'off')
           and is_state('light.closet_side', 'off')
-          and is_state('light.hue_color_lamp_1', 'off')
         }}
     - condition: not
       conditions:
