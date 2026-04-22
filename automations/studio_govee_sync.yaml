@@ -1,0 +1,44 @@
+id: neo_studio_govee_sync
+alias: Studio Govee - Mirror Hue Lights
+description: Keep the studio Govee tubes in sync with ambient light and reading light
+triggers:
+- trigger: state
+  entity_id:
+    - light.ambient_light
+    - light.reading_light
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: template
+      value_template: >-
+        {{
+          is_state('light.ambient_light', 'on')
+          or is_state('light.reading_light', 'on')
+        }}
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: light.govee_tubes
+        state: 'on'
+    sequence:
+    - action: light.turn_on
+      target:
+        entity_id: light.govee_tubes
+  - conditions:
+    - condition: template
+      value_template: >-
+        {{
+          is_state('light.ambient_light', 'off')
+          and is_state('light.reading_light', 'off')
+        }}
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: light.govee_tubes
+        state: 'off'
+    sequence:
+    - action: light.turn_off
+      target:
+        entity_id: light.govee_tubes
+mode: restart
