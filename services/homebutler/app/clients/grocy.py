@@ -247,6 +247,60 @@ class GrocyClient:
             return data
         raise GrocyClientError(f"Unexpected Grocy response for entity object: {entity}/{object_id}")
 
+    def create_object(self, entity: str, data: dict[str, Any]) -> int:
+        result = self._request_json("POST", f"/api/objects/{entity}", data=data)
+        if not isinstance(result, dict) or "created_object_id" not in result:
+            raise GrocyClientError(
+                f"Unexpected Grocy response creating {entity}: {result!r}"
+            )
+        return int(result["created_object_id"])
+
+    def update_object(self, entity: str, object_id: int, data: dict[str, Any]) -> None:
+        self._request_json(
+            "PUT",
+            f"/api/objects/{entity}/{object_id}",
+            data=data,
+            allow_empty=True,
+        )
+
+    def get_product_stock_entries(self, product_id: int) -> list[dict[str, Any]]:
+        data = self._request_json(
+            "GET",
+            f"/api/stock/products/{product_id}/entries",
+        )
+        if isinstance(data, list):
+            return data
+        raise GrocyClientError(
+            f"Unexpected Grocy response for stock entries: product {product_id}"
+        )
+
+    def add_product_stock(
+        self,
+        product_id: int,
+        *,
+        amount: float,
+        purchased_date: str,
+        location_id: int | None = None,
+        shopping_location_id: int | None = None,
+        note: str | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "amount": amount,
+            "purchased_date": purchased_date,
+        }
+        if location_id is not None:
+            payload["location_id"] = location_id
+        if shopping_location_id is not None:
+            payload["shopping_location_id"] = shopping_location_id
+        if note:
+            payload["note"] = note
+        self._request_json(
+            "POST",
+            f"/api/stock/products/{product_id}/add",
+            data=payload,
+            allow_empty=True,
+        )
+
     def _enrich_shopping_item(
         self,
         item: dict[str, Any],

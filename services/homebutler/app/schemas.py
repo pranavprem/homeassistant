@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -172,3 +174,57 @@ class ShoppingItemMutationResponse(BaseModel):
     product_id: int | None = None
     product_name: str | None = None
     item_id: int | None = None
+
+
+class GrocyMigrationBundle(BaseModel):
+    """Declarative Grocy migration bundle.
+
+    Each section is a list of dicts mirroring the reference migration script.
+    Cross-section references use names (e.g. a product's 'location' field
+    matches a location's 'name'); names are resolved to ids by the apply layer.
+    Only 'name' is strictly required per item at the schema level — other
+    required fields are validated by the service when the bundle is applied.
+    """
+
+    model_config = {"extra": "allow"}
+
+    quantity_units: list[dict[str, Any]] = Field(default_factory=list)
+    locations: list[dict[str, Any]] = Field(default_factory=list)
+    shopping_locations: list[dict[str, Any]] = Field(default_factory=list)
+    task_categories: list[dict[str, Any]] = Field(default_factory=list)
+    chores: list[dict[str, Any]] = Field(default_factory=list)
+    tasks: list[dict[str, Any]] = Field(default_factory=list)
+    equipment: list[dict[str, Any]] = Field(default_factory=list)
+    products: list[dict[str, Any]] = Field(default_factory=list)
+    recipes: list[dict[str, Any]] = Field(default_factory=list)
+    meal_plan: list[dict[str, Any]] = Field(default_factory=list)
+    meta: dict[str, Any] | None = None
+    purchased_date: str | None = Field(
+        default=None,
+        description="Override the purchased_date used for stock baseline top-ups (YYYY-MM-DD). Defaults to today.",
+    )
+
+
+class GrocyMigrationSummary(BaseModel):
+    quantity_units: int
+    locations: int
+    shopping_locations: int
+    task_categories: int
+    chores: int
+    tasks: int
+    equipment: int
+    products: int
+    recipes: int
+    recipe_ingredients: int
+    meal_plan_entries: int
+    stock_topped_up: int
+    stock_topped_up_amount: float
+    warnings: list[str] = Field(default_factory=list)
+
+
+class GrocyMigrationResponse(BaseModel):
+    status: str = "applied"
+    message: str = "Grocy migration bundle applied"
+    source_of_truth: str = "Grocy"
+    meta: dict[str, Any] | None = None
+    summary: GrocyMigrationSummary

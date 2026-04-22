@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from app.api.routes.migration import router as migration_router
 from app.api.routes.ops import router as ops_router
 from app.api.routes.shopping import router as shopping_router
 from app.api.routes.system import router as system_router
@@ -21,6 +22,7 @@ def create_app() -> FastAPI:
     app.include_router(system_router)
     app.include_router(shopping_router)
     app.include_router(ops_router)
+    app.include_router(migration_router)
     return app
 
 

@@ -174,6 +174,31 @@ The food-decision stack now lives here:
 
 See `FOOD_SYSTEM.md` for the full architecture.
 
+### HomeButler Grocy migration endpoint
+
+HomeButler binds to `127.0.0.1:8000` on the NAS only, which makes it the
+localhost-only control plane for anything that has to touch Grocy from inside
+the stack. Direct live Grocy writes from Neo are intentionally blocked, so
+migration bundles are applied through HomeButler instead:
+
+```
+POST http://127.0.0.1:8000/migration/grocy/apply
+Content-Type: application/json
+```
+
+The JSON body is a declarative bundle with any of:
+`quantity_units`, `locations`, `shopping_locations`, `task_categories`,
+`chores`, `tasks`, `equipment`, `products`, `recipes`, `meal_plan`, and an
+optional `meta` block. Cross-section references use names (e.g. a product's
+`location` matches a location's `name`); HomeButler resolves them to Grocy
+ids at apply time.
+
+The apply is idempotent: named objects match by normalized name, recipe
+ingredients match by `(recipe, product)`, meal-plan entries match by
+`(day, type, note, recipe|product)`, and `stock_amount` only tops up the
+delta against current on-hand stock. Re-running the same bundle after it
+has already been applied is a safe no-op.
+
 ## Integrations
 
 | Integration | Devices | Type |
