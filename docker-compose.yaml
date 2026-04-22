@@ -3,11 +3,15 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant
     restart: unless-stopped
-    network_mode: host
     environment:
-      - TZ=America/Los_Angeles
+      - TZ=${TZ:-America/Los_Angeles}
     volumes:
       - ${HA_CONFIG_PATH}:/config
+    ports:
+      - ${HOMEASSISTANT_PORT:-8123}:8123
+    networks:
+      - proxy
+      - automation
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -17,15 +21,78 @@ services:
       retries: 3
       start_period: 60s
 
+  grocy:
+    image: lscr.io/linuxserver/grocy:latest
+    container_name: grocy
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-America/Los_Angeles}
+    volumes:
+      - ${HA_CONFIG_PATH}/../grocy:/config
+    ports:
+      - ${GROCY_PORT:-9283}:80
+    networks:
+      - proxy
+      - automation
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  homebutler:
+    build:
+      context: ./services/homebutler
+    container_name: homebutler
+    restart: unless-stopped
+    depends_on:
+      grocy:
+        condition: service_healthy
+    environment:
+      - HOMEBUTLER_ENV=${HOMEBUTLER_ENV:-production}
+      - HOMEBUTLER_HOST=0.0.0.0
+      - HOMEBUTLER_PORT=8000
+      - HOMEBUTLER_LOG_LEVEL=${HOMEBUTLER_LOG_LEVEL:-info}
+      - HOMEBUTLER_CONTROLLED_CONTAINERS=${HOMEBUTLER_CONTROLLED_CONTAINERS:-grocy,homeassistant,ha-cloudflared,mosquitto,govee2mqtt,homebutler}
+      - GROCY_BASE_URL=${GROCY_BASE_URL:-http://grocy}
+      - GROCY_API_KEY=${GROCY_API_KEY:-}
+      - GROCY_TIMEOUT_SECONDS=${GROCY_TIMEOUT_SECONDS:-10}
+      - GROCY_VERIFY_SSL=${GROCY_VERIFY_SSL:-false}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 127.0.0.1:${HOMEBUTLER_PORT:-8000}:8000
+    networks:
+      - automation
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\" || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: mosquitto
     restart: unless-stopped
-    network_mode: host
     volumes:
       - ${HA_CONFIG_PATH}/../mosquitto/config:/mosquitto/config
       - ${HA_CONFIG_PATH}/../mosquitto/data:/mosquitto/data
       - ${HA_CONFIG_PATH}/../mosquitto/log:/mosquitto/log
+    networks:
+      - automation
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -38,18 +105,19 @@ services:
     image: ghcr.io/wez/govee2mqtt:latest
     container_name: govee2mqtt
     restart: unless-stopped
-    network_mode: host
     environment:
       - GOVEE_EMAIL=${GOVEE_EMAIL}
       - GOVEE_PASSWORD=${GOVEE_PASSWORD}
       - GOVEE_API_KEY=${GOVEE_API_KEY}
-      - GOVEE_MQTT_HOST=127.0.0.1
+      - GOVEE_MQTT_HOST=mosquitto
       - GOVEE_MQTT_PORT=1883
       - GOVEE_MQTT_USER=${MQTT_USER:-mqtt}
       - GOVEE_MQTT_PASSWORD=${MQTT_PASSWORD:-mqtt}
     depends_on:
       mosquitto:
         condition: service_healthy
+    networks:
+      - automation
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -63,12 +131,15 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: ha-cloudflared
     command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
-    network_mode: host
+    networks:
+      - proxy
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
     depends_on:
       homeassistant:
+        condition: service_healthy
+      grocy:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "cloudflared", "tunnel", "--version"]
@@ -76,5 +147,13 @@ services:
       timeout: 10s
       retries: 3
 
+networks:
+  proxy:
+    driver: bridge
+  automation:
+    driver: bridge
+
 # No named volumes — config path set via HA_CONFIG_PATH in .env
-# Dedicated Cloudflare tunnel: home.pranavprem.com → http://localhost:8123
+# Cloudflare tunnel route examples:
+# - home.pranavprem.com → http://homeassistant:8123
+# - grocy.pranavprem.com → http://grocy:80

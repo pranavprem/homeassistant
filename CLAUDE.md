@@ -1,29 +1,46 @@
 # CLAUDE.md
 
 ## Project Overview
-Pranav's Home Assistant setup running on a UGREEN NAS (10.0.0.116) via Docker Compose with host networking. Externally accessible at `home.pranavprem.com` via a dedicated Cloudflare tunnel.
+Pranav's Home Assistant setup running on a UGREEN NAS (10.0.0.116) via Docker Compose with mediaserver-style bridge networking. Externally accessible at `home.pranavprem.com` via a dedicated Cloudflare tunnel.
+
+Food-system note:
+- Grocy is part of this stack
+- HomeButler now runs as a local internal service in this stack because SSH is intentionally closed
+- HA MCP is expected to run with Neo on the Mac mini
 
 ## Architecture
 ```
-Internet → Cloudflare Tunnel → ha-cloudflared → localhost:8123 → Home Assistant
-NAS (host network)
-├── homeassistant (:8123) — smart home hub
-├── mosquitto (:1883)     — MQTT broker
-├── govee2mqtt             — Govee LAN/cloud bridge via MQTT
-└── ha-cloudflared         — Cloudflare tunnel
+Internet → Cloudflare Tunnel → ha-cloudflared → Home Assistant / Grocy
+NAS
+├── proxy network: homeassistant, grocy, ha-cloudflared
+├── automation network: homeassistant, grocy, homebutler, mosquitto, govee2mqtt
+├── homeassistant (:8123)               — smart home hub
+├── grocy (:9283)                       — pantry / shopping / meal state
+├── homebutler (:8000, localhost only)  — local Grocy API + control layer
+├── mosquitto                           — MQTT broker on internal network
+├── govee2mqtt                          — Govee LAN/cloud bridge via MQTT
+└── ha-cloudflared                      — Cloudflare tunnel on proxy network
 ```
 
-- All containers run with `network_mode: host` for mDNS/SSDP/BLE device discovery
+- Cloudflared routes directly to `homeassistant:8123` and `grocy:80` by service name
+- Home Assistant reaches HomeButler over the internal `automation` network at `http://homebutler:8000`
+- Mosquitto is internal-only; HA MQTT should use host `mosquitto`
 - IoT devices on local WiFi (2.4GHz, same subnet as NAS)
 - Security: `no-new-privileges: true` on all containers, no router ports exposed
+- Tradeoff: moving away from host networking may require manual/static config for integrations that depended on auto-discovery
 
 ## Repository Structure
 ```
 ├── CLAUDE.md              — this file
 ├── README.md              — setup & architecture docs
-├── docker-compose.yaml    — 4 services (HA, mosquitto, govee2mqtt, cloudflared)
-├── example.env            — template for .env (HA_CONFIG_PATH, MQTT, Govee, Cloudflare)
-├── .gitignore             — excludes .env
+├── FOOD_SYSTEM.md         — full food / Grocy / Neo / HomeButler architecture
+├── Makefile               — bootstrap / compose helpers
+├── docker-compose.yaml    — services for HA, Grocy, HomeButler, mosquitto, govee2mqtt, cloudflared
+├── example.env            — template for .env (HA config path, Grocy, HomeButler, MQTT, Govee, Cloudflare)
+├── packages/              — Home Assistant package templates for food / HomeButler features
+├── scripts/               — bootstrap and setup helpers
+├── services/homebutler/   — internal FastAPI service for Grocy and local control actions
+├── .gitignore             — excludes .env and Python build artifacts
 ├── dashboard.yaml         — "Agraharam" dashboard (Mushroom cards)
 ├── automations/           — 25 automation YAML files
 │   └── *.yaml
@@ -130,6 +147,8 @@ http:
     - ::1
     - 172.16.0.0/12
 ```
+
+If MQTT was previously configured to `localhost`, update it to `mosquitto` after the network change.
 
 ## Remotes
 - **GitHub:** https://github.com/pranavprem/homeassistant

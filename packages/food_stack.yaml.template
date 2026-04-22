@@ -1,0 +1,92 @@
+input_select:
+  food_mode:
+    name: Food mode
+    options:
+      - auto
+      - cook
+      - order
+    initial: auto
+    icon: mdi:food-fork-drink
+  health_mode:
+    name: Health mode
+    options:
+      - normal
+      - healthy
+      - comfort
+    initial: normal
+    icon: mdi:heart-pulse
+  budget_mode:
+    name: Budget mode
+    options:
+      - cheap
+      - normal
+      - whatever
+    initial: normal
+    icon: mdi:cash
+
+input_boolean:
+  low_effort_food:
+    name: Low effort food
+    initial: off
+    icon: mdi:flash
+  use_expiring_items_first:
+    name: Use expiring items first
+    initial: on
+    icon: mdi:calendar-clock
+
+input_number:
+  restaurant_radius_miles:
+    name: Restaurant radius miles
+    min: 1
+    max: 25
+    step: 1
+    mode: slider
+    initial: 5
+    icon: mdi:map-marker-radius
+
+rest:
+  - resource: http://homebutler:8000/health
+    scan_interval: 60
+    sensor:
+      - name: HomeButler status
+        value_template: "{{ value_json.status }}"
+      - name: HomeButler Grocy API configured
+        value_template: "{{ value_json.grocy.api_key_configured }}"
+
+  - resource: http://homebutler:8000/shopping
+    scan_interval: 60
+    sensor:
+      - name: HomeButler shopping status
+        value_template: "{{ value_json.status }}"
+
+rest_command:
+  homebutler_restart_grocy:
+    url: http://homebutler:8000/ops/containers/grocy/restart
+    method: POST
+    timeout: 30
+
+  homebutler_restart_homeassistant:
+    url: http://homebutler:8000/ops/containers/homeassistant/restart
+    method: POST
+    timeout: 30
+
+  homebutler_restart_cloudflared:
+    url: http://homebutler:8000/ops/containers/ha-cloudflared/restart
+    method: POST
+    timeout: 30
+
+script:
+  homebutler_restart_grocy:
+    alias: Restart Grocy via HomeButler
+    sequence:
+      - action: rest_command.homebutler_restart_grocy
+
+  homebutler_restart_homeassistant:
+    alias: Restart Home Assistant via HomeButler
+    sequence:
+      - action: rest_command.homebutler_restart_homeassistant
+
+  homebutler_restart_cloudflared:
+    alias: Restart Cloudflared via HomeButler
+    sequence:
+      - action: rest_command.homebutler_restart_cloudflared

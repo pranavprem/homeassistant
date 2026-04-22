@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "neo-slack": {
+      "command": "/path/to/python",
+      "args": [
+        "/path/to/slack_mcp_server.py",
+        "--channel",
+        "homeassistant",
+        "--channel-id",
+        "YOUR_CHANNEL_ID"
+      ],
+      "env": {
+        "SLACK_BOT_TOKEN": "YOUR_SLACK_BOT_TOKEN"
+      }
+    }
+  }
+}
