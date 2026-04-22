@@ -199,6 +199,33 @@ ingredients match by `(recipe, product)`, meal-plan entries match by
 delta against current on-hand stock. Re-running the same bundle after it
 has already been applied is a safe no-op.
 
+### HomeButler control plane (stacks & actions)
+
+HomeButler exposes a typed control plane over the containers it manages:
+
+- `GET /ops/stacks` — list all registered stacks (`homeassistant`,
+  `mediaserver`, `morpheus`, `tor`) with their services, container state,
+  and resolved repo paths.
+- `GET /ops/stacks/{stack}/services/{service}` — inspect a single service.
+- `GET .../logs`, `POST .../restart` — per-service log/restart via the
+  registry.
+- `GET /ops/actions` — list allowlisted higher-level actions (e.g.
+  `mediaserver.update_gluetun`, `morpheus.redeploy`, `tor.restart`) with
+  availability metadata.
+- `POST /ops/actions/{action}/run` — execute an allowlisted action.
+
+The registry is code-reviewed in `services/homebutler/app/registry/` — no
+runtime/shell input, no user-supplied make targets, no user-supplied
+container names. The legacy `/ops/containers*` routes remain for
+compatibility. See `services/homebutler/docs/control-plane-design.md` for
+the full design.
+
+Actions need both the host repo bind-mounted into the container (see
+`HOMEBUTLER_*_REPO_HOST` in `example.env`) and the required executables
+(`make`, `docker`) in the HomeButler image. Until both are in place an
+action is returned with `available: false` and a human-readable reason
+rather than being hidden or silently failing.
+
 ## Integrations
 
 | Integration | Devices | Type |

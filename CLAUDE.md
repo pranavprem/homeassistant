@@ -8,6 +8,11 @@ Food-system note:
 - HomeButler now runs as a local internal service in this stack because SSH is intentionally closed
 - HA MCP is expected to run with Neo on the Mac mini
 
+HomeButler control plane:
+- Typed stack/service/action registry at `services/homebutler/app/registry/`
+- `/ops/stacks*` and `/ops/actions*` alongside the legacy `/ops/containers*`
+- Allowlisted actions only; no shell, no user-supplied targets. See `services/homebutler/docs/control-plane-design.md`.
+
 ## Architecture
 ```
 Internet → Cloudflare Tunnel → ha-cloudflared → Home Assistant / Grocy

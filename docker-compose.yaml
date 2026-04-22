@@ -58,7 +58,19 @@ services:
       - HOMEBUTLER_HOST=0.0.0.0
       - HOMEBUTLER_PORT=8000
       - HOMEBUTLER_LOG_LEVEL=${HOMEBUTLER_LOG_LEVEL:-info}
-      - HOMEBUTLER_CONTROLLED_CONTAINERS=${HOMEBUTLER_CONTROLLED_CONTAINERS:-grocy,homeassistant,ha-cloudflared,mosquitto,govee2mqtt,homebutler}
+      # Stack registry is the authoritative allowlist. This env var is now
+      # *additive* — it can only extend the registry, never shrink it. Leave
+      # unset in most setups.
+      - HOMEBUTLER_CONTROLLED_CONTAINERS=${HOMEBUTLER_CONTROLLED_CONTAINERS:-}
+      # Repo mounts (see volumes below). These point at paths INSIDE the
+      # container; the host paths come from .env.
+      - HOMEBUTLER_REPO_ROOT=/opt/repos
+      - HOMEBUTLER_HOMEASSISTANT_REPO=/opt/repos/homeassistant
+      - HOMEBUTLER_MEDIASERVER_REPO=/opt/repos/mediaserver
+      - HOMEBUTLER_MORPHEUS_REPO=/opt/repos/morpheus
+      - HOMEBUTLER_TOR_REPO=/opt/repos/tor
+      # Global kill-switch for /ops/actions* routes.
+      - HOMEBUTLER_ACTIONS_ENABLED=${HOMEBUTLER_ACTIONS_ENABLED:-true}
       - GROCY_BASE_URL=${GROCY_BASE_URL:-http://grocy}
       - GROCY_API_KEY=${GROCY_API_KEY:-}
       - GROCY_TIMEOUT_SECONDS=${GROCY_TIMEOUT_SECONDS:-10}
@@ -66,6 +78,14 @@ services:
       - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      # Host repos bind-mounted into the container so allowlisted actions can
+      # run `make <target>` / `docker compose <cmd>` against them. Mediaserver
+      # and morpheus are RW because their Makefiles write state (.env, compose
+      # artifacts); tor + homeassistant are RO (no actions need to write).
+      - ${HOMEBUTLER_HOMEASSISTANT_REPO_HOST:-/volume1/docker/homeassistant}:/opt/repos/homeassistant:ro
+      - ${HOMEBUTLER_MEDIASERVER_REPO_HOST:-/volume1/docker/mediaserver}:/opt/repos/mediaserver:rw
+      - ${HOMEBUTLER_MORPHEUS_REPO_HOST:-/volume1/docker/morpheus}:/opt/repos/morpheus:rw
+      - ${HOMEBUTLER_TOR_REPO_HOST:-/volume1/docker/tor}:/opt/repos/tor:ro
     ports:
       - 127.0.0.1:${HOMEBUTLER_PORT:-8000}:8000
     networks:

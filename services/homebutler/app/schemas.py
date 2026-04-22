@@ -228,3 +228,104 @@ class GrocyMigrationResponse(BaseModel):
     source_of_truth: str = "Grocy"
     meta: dict[str, Any] | None = None
     summary: GrocyMigrationSummary
+
+
+# --- Control-plane (stack / action) schemas -------------------------------
+
+
+class OpsError(BaseModel):
+    error: str
+    message: str
+    detail: dict[str, Any] | None = None
+
+
+class ServiceInfo(BaseModel):
+    stack: str
+    service: str
+    container_name: str
+    description: str
+    tags: list[str] = Field(default_factory=list)
+    container: ContainerSummary | None = None
+
+
+class StackInfo(BaseModel):
+    stack: str
+    display_name: str
+    description: str
+    repo_path_env: str | None = None
+    repo_path_resolved: str | None = None
+    services: list[ServiceInfo]
+
+
+class StackListResponse(BaseModel):
+    count: int
+    stacks: list[StackInfo]
+
+
+class StackDetailResponse(BaseModel):
+    stack: StackInfo
+
+
+class ServiceDetailResponse(BaseModel):
+    service: ServiceInfo
+
+
+class ServiceLogsResponse(BaseModel):
+    stack: str
+    service: str
+    container_name: str
+    tail: int
+    logs: str
+
+
+class ServiceMutationResponse(BaseModel):
+    status: str
+    message: str
+    service: ServiceInfo
+
+
+class ActionAvailabilityInfo(BaseModel):
+    available: bool
+    repo_path_resolved: str | None = None
+    missing_executables: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class ActionInfo(BaseModel):
+    action: str
+    stack: str
+    description: str
+    kind: str
+    argv: list[str]
+    timeout_seconds: int
+    mutating: bool
+    required_executables: list[str]
+    availability: ActionAvailabilityInfo
+
+
+class ActionListResponse(BaseModel):
+    count: int
+    actions: list[ActionInfo]
+
+
+class ActionDetailResponse(BaseModel):
+    action: ActionInfo
+
+
+class RunActionRequest(BaseModel):
+    """Reserved for future typed action parameters. v1 rejects any field."""
+
+    model_config = {"extra": "forbid"}
+
+
+class ActionRunResponse(BaseModel):
+    action: str
+    status: str
+    exit_code: int
+    stdout: str
+    stderr: str
+    duration_ms: int
+    truncated: bool
+    timed_out: bool
+    started_at: str
+    finished_at: str
