@@ -61,8 +61,10 @@ The bootstrap flow now:
 
 3. Deploy:
    ```bash
-   docker compose up -d --build
+   make up
    ```
+
+   `make up` now starts the stack, then runs `scripts/sync_trusted_proxies.py` to patch `configuration.yaml` with the currently detected trusted proxies and restart Home Assistant if the config changed.
 
 4. Add to `configuration.yaml` for Cloudflare proxy support:
    ```yaml
@@ -112,7 +114,7 @@ Run these on the NAS from the repo root.
    ```
    If you do not want the interactive bootstrap flow, use:
    ```bash
-   docker compose --env-file .env up -d --build
+   make up
    ```
 
 5. In Home Assistant `configuration.yaml`, make sure Cloudflare proxy support is present:
@@ -162,13 +164,23 @@ Run these on the NAS from the repo root.
 
 ### Self-healing proxy setup
 
-The fix for Cloudflared IP churn is to trust the **proxy network subnet**, not the current container IP. This repo now pins the `proxy` network to `PROXY_SUBNET` and the `automation` network to `AUTOMATION_SUBNET`, so container restarts do not change the trusted CIDR.
+The first fix for Cloudflared IP churn is to trust the **proxy network subnet**, not the current container IP. This repo now pins the `proxy` network to `PROXY_SUBNET` and the `automation` network to `AUTOMATION_SUBNET`, so container restarts do not change the trusted CIDR.
 
-If Home Assistant is currently broken because `ha-cloudflared` got a new IP, the immediate recovery is:
+Synology and some Docker host setups can still surface forwarded traffic from a host-side IP instead of the container IP. For that case, this repo also ships `scripts/sync_trusted_proxies.py`, which:
+- reads `PROXY_SUBNET` from `.env`
+- detects the host's current LAN IP
+- reads any recent `Received X-Forwarded-For header from an untrusted proxy ...` IPs from Home Assistant logs
+- reads the current `ha-cloudflared` container IP when available
+- patches `HA_CONFIG_PATH/configuration.yaml`
+- optionally restarts Home Assistant if the trusted proxy list changed
 
-1. Update `http.trusted_proxies` in HA to the `PROXY_SUBNET` CIDR.
-2. Restart Home Assistant.
-3. If you just pulled this repo change, recreate the compose networks once so the fixed CIDRs apply.
+Use it directly with:
+
+```bash
+make sync-trusted-proxies
+```
+
+`make up` already runs that script after `docker compose up --build -d`, so a normal deploy will self-heal the `http.trusted_proxies` block when possible.
 
 ## Cloudflare Tunnel
 
