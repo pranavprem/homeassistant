@@ -237,6 +237,16 @@ ingredients match by `(recipe, product)`, meal-plan entries match by
 delta against current on-hand stock. Re-running the same bundle after it
 has already been applied is a safe no-op.
 
+For the current rollout, the repo includes a checked-in bundle at
+`migrations/grocy/2026-04-21-homebutler.json` plus a helper script and make
+wrapper:
+
+```bash
+make apply-grocy-migration
+```
+
+That target posts the checked-in bundle to `http://127.0.0.1:${HOMEBUTLER_PORT}/migration/grocy/apply` using the port from `.env`, so you do not need to hand-craft the curl request on the NAS.
+
 ### HomeButler control plane (stacks & actions)
 
 HomeButler exposes a typed control plane over the containers it manages:

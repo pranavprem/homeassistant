@@ -1,0 +1,872 @@
+{
+  "meta": {
+    "generated_for": "Pranav Prem",
+    "household": [
+      "Pranav",
+      "Abhinaya"
+    ],
+    "generated_at": "2026-04-21T21:00:00-07:00",
+    "source_notes": [
+      "Notion open and recurring household tasks queried on 2026-04-21",
+      "Home Assistant equipment snapshot queried on 2026-04-21",
+      "Existing stale root-level meal plan and shopping list intentionally excluded",
+      "Meal plan is high-protein, vegetarian-first, with chicken add-on entries for Pranav on selected dinners",
+      "Inventory is a starter baseline for the new plan, not a verified pantry audit"
+    ],
+    "meal_plan_start": "2026-04-22",
+    "meal_plan_end": "2026-04-28"
+  },
+  "quantity_units": [
+    {
+      "name": "Piece",
+      "name_plural": "Pieces"
+    },
+    {
+      "name": "Pack",
+      "name_plural": "Packs"
+    },
+    {
+      "name": "Cup",
+      "name_plural": "Cups"
+    },
+    {
+      "name": "Pound",
+      "name_plural": "Pounds"
+    },
+    {
+      "name": "Can",
+      "name_plural": "Cans"
+    },
+    {
+      "name": "Jar",
+      "name_plural": "Jars"
+    }
+  ],
+  "locations": [
+    {
+      "name": "Fridge",
+      "is_freezer": 0
+    },
+    {
+      "name": "Freezer",
+      "is_freezer": 1
+    },
+    {
+      "name": "Pantry",
+      "is_freezer": 0
+    },
+    {
+      "name": "Counter",
+      "is_freezer": 0
+    }
+  ],
+  "shopping_locations": [
+    {
+      "name": "Costco"
+    },
+    {
+      "name": "Trader Joe's"
+    },
+    {
+      "name": "Indian Grocery"
+    },
+    {
+      "name": "Any Grocery"
+    }
+  ],
+  "task_categories": [
+    {
+      "name": "Household",
+      "description": "Migrated from Run the House / household maintenance"
+    },
+    {
+      "name": "Finance",
+      "description": "Bills, payment setup, and money admin"
+    },
+    {
+      "name": "Tech",
+      "description": "Infra, software, and homelab tasks"
+    },
+    {
+      "name": "Garden",
+      "description": "Plant care and yard work"
+    },
+    {
+      "name": "HVAC",
+      "description": "HVAC follow-ups and maintenance"
+    }
+  ],
+  "chores": [
+    {
+      "name": "Laundry (Wednesday)",
+      "description": "Owner: Pranav. Source: Notion recurring task 'Laundry'. Schedule: Wed + Sun, split into separate Grocy chores for cleaner scheduling.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-15 09:00:00"
+    },
+    {
+      "name": "Laundry (Sunday)",
+      "description": "Owner: Pranav. Source: Notion recurring task 'Laundry'. Schedule: Wed + Sun, split into separate Grocy chores for cleaner scheduling.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-19 09:00:00"
+    },
+    {
+      "name": "Dishes",
+      "description": "Owner: Both. Source: Notion recurring task 'Dishes'. Schedule: every 2 days.",
+      "period_type": "daily",
+      "period_interval": 2,
+      "start_date": "2026-04-21 20:00:00"
+    },
+    {
+      "name": "Take trash out",
+      "description": "Owner: Both. Source: Notion recurring task 'Take trash out'. Schedule: daily.",
+      "period_type": "daily",
+      "period_interval": 1,
+      "start_date": "2026-04-21 20:00:00"
+    },
+    {
+      "name": "Trash bins to curb",
+      "description": "Owner: Both. Source: Notion recurring task 'Trash bins to curb'. Schedule: Tuesday evening.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-21 20:00:00"
+    },
+    {
+      "name": "Bring trash bins back",
+      "description": "Owner: Both. Source: Notion recurring task 'Bring trash bins back'. Schedule: Wednesday afternoon.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-22 15:00:00"
+    },
+    {
+      "name": "Supplements",
+      "description": "Owner: Pranav. Source: Notion recurring task 'Supplements'. Schedule: daily.",
+      "period_type": "daily",
+      "period_interval": 1,
+      "start_date": "2026-04-21 09:00:00"
+    },
+    {
+      "name": "Protein shake",
+      "description": "Owner: Pranav. Source: Notion recurring task 'Protein shake'. Schedule: daily.",
+      "period_type": "daily",
+      "period_interval": 1,
+      "start_date": "2026-04-21 09:00:00"
+    },
+    {
+      "name": "Legs workout",
+      "description": "Owner: Pranav. Source: Notion recurring task 'Legs workout'. Schedule: Monday.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-20 18:00:00"
+    },
+    {
+      "name": "Push workout",
+      "description": "Owner: Pranav. Source: Notion recurring task 'Push workout'. Schedule: Thursday.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-23 18:00:00"
+    },
+    {
+      "name": "Pull workout",
+      "description": "Owner: Pranav. Source: Notion recurring task 'Pull workout'. Schedule: Saturday.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-25 18:00:00"
+    },
+    {
+      "name": "Kitchen deep clean",
+      "description": "Owner: Both. Source: Notion recurring task 'Kitchen deep clean'. Schedule: weekly.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-20 19:00:00"
+    },
+    {
+      "name": "Water Milly Bobby Brown (Peace Lily)",
+      "description": "Owner: Abhinaya. Source: Notion recurring task. Plant care.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-22 09:00:00"
+    },
+    {
+      "name": "Water Snake Gyllenhaal (Snake Plant)",
+      "description": "Owner: Abhinaya. Source: Notion recurring task. Plant care.",
+      "period_type": "daily",
+      "period_interval": 14,
+      "start_date": "2026-04-23 09:00:00"
+    },
+    {
+      "name": "Water Fernie Sanders (Boston Fern)",
+      "description": "Owner: Abhinaya. Source: Notion recurring task. Plant care.",
+      "period_type": "daily",
+      "period_interval": 4,
+      "start_date": "2026-04-22 09:00:00"
+    },
+    {
+      "name": "Water Orchidia (Orchid)",
+      "description": "Owner: Abhinaya. Source: Notion recurring task. Plant care.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-24 09:00:00"
+    },
+    {
+      "name": "Water Morticia (Monstera)",
+      "description": "Owner: Abhinaya. Source: Notion recurring task. Plant care.",
+      "period_type": "daily",
+      "period_interval": 7,
+      "start_date": "2026-04-23 09:00:00"
+    },
+    {
+      "name": "Check HVAC filters",
+      "description": "Owner: Both. Source: recurring home maintenance.",
+      "period_type": "daily",
+      "period_interval": 30,
+      "start_date": "2026-04-21 10:00:00"
+    }
+  ],
+  "tasks": [
+    {
+      "name": "Repot Morticia (Monstera)",
+      "description": "Source: Notion open task. Spring is ideal.",
+      "due_date": "2026-04-11",
+      "category": "Household"
+    },
+    {
+      "name": "Repot Orchidia (Orchid)",
+      "description": "Source: Notion open task.",
+      "category": "Household"
+    },
+    {
+      "name": "Get HVAC efficiency results",
+      "description": "Source: Notion open task.",
+      "category": "HVAC"
+    },
+    {
+      "name": "Set up HVAC autopay",
+      "description": "Source: Notion open task.",
+      "category": "HVAC"
+    },
+    {
+      "name": "Add failure notifications for all cron jobs",
+      "description": "Source: Notion open task.",
+      "category": "Tech"
+    },
+    {
+      "name": "Delete stale root-level Research Briefs duplicate in Notion",
+      "description": "Source: Notion open task.",
+      "category": "Tech"
+    },
+    {
+      "name": "Set up Cloudflare WARP + SSH tunnel for Mac mini & NAS",
+      "description": "Source: Notion open task.",
+      "category": "Tech"
+    },
+    {
+      "name": "Pay speeding ticket",
+      "description": "Source: Notion open task. Highest-priority open item.",
+      "category": "Finance"
+    },
+    {
+      "name": "Set up read-only Jellyfin and Jellyseerr access for Neo",
+      "description": "Source: Discord-derived task added to Notion on 2026-04-21.",
+      "category": "Tech"
+    }
+  ],
+  "equipment": [
+    {
+      "name": "Studio air purifier"
+    },
+    {
+      "name": "Master bedroom air purifier"
+    },
+    {
+      "name": "Living room air purifier"
+    },
+    {
+      "name": "Guest bedroom projector"
+    },
+    {
+      "name": "Bedroom cooler"
+    },
+    {
+      "name": "Backyard curtain motor A"
+    },
+    {
+      "name": "Backyard curtain motor B"
+    },
+    {
+      "name": "Deck curtain motor A"
+    },
+    {
+      "name": "Deck curtain motor B"
+    },
+    {
+      "name": "Studio wall switch"
+    },
+    {
+      "name": "Guest bedroom wall switch"
+    },
+    {
+      "name": "Master bedroom wall switch"
+    }
+  ],
+  "products": [
+    {
+      "name": "Greek Yogurt",
+      "description": "High-protein breakfast ingredient.",
+      "location": "Fridge",
+      "shopping_location": "Trader Joe's",
+      "qu": "Cup",
+      "min_stock_amount": 4,
+      "stock_amount": 6
+    },
+    {
+      "name": "Frozen Berries",
+      "description": "Breakfast bowls and oats.",
+      "location": "Freezer",
+      "shopping_location": "Costco",
+      "qu": "Cup",
+      "min_stock_amount": 3,
+      "stock_amount": 4
+    },
+    {
+      "name": "Oats",
+      "description": "Overnight oats / breakfast bowls.",
+      "location": "Pantry",
+      "shopping_location": "Costco",
+      "qu": "Cup",
+      "min_stock_amount": 3,
+      "stock_amount": 5
+    },
+    {
+      "name": "Chia Seeds",
+      "description": "Overnight oats / bowls.",
+      "location": "Pantry",
+      "shopping_location": "Costco",
+      "qu": "Cup",
+      "min_stock_amount": 1,
+      "stock_amount": 1
+    },
+    {
+      "name": "Extra Firm Tofu",
+      "description": "Protein option for wraps and bowls.",
+      "location": "Fridge",
+      "shopping_location": "Trader Joe's",
+      "qu": "Piece",
+      "min_stock_amount": 2,
+      "stock_amount": 3
+    },
+    {
+      "name": "Protein Tortillas",
+      "description": "Wrap base.",
+      "location": "Pantry",
+      "shopping_location": "Any Grocery",
+      "qu": "Pack",
+      "min_stock_amount": 1,
+      "stock_amount": 1
+    },
+    {
+      "name": "Spinach",
+      "description": "Salads, wraps, bowls.",
+      "location": "Fridge",
+      "shopping_location": "Trader Joe's",
+      "qu": "Pack",
+      "min_stock_amount": 1,
+      "stock_amount": 2
+    },
+    {
+      "name": "Bell Pepper",
+      "description": "Veggie mix for wraps and bowls.",
+      "location": "Fridge",
+      "shopping_location": "Any Grocery",
+      "qu": "Piece",
+      "min_stock_amount": 3,
+      "stock_amount": 4
+    },
+    {
+      "name": "Onion",
+      "description": "Veggie mix for wraps and bowls.",
+      "location": "Counter",
+      "shopping_location": "Any Grocery",
+      "qu": "Piece",
+      "min_stock_amount": 3,
+      "stock_amount": 4
+    },
+    {
+      "name": "Paneer",
+      "description": "Main vegetarian protein for bowls and salad.",
+      "location": "Fridge",
+      "shopping_location": "Indian Grocery",
+      "qu": "Pound",
+      "min_stock_amount": 1,
+      "stock_amount": 2
+    },
+    {
+      "name": "Rice",
+      "description": "Base for paneer bowls.",
+      "location": "Pantry",
+      "shopping_location": "Costco",
+      "qu": "Cup",
+      "min_stock_amount": 4,
+      "stock_amount": 8
+    },
+    {
+      "name": "Chickpea Pasta",
+      "description": "High-protein pasta base.",
+      "location": "Pantry",
+      "shopping_location": "Trader Joe's",
+      "qu": "Pack",
+      "min_stock_amount": 1,
+      "stock_amount": 2
+    },
+    {
+      "name": "Cottage Cheese",
+      "description": "Protein add-on for bowls and pasta.",
+      "location": "Fridge",
+      "shopping_location": "Costco",
+      "qu": "Cup",
+      "min_stock_amount": 2,
+      "stock_amount": 3
+    },
+    {
+      "name": "Marinara",
+      "description": "Pasta sauce.",
+      "location": "Pantry",
+      "shopping_location": "Costco",
+      "qu": "Jar",
+      "min_stock_amount": 1,
+      "stock_amount": 2
+    },
+    {
+      "name": "Chickpeas",
+      "description": "Salad protein / pantry backup.",
+      "location": "Pantry",
+      "shopping_location": "Any Grocery",
+      "qu": "Can",
+      "min_stock_amount": 2,
+      "stock_amount": 4
+    },
+    {
+      "name": "Cucumber",
+      "description": "Salad ingredient.",
+      "location": "Fridge",
+      "shopping_location": "Any Grocery",
+      "qu": "Piece",
+      "min_stock_amount": 2,
+      "stock_amount": 3
+    },
+    {
+      "name": "Tomato",
+      "description": "Salad ingredient.",
+      "location": "Counter",
+      "shopping_location": "Any Grocery",
+      "qu": "Piece",
+      "min_stock_amount": 3,
+      "stock_amount": 4
+    },
+    {
+      "name": "Chicken Breast",
+      "description": "Pranav-only non-vegetarian add-on protein.",
+      "location": "Freezer",
+      "shopping_location": "Costco",
+      "qu": "Pound",
+      "min_stock_amount": 1,
+      "stock_amount": 2
+    }
+  ],
+  "recipes": [
+    {
+      "name": "Greek Yogurt Protein Bowl",
+      "description": "Greek yogurt, berries, oats, chia.",
+      "base_servings": 2,
+      "ingredients": [
+        {
+          "product": "Greek Yogurt",
+          "amount": 2,
+          "qu": "Cup"
+        },
+        {
+          "product": "Frozen Berries",
+          "amount": 1,
+          "qu": "Cup"
+        },
+        {
+          "product": "Oats",
+          "amount": 1,
+          "qu": "Cup"
+        },
+        {
+          "product": "Chia Seeds",
+          "amount": 0.25,
+          "qu": "Cup"
+        }
+      ]
+    },
+    {
+      "name": "Protein Overnight Oats",
+      "description": "Overnight oats for breakfast prep.",
+      "base_servings": 2,
+      "ingredients": [
+        {
+          "product": "Oats",
+          "amount": 1,
+          "qu": "Cup"
+        },
+        {
+          "product": "Greek Yogurt",
+          "amount": 1,
+          "qu": "Cup"
+        },
+        {
+          "product": "Frozen Berries",
+          "amount": 1,
+          "qu": "Cup"
+        },
+        {
+          "product": "Chia Seeds",
+          "amount": 0.25,
+          "qu": "Cup"
+        }
+      ]
+    },
+    {
+      "name": "Tofu Scramble Wraps",
+      "description": "Tofu, spinach, peppers, onion in protein tortillas.",
+      "base_servings": 2,
+      "ingredients": [
+        {
+          "product": "Extra Firm Tofu",
+          "amount": 1,
+          "qu": "Piece"
+        },
+        {
+          "product": "Protein Tortillas",
+          "amount": 1,
+          "qu": "Pack"
+        },
+        {
+          "product": "Spinach",
+          "amount": 0.5,
+          "qu": "Pack"
+        },
+        {
+          "product": "Bell Pepper",
+          "amount": 2,
+          "qu": "Piece"
+        },
+        {
+          "product": "Onion",
+          "amount": 1,
+          "qu": "Piece"
+        }
+      ]
+    },
+    {
+      "name": "Palak Paneer Rice Bowl",
+      "description": "Paneer + spinach over rice.",
+      "base_servings": 2,
+      "ingredients": [
+        {
+          "product": "Paneer",
+          "amount": 1,
+          "qu": "Pound"
+        },
+        {
+          "product": "Spinach",
+          "amount": 1,
+          "qu": "Pack"
+        },
+        {
+          "product": "Rice",
+          "amount": 2,
+          "qu": "Cup"
+        },
+        {
+          "product": "Onion",
+          "amount": 1,
+          "qu": "Piece"
+        }
+      ]
+    },
+    {
+      "name": "High Protein Chickpea Pasta",
+      "description": "Chickpea pasta with marinara and cottage cheese.",
+      "base_servings": 2,
+      "ingredients": [
+        {
+          "product": "Chickpea Pasta",
+          "amount": 1,
+          "qu": "Pack"
+        },
+        {
+          "product": "Marinara",
+          "amount": 1,
+          "qu": "Jar"
+        },
+        {
+          "product": "Cottage Cheese",
+          "amount": 1,
+          "qu": "Cup"
+        },
+        {
+          "product": "Spinach",
+          "amount": 0.5,
+          "qu": "Pack"
+        }
+      ]
+    },
+    {
+      "name": "Chana Paneer Salad",
+      "description": "Chickpeas + paneer salad.",
+      "base_servings": 2,
+      "ingredients": [
+        {
+          "product": "Chickpeas",
+          "amount": 2,
+          "qu": "Can"
+        },
+        {
+          "product": "Paneer",
+          "amount": 0.5,
+          "qu": "Pound"
+        },
+        {
+          "product": "Cucumber",
+          "amount": 1,
+          "qu": "Piece"
+        },
+        {
+          "product": "Tomato",
+          "amount": 2,
+          "qu": "Piece"
+        },
+        {
+          "product": "Spinach",
+          "amount": 0.5,
+          "qu": "Pack"
+        }
+      ]
+    },
+    {
+      "name": "Paneer Burrito Bowls",
+      "description": "Rice bowl with paneer, peppers, onions.",
+      "base_servings": 2,
+      "ingredients": [
+        {
+          "product": "Paneer",
+          "amount": 1,
+          "qu": "Pound"
+        },
+        {
+          "product": "Rice",
+          "amount": 2,
+          "qu": "Cup"
+        },
+        {
+          "product": "Bell Pepper",
+          "amount": 2,
+          "qu": "Piece"
+        },
+        {
+          "product": "Onion",
+          "amount": 1,
+          "qu": "Piece"
+        },
+        {
+          "product": "Spinach",
+          "amount": 0.5,
+          "qu": "Pack"
+        }
+      ]
+    }
+  ],
+  "meal_plan": [
+    {
+      "day": "2026-04-22",
+      "type": "recipe",
+      "recipe": "Greek Yogurt Protein Bowl",
+      "servings": 2,
+      "note": "Breakfast"
+    },
+    {
+      "day": "2026-04-22",
+      "type": "recipe",
+      "recipe": "Chana Paneer Salad",
+      "servings": 2,
+      "note": "Lunch"
+    },
+    {
+      "day": "2026-04-22",
+      "type": "recipe",
+      "recipe": "Paneer Burrito Bowls",
+      "servings": 2,
+      "note": "Dinner"
+    },
+    {
+      "day": "2026-04-22",
+      "type": "product",
+      "product": "Chicken Breast",
+      "amount": 0.5,
+      "qu": "Pound",
+      "note": "Pranav add-on protein"
+    },
+    {
+      "day": "2026-04-23",
+      "type": "recipe",
+      "recipe": "Protein Overnight Oats",
+      "servings": 2,
+      "note": "Breakfast"
+    },
+    {
+      "day": "2026-04-23",
+      "type": "recipe",
+      "recipe": "Tofu Scramble Wraps",
+      "servings": 2,
+      "note": "Lunch"
+    },
+    {
+      "day": "2026-04-23",
+      "type": "recipe",
+      "recipe": "High Protein Chickpea Pasta",
+      "servings": 2,
+      "note": "Dinner"
+    },
+    {
+      "day": "2026-04-23",
+      "type": "product",
+      "product": "Chicken Breast",
+      "amount": 0.5,
+      "qu": "Pound",
+      "note": "Pranav add-on protein"
+    },
+    {
+      "day": "2026-04-24",
+      "type": "recipe",
+      "recipe": "Greek Yogurt Protein Bowl",
+      "servings": 2,
+      "note": "Breakfast"
+    },
+    {
+      "day": "2026-04-24",
+      "type": "recipe",
+      "recipe": "Chana Paneer Salad",
+      "servings": 2,
+      "note": "Lunch"
+    },
+    {
+      "day": "2026-04-24",
+      "type": "recipe",
+      "recipe": "Palak Paneer Rice Bowl",
+      "servings": 2,
+      "note": "Dinner"
+    },
+    {
+      "day": "2026-04-24",
+      "type": "product",
+      "product": "Chicken Breast",
+      "amount": 0.5,
+      "qu": "Pound",
+      "note": "Pranav add-on protein"
+    },
+    {
+      "day": "2026-04-25",
+      "type": "recipe",
+      "recipe": "Protein Overnight Oats",
+      "servings": 2,
+      "note": "Breakfast"
+    },
+    {
+      "day": "2026-04-25",
+      "type": "recipe",
+      "recipe": "Tofu Scramble Wraps",
+      "servings": 2,
+      "note": "Lunch"
+    },
+    {
+      "day": "2026-04-25",
+      "type": "recipe",
+      "recipe": "Paneer Burrito Bowls",
+      "servings": 2,
+      "note": "Dinner"
+    },
+    {
+      "day": "2026-04-25",
+      "type": "product",
+      "product": "Chicken Breast",
+      "amount": 0.5,
+      "qu": "Pound",
+      "note": "Pranav add-on protein"
+    },
+    {
+      "day": "2026-04-26",
+      "type": "recipe",
+      "recipe": "Greek Yogurt Protein Bowl",
+      "servings": 2,
+      "note": "Breakfast"
+    },
+    {
+      "day": "2026-04-26",
+      "type": "recipe",
+      "recipe": "Chana Paneer Salad",
+      "servings": 2,
+      "note": "Lunch"
+    },
+    {
+      "day": "2026-04-26",
+      "type": "recipe",
+      "recipe": "High Protein Chickpea Pasta",
+      "servings": 2,
+      "note": "Dinner"
+    },
+    {
+      "day": "2026-04-27",
+      "type": "recipe",
+      "recipe": "Protein Overnight Oats",
+      "servings": 2,
+      "note": "Breakfast"
+    },
+    {
+      "day": "2026-04-27",
+      "type": "recipe",
+      "recipe": "Tofu Scramble Wraps",
+      "servings": 2,
+      "note": "Lunch"
+    },
+    {
+      "day": "2026-04-27",
+      "type": "recipe",
+      "recipe": "Palak Paneer Rice Bowl",
+      "servings": 2,
+      "note": "Dinner"
+    },
+    {
+      "day": "2026-04-27",
+      "type": "product",
+      "product": "Chicken Breast",
+      "amount": 0.5,
+      "qu": "Pound",
+      "note": "Pranav add-on protein"
+    },
+    {
+      "day": "2026-04-28",
+      "type": "recipe",
+      "recipe": "Greek Yogurt Protein Bowl",
+      "servings": 2,
+      "note": "Breakfast"
+    },
+    {
+      "day": "2026-04-28",
+      "type": "recipe",
+      "recipe": "Chana Paneer Salad",
+      "servings": 2,
+      "note": "Lunch"
+    },
+    {
+      "day": "2026-04-28",
+      "type": "recipe",
+      "recipe": "Paneer Burrito Bowls",
+      "servings": 2,
+      "note": "Dinner"
+    }
+  ]
+}
