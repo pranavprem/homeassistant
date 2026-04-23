@@ -36,6 +36,7 @@ actions:
     - light.master_bedroom
     - light.masted_bed_light_bar
     - light.govee_tubes
+    - light.studio_floor_lamp
     - light.painting_light
     - light.reading_corner
     - light.reading_light

@@ -1,11 +1,15 @@
 id: neo_studio_govee_sync
 alias: Studio Govee - Mirror Hue Lights
-description: Keep the studio Govee tubes in sync with ambient light and reading light
+description: Keep the studio Govee tubes and floor lamp in sync with ambient light and reading light
 triggers:
 - trigger: state
   entity_id:
     - light.ambient_light
     - light.reading_light
+    - light.govee_tubes
+    - light.studio_floor_lamp
+- trigger: homeassistant
+  event: start
 conditions: []
 actions:
 - choose:
@@ -16,15 +20,18 @@ actions:
           is_state('light.ambient_light', 'on')
           or is_state('light.reading_light', 'on')
         }}
-    - condition: not
-      conditions:
-      - condition: state
-        entity_id: light.govee_tubes
-        state: 'on'
+    - condition: template
+      value_template: >-
+        {{
+          not is_state('light.govee_tubes', 'on')
+          or not is_state('light.studio_floor_lamp', 'on')
+        }}
     sequence:
     - action: light.turn_on
       target:
-        entity_id: light.govee_tubes
+        entity_id:
+          - light.govee_tubes
+          - light.studio_floor_lamp
   - conditions:
     - condition: template
       value_template: >-
@@ -32,13 +39,16 @@ actions:
           is_state('light.ambient_light', 'off')
           and is_state('light.reading_light', 'off')
         }}
-    - condition: not
-      conditions:
-      - condition: state
-        entity_id: light.govee_tubes
-        state: 'off'
+    - condition: template
+      value_template: >-
+        {{
+          not is_state('light.govee_tubes', 'off')
+          or not is_state('light.studio_floor_lamp', 'off')
+        }}
     sequence:
     - action: light.turn_off
       target:
-        entity_id: light.govee_tubes
+        entity_id:
+          - light.govee_tubes
+          - light.studio_floor_lamp
 mode: restart

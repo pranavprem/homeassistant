@@ -7,6 +7,9 @@ triggers:
     - light.closet
     - light.window
     - light.reading_corner
+    - light.masted_bed_light_bar
+- trigger: homeassistant
+  event: start
 conditions: []
 actions:
 - choose:

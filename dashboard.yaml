@@ -53,6 +53,7 @@ views:
                   - light.living_room_accent
                   - light.masted_bed_light_bar
                   - light.govee_tubes
+                  - light.studio_floor_lamp
               data:
                 brightness_pct: 80
           - type: custom:mushroom-template-card
@@ -81,6 +82,7 @@ views:
                   - light.living_room_accent
                   - light.masted_bed_light_bar
                   - light.govee_tubes
+                  - light.studio_floor_lamp
           - type: custom:mushroom-climate-card
             entity: climate.dreyo_air_conditioner
             name: Bedroom Cooler
@@ -264,6 +266,12 @@ views:
           - type: custom:mushroom-light-card
             entity: light.govee_tubes
             name: Studio Tubes
+            show_brightness_control: true
+            use_light_color: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.studio_floor_lamp
+            name: Studio Floor Lamp
             show_brightness_control: true
             use_light_color: true
             collapsible_controls: true
