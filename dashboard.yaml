@@ -286,22 +286,22 @@ views:
         title: Vacuums
         cards:
           - type: custom:mushroom-vacuum-card
-            entity: vacuum.shanta_bai
-            name: "Shanta Bai (Downstairs)"
+            entity: vacuum.son_of_shanta_bai
+            name: "Son of Shanta Bai (Downstairs)"
             commands:
               - start_pause
               - stop
               - return_home
           - type: custom:mushroom-template-card
-            primary: Shanta Bai Status
+            primary: Son of Shanta Bai Status
             secondary: >
-              {{ states('sensor.shanta_bai_status') | title }}
-              {% if is_state('binary_sensor.shanta_bai_water_shortage', 'on') %}· 💧 WATER LOW{% endif %}
-              · Battery: {{ states('sensor.shanta_bai_battery') }}%
+              {{ states('sensor.son_of_shanta_bai_status') | title }}
+              {% if is_state('binary_sensor.son_of_shanta_bai_water_shortage', 'on') %}· 💧 WATER LOW{% endif %}
+              · Battery: {{ states('sensor.son_of_shanta_bai_battery') }}%
             icon: mdi:robot-vacuum
             icon_color: >
-              {{ 'green' if is_state('vacuum.shanta_bai', 'cleaning') else
-                 'red' if is_state('binary_sensor.shanta_bai_water_shortage', 'on') else 'grey' }}
+              {{ 'green' if is_state('vacuum.son_of_shanta_bai', 'cleaning') else
+                 'red' if is_state('binary_sensor.son_of_shanta_bai_water_shortage', 'on') else 'grey' }}
           - type: custom:mushroom-vacuum-card
             entity: vacuum.kanta_bai
             name: "Kanta Bai (Upstairs)"
@@ -358,6 +358,11 @@ views:
             entity: cover.ratgdo_garage_door
             name: Garage Door
             show_buttons_control: true
+          - type: custom:mushroom-light-card
+            entity: light.ratgdo_garage_light
+            name: Garage Light
+            show_brightness_control: true
+            collapsible_controls: true
           - type: picture-entity
             entity: camera.front_door_doorbell
             name: Front Door
@@ -409,15 +414,15 @@ views:
               ] | min %}
               {{ 'red' if min_life < 15 else 'amber' if min_life < 40 else 'green' }}
           - type: custom:mushroom-template-card
-            primary: Shanta Bai Maintenance
+            primary: Son of Shanta Bai Maintenance
             secondary: >
-              Filter: {{ states('sensor.shanta_bai_filter_time_left') | round(0) }}h
-              · Side brush: {{ states('sensor.shanta_bai_side_brush_time_left') | round(0) }}h
-              · Sensor: {{ states('sensor.shanta_bai_sensor_time_left') | round(0) }}h
-              · Total cleans: {{ states('sensor.shanta_bai_total_cleaning_count') }}
+              Filter: {{ states('sensor.son_of_shanta_bai_filter_time_left') | round(0) }}h
+              · Side brush: {{ states('sensor.son_of_shanta_bai_side_brush_time_left') | round(0) }}h
+              · Sensor: {{ states('sensor.son_of_shanta_bai_sensor_time_left') | round(0) }}h
+              · Total cleans: {{ states('sensor.son_of_shanta_bai_total_cleaning_count') }}
             icon: mdi:robot-vacuum
             icon_color: >
-              {{ 'red' if states('sensor.shanta_bai_side_brush_time_left') | float(999) < 0 else 'green' }}
+              {{ 'red' if states('sensor.son_of_shanta_bai_side_brush_time_left') | float(999) < 0 else 'green' }}
           - type: custom:mushroom-template-card
             primary: Washer Energy
             secondary: >
