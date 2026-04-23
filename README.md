@@ -10,7 +10,7 @@ Home Assistant deployment on UGREEN NAS with dedicated Cloudflare tunnel.
 Internet → Cloudflare Tunnel → ha-cloudflared → Home Assistant / Grocy
 ```
 
-The stack now follows a mediaserver-style Docker network layout. Cloudflared, Home Assistant, and Grocy share a `proxy` network so the tunnel can route directly to containers by service name. Home Assistant, Grocy, HomeButler, Mosquitto, and Govee2MQTT share an `automation` network for internal service-to-service traffic. HomeButler still binds its host port to localhost only.
+The stack now follows a mediaserver-style Docker network layout. Cloudflared, Home Assistant, and Grocy share a `proxy` network so the tunnel can route directly to containers by service name. Home Assistant, Grocy, HomeButler, Mosquitto, and Govee2MQTT share an `automation` network for internal service-to-service traffic. HomeButler binds to `127.0.0.1` by default, but you can bind it to the NAS LAN IP for trusted LAN-only access.
 
 ## Containers
 
@@ -56,7 +56,8 @@ The bootstrap flow now:
    - `PROXY_SUBNET` — stable Docker subnet for the `proxy` network (default `172.29.0.0/24`)
    - `AUTOMATION_SUBNET` — stable Docker subnet for the `automation` network (default `172.29.1.0/24`)
    - `GROCY_PORT` — Grocy host port (default `9283`)
-   - `HOMEBUTLER_PORT` — local-only HomeButler API port (default `8000`)
+   - `HOMEBUTLER_BIND_IP` — host IP to publish HomeButler on, default `127.0.0.1`, set to the NAS LAN IP for trusted LAN access
+   - `HOMEBUTLER_PORT` — HomeButler API port (default `8000`)
    - `CLOUDFLARED_TOKEN` — token for the already-existing HA tunnel
 
 3. Deploy:
@@ -104,6 +105,7 @@ Run these on the NAS from the repo root.
    PROXY_SUBNET=172.29.0.0/24
    AUTOMATION_SUBNET=172.29.1.0/24
    GROCY_PORT=9283
+   HOMEBUTLER_BIND_IP=127.0.0.1
    HOMEBUTLER_PORT=8000
    CLOUDFLARED_TOKEN=...your tunnel token...
    ```
@@ -153,8 +155,22 @@ Run these on the NAS from the repo root.
    docker compose ps
    curl -I http://127.0.0.1:8123
    curl -I http://127.0.0.1:9283
-   curl http://127.0.0.1:8000/health
+   curl http://${HOMEBUTLER_BIND_IP:-127.0.0.1}:${HOMEBUTLER_PORT:-8000}/health
    ```
+
+   To let Neo reach HomeButler from the Mac mini over the LAN, set:
+   ```dotenv
+   HOMEBUTLER_BIND_IP=10.0.0.116
+   HOMEBUTLER_PORT=8998
+   ```
+
+   Then recreate HomeButler and test from the Mac mini:
+   ```bash
+   docker compose up -d --force-recreate homebutler
+   curl http://10.0.0.116:8998/health
+   ```
+
+   Security note: HomeButler currently has no network auth in front of its control routes. Prefer binding to the specific NAS LAN IP, not `0.0.0.0`, and keep NAS firewall rules limited to trusted clients.
 
 10. Verify externally:
    - open `https://home.pranavprem.com`
@@ -214,10 +230,11 @@ See `FOOD_SYSTEM.md` for the full architecture.
 
 ### HomeButler Grocy migration endpoint
 
-HomeButler binds to `127.0.0.1:8000` on the NAS only, which makes it the
-localhost-only control plane for anything that has to touch Grocy from inside
-the stack. Direct live Grocy writes from Neo are intentionally blocked, so
-migration bundles are applied through HomeButler instead:
+HomeButler binds to `127.0.0.1:8000` on the NAS by default, which makes it a
+localhost-only control plane unless you explicitly set `HOMEBUTLER_BIND_IP` in
+`.env` to the NAS LAN IP for trusted LAN access. Direct live Grocy writes from
+Neo are intentionally blocked, so migration bundles are applied through
+HomeButler instead:
 
 ```
 POST http://127.0.0.1:8000/migration/grocy/apply
@@ -245,7 +262,7 @@ wrapper:
 make apply-grocy-migration
 ```
 
-That target posts the checked-in bundle to `http://127.0.0.1:${HOMEBUTLER_PORT}/migration/grocy/apply` using the port from `.env`, so you do not need to hand-craft the curl request on the NAS.
+That target posts the checked-in bundle to `http://127.0.0.1:${HOMEBUTLER_PORT}/migration/grocy/apply` using the port from `.env`, so you do not need to hand-craft the curl request on the NAS. Neo can call the same route over the LAN once `HOMEBUTLER_BIND_IP` is set to the NAS LAN address.
 
 ### HomeButler control plane (stacks & actions)
 
@@ -320,7 +337,7 @@ NAS
 ├── automation network: homeassistant, grocy, homebutler, mosquitto, govee2mqtt
 ├── homeassistant published on :8123
 ├── grocy published on :9283
-└── homebutler published on 127.0.0.1:8000 only
+└── homebutler published on ${HOMEBUTLER_BIND_IP:-127.0.0.1}:${HOMEBUTLER_PORT:-8000}
 ```
 
 This keeps Cloudflare routing direct-to-container instead of bouncing through NAS localhost. Tradeoff: integrations that previously relied on host-network discovery may need manual reconfiguration or static hosts after the move.

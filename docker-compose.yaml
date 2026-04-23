@@ -87,7 +87,10 @@ services:
       - ${HOMEBUTLER_MORPHEUS_REPO_HOST:-/volume1/docker/morpheus}:/opt/repos/morpheus:rw
       - ${HOMEBUTLER_TOR_REPO_HOST:-/volume1/docker/tor}:/opt/repos/tor:ro
     ports:
-      - 127.0.0.1:${HOMEBUTLER_PORT:-8000}:8000
+      # Default is NAS-local only. To let Neo reach HomeButler over the LAN,
+      # set HOMEBUTLER_BIND_IP to the NAS LAN address in .env, for example
+      # 10.0.0.116, instead of widening to 0.0.0.0.
+      - ${HOMEBUTLER_BIND_IP:-127.0.0.1}:${HOMEBUTLER_PORT:-8000}:8000
     networks:
       - automation
     security_opt:
