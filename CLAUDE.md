@@ -143,14 +143,14 @@ cp example.env .env  # fill in values
 docker compose up -d
 ```
 
-HA `configuration.yaml` needs trusted proxies for Cloudflare:
+HA `configuration.yaml` needs trusted proxies for Cloudflare, and it should trust the stable `PROXY_SUBNET` CIDR rather than a single container IP:
 ```yaml
 http:
   use_x_forwarded_for: true
   trusted_proxies:
     - 127.0.0.1
     - ::1
-    - 172.16.0.0/12
+    - 172.29.0.0/24
 ```
 
 If MQTT was previously configured to `localhost`, update it to `mosquitto` after the network change.

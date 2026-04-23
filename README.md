@@ -53,6 +53,8 @@ The bootstrap flow now:
    - `HA_CONFIG_PATH` — path to HA config directory on NAS
    - `TZ`, `PUID`, `PGID` — shared container settings
    - `HOMEASSISTANT_PORT` — Home Assistant host port (default `8123`)
+   - `PROXY_SUBNET` — stable Docker subnet for the `proxy` network (default `172.29.0.0/24`)
+   - `AUTOMATION_SUBNET` — stable Docker subnet for the `automation` network (default `172.29.1.0/24`)
    - `GROCY_PORT` — Grocy host port (default `9283`)
    - `HOMEBUTLER_PORT` — local-only HomeButler API port (default `8000`)
    - `CLOUDFLARED_TOKEN` — token for the already-existing HA tunnel
@@ -69,8 +71,10 @@ The bootstrap flow now:
      trusted_proxies:
        - 127.0.0.1
        - ::1
-       - 172.16.0.0/12
+       - 172.29.0.0/24
    ```
+
+   Use the same CIDR as `PROXY_SUBNET` in `.env`, not a single container IP. That makes the setup self-healing when the `ha-cloudflared` container is recreated and gets a different address.
 
 5. If your HA MQTT integration was previously pointed at `localhost`, change it to broker host `mosquitto`.
 
@@ -95,6 +99,8 @@ Run these on the NAS from the repo root.
    PUID=1000
    PGID=1000
    HOMEASSISTANT_PORT=8123
+   PROXY_SUBNET=172.29.0.0/24
+   AUTOMATION_SUBNET=172.29.1.0/24
    GROCY_PORT=9283
    HOMEBUTLER_PORT=8000
    CLOUDFLARED_TOKEN=...your tunnel token...
@@ -116,8 +122,10 @@ Run these on the NAS from the repo root.
      trusted_proxies:
        - 127.0.0.1
        - ::1
-       - 172.16.0.0/12
+       - 172.29.0.0/24
    ```
+
+   Keep that CIDR aligned with `PROXY_SUBNET` in `.env`. Do not pin a single `ha-cloudflared` IP.
 
 6. If your HA MQTT integration currently uses `localhost`, change it to broker host `mosquitto`.
 
@@ -132,6 +140,12 @@ Run these on the NAS from the repo root.
    docker compose --env-file .env up -d
    ```
 
+   If the Docker networks already exist with old auto-assigned subnets, recreate them once so the fixed CIDRs take effect:
+   ```bash
+   docker compose --env-file .env down
+   docker compose --env-file .env up -d
+   ```
+
 9. Verify locally on the NAS:
    ```bash
    docker compose ps
@@ -143,6 +157,18 @@ Run these on the NAS from the repo root.
 10. Verify externally:
    - open `https://home.pranavprem.com`
    - open `https://grocy.pranavprem.com`
+
+## Cloudflare Tunnel
+
+### Self-healing proxy setup
+
+The fix for Cloudflared IP churn is to trust the **proxy network subnet**, not the current container IP. This repo now pins the `proxy` network to `PROXY_SUBNET` and the `automation` network to `AUTOMATION_SUBNET`, so container restarts do not change the trusted CIDR.
+
+If Home Assistant is currently broken because `ha-cloudflared` got a new IP, the immediate recovery is:
+
+1. Update `http.trusted_proxies` in HA to the `PROXY_SUBNET` CIDR.
+2. Restart Home Assistant.
+3. If you just pulled this repo change, recreate the compose networks once so the fixed CIDRs apply.
 
 ## Cloudflare Tunnel
 
