@@ -140,12 +140,11 @@ services:
       - automation
     security_opt:
       - no-new-privileges:true
+    # Upstream govee2mqtt ships as a distroless image, so shell-based probes
+    # like `CMD-SHELL pidof ...` always fail. Disable the local Docker
+    # healthcheck instead of reporting a false `unhealthy` state.
     healthcheck:
-      test: ["CMD-SHELL", "pidof govee2mqtt || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      disable: true
 
   cloudflared:
     image: cloudflare/cloudflared:latest
