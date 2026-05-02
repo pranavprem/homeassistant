@@ -52,7 +52,7 @@ actions:
           entity_id: climate.dreyo_air_conditioner
         data:
           hvac_mode: fan_only
-    - action: notify.mobile_app_pranavs_pocket_tv
+    - action: notify.mobile_app_pranav_s_pocket_tv
       data:
         title: 🌀 Dreo On
         message: Eight Sleep is active — Dreo set to {{ 'cool' if states('sensor.wigglytuff_eight_sleep_hub_room_temperature') | float(0) > 74 else 'fan' }} mode (room {{ states('sensor.wigglytuff_eight_sleep_hub_room_temperature') | round(1) }}°F)
@@ -69,7 +69,7 @@ actions:
   - action: climate.turn_off
     target:
       entity_id: climate.dreyo_air_conditioner
-  - action: notify.mobile_app_pranavs_pocket_tv
+  - action: notify.mobile_app_pranav_s_pocket_tv
     data:
       title: 🌀 Dreo Off
       message: Both Eight Sleep sides off — Dreo turned off

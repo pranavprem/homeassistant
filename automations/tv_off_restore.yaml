@@ -36,7 +36,7 @@ actions:
     entity_id: light.living_room_accent
   data:
     brightness_pct: 80
-- action: notify.mobile_app_pranavs_pocket_tv
+- action: notify.mobile_app_pranav_s_pocket_tv
   data:
     title: 📺 TV Off
     message: Lights restored, curtains opened

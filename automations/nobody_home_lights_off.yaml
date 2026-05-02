@@ -64,7 +64,7 @@ actions:
     - cover.backyard_curtain_2
     - cover.deck_curtain
     - cover.deck_curtain_2
-- action: notify.mobile_app_pranavs_pocket_tv
+- action: notify.mobile_app_pranav_s_pocket_tv
   data:
     title: 🏠 Nobody Home
     message: Everything turned off — lights, TV, Eight Sleep, Dreo, curtains closed

@@ -22,7 +22,7 @@ actions:
     avg_offpeak_rate: 0.23
     session_cost: '{{ (session_kwh * avg_offpeak_rate) | round(2) }}'
     total_cost: '{{ (total_kwh * avg_offpeak_rate) | round(0) }}'
-- action: notify.mobile_app_pranavs_pocket_tv
+- action: notify.mobile_app_pranav_s_pocket_tv
   data:
     title: ⚡ Killua Charge Complete
     message: 'Session: {{ session_kwh | round(1) }} kWh (~${{ session_cost }} at off-peak) Current rate: ${{ rate }}/kWh (EV2-A {{ ''summer'' if is_summer else ''winter'' }}) Lifetime: {{ total_kwh | round(0) }} kWh (~${{ total_cost }})

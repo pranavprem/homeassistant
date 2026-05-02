@@ -11,7 +11,7 @@ conditions:
   entity_id: binary_sensor.killua_charge_cable
   state: 'on'
 actions:
-- action: notify.mobile_app_pranavs_pocket_tv
+- action: notify.mobile_app_pranav_s_pocket_tv
   data:
     title: ⚡ Killua Fully Charged!
     message: Tesla is done charging — {{ states('sensor.killua_battery_level') }}% ({{ states('sensor.killua_battery_range') | round(0) }} mi), added {{ states('sensor.killua_charge_energy_added') }} kWh

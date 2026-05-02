@@ -9,7 +9,7 @@ triggers:
     minutes: 30
 conditions: []
 actions:
-- action: notify.mobile_app_pranavs_pocket_tv
+- action: notify.mobile_app_pranav_s_pocket_tv
   data:
     title: ⚠️ Garage Still Open!
     message: The garage door has been open for 30 minutes

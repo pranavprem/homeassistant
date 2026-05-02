@@ -12,7 +12,7 @@ actions:
       \ | join('\\n') }}\n"
 - condition: template
   value_template: '{{ issues | length > 0 }}'
-- action: notify.mobile_app_pranavs_pocket_tv
+- action: notify.mobile_app_pranav_s_pocket_tv
   data:
     title: 🧹 Son of Shanta Bai Needs Attention
     message: '{{ issues }}'

@@ -17,7 +17,7 @@ actions:
     - condition: trigger
       id: cycle_done
     sequence:
-    - action: notify.mobile_app_pranavs_pocket_tv
+    - action: notify.mobile_app_pranav_s_pocket_tv
       data:
         title: 🍽️ Dishwasher Done!
         message: Cycle complete — time to unload! {% if is_state('binary_sensor.dishwasher_rinse_refill_needed', 'on') %}⚠️ Rinse aid needs refilling!{% endif %}
@@ -29,7 +29,7 @@ actions:
     - condition: trigger
       id: rinse_refill
     sequence:
-    - action: notify.mobile_app_pranavs_pocket_tv
+    - action: notify.mobile_app_pranav_s_pocket_tv
       data:
         title: ⚠️ Dishwasher Rinse Aid
         message: Rinse aid dispenser needs refilling
