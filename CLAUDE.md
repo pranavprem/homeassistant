@@ -78,7 +78,7 @@ All automations are in `automations/` as individual YAML files:
 | `nobody_home_lights_off.yaml` | Turn off lights when nobody home |
 | `projector_movie_mode.yaml` | Movie mode when projector turns on |
 | `projector_off_restore.yaml` | Restore settings when projector turns off |
-| `shanta_bai_maintenance.yaml` | Daily vacuum maintenance check at 6pm |
+| `son_of_shanta_bai_maintenance.yaml` | Daily vacuum maintenance check at 6pm |
 | `sleep_summary.yaml` | Eight Sleep sleep summary |
 | `speaker_announcements.yaml` | Smart speaker announcements |
 | `tesla_charge_complete.yaml` | Tesla charge completion notification |

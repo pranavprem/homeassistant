@@ -54,11 +54,6 @@ actions:
       entity_id: light.living_room_accent
     data:
       brightness_pct: 20
-- action: notify.mobile_app_pranavs_pocket_tv
-  data:
-    title: 🏡 Welcome Home!
-    message: Lights on{{ ', curtains opened' if is_state('sun.sun', 'above_horizon')
-      else '' }}
 - action: notify.mobile_app_iphone_14_pro
   metadata: {}
   data:

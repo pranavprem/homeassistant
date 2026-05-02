@@ -14,8 +14,4 @@ actions:
     entity_id: light.guest_room
   data:
     brightness_pct: 5
-- action: notify.mobile_app_pranavs_pocket_tv
-  data:
-    title: "\U0001F3AC Projector Movie Mode"
-    message: Projector on — guest room lights dimmed
 mode: single

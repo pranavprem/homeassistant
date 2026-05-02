@@ -6,28 +6,10 @@ triggers:
   at: 08:00:00
 conditions: []
 actions:
-- action: notify.mobile_app_pranavs_pocket_tv
-  data:
-    title: 💤 Sleep Report
-    message: '**Pranav:** Fitness {{ states(''sensor.pranav_s_eight_sleep_side_sleep_fitness_score'')
-      }}/100, Quality {{ states(''sensor.pranav_s_eight_sleep_side_sleep_quality_score'')
-      }}/100, HRV {{ states(''sensor.pranav_s_eight_sleep_side_hrv'') }}ms, {{ (states(''sensor.pranav_s_eight_sleep_side_time_slept'')
-      | float(0) / 3600) | round(1) }}h slept
-
-      **Abhinaya:** Fitness {{ states(''sensor.abhinaya_s_eight_sleep_side_sleep_fitness_score'')
-      }}/100, Quality {{ states(''sensor.abhinaya_s_eight_sleep_side_sleep_quality_score'')
-      }}/100, HRV {{ states(''sensor.abhinaya_s_eight_sleep_side_hrv'') }}ms, {{ (states(''sensor.abhinaya_s_eight_sleep_side_time_slept'')
-      | float(0) / 3600) | round(1) }}h slept'
 - action: notify.mobile_app_iphone_14_pro
   data:
     title: 💤 Sleep Report
-    message: '**Pranav:** Fitness {{ states(''sensor.pranav_s_eight_sleep_side_sleep_fitness_score'')
-      }}/100, Quality {{ states(''sensor.pranav_s_eight_sleep_side_sleep_quality_score'')
-      }}/100, HRV {{ states(''sensor.pranav_s_eight_sleep_side_hrv'') }}ms, {{ (states(''sensor.pranav_s_eight_sleep_side_time_slept'')
-      | float(0) / 3600) | round(1) }}h slept
+    message: '**Pranav:** Fitness {{ states(''sensor.pranav_s_eight_sleep_side_sleep_fitness_score'') }}/100, Quality {{ states(''sensor.pranav_s_eight_sleep_side_sleep_quality_score'') }}/100, HRV {{ states(''sensor.pranav_s_eight_sleep_side_hrv'') }}ms, {{ (states(''sensor.pranav_s_eight_sleep_side_time_slept'') | float(0) / 3600) | round(1) }}h slept
 
-      **Abhinaya:** Fitness {{ states(''sensor.abhinaya_s_eight_sleep_side_sleep_fitness_score'')
-      }}/100, Quality {{ states(''sensor.abhinaya_s_eight_sleep_side_sleep_quality_score'')
-      }}/100, HRV {{ states(''sensor.abhinaya_s_eight_sleep_side_hrv'') }}ms, {{ (states(''sensor.abhinaya_s_eight_sleep_side_time_slept'')
-      | float(0) / 3600) | round(1) }}h slept'
+      **Abhinaya:** Fitness {{ states(''sensor.abhinaya_s_eight_sleep_side_sleep_fitness_score'') }}/100, Quality {{ states(''sensor.abhinaya_s_eight_sleep_side_sleep_quality_score'') }}/100, HRV {{ states(''sensor.abhinaya_s_eight_sleep_side_hrv'') }}ms, {{ (states(''sensor.abhinaya_s_eight_sleep_side_time_slept'') | float(0) / 3600) | round(1) }}h slept'
 mode: single

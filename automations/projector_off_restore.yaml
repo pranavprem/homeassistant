@@ -14,8 +14,4 @@ actions:
     entity_id: light.guest_room
   data:
     brightness_pct: 80
-- action: notify.mobile_app_pranavs_pocket_tv
-  data:
-    title: "\U0001F3AC Projector Off"
-    message: Guest room lights restored
 mode: single

@@ -3,7 +3,7 @@ alias: Vacuum When Everyone Away
 description: Check every 30 min if everyone is away — start Kanta Bai (once per day)
 triggers:
 - trigger: time_pattern
-  minutes: "/30"
+  minutes: /30
 conditions:
 - condition: state
   entity_id: person.pranav
@@ -21,12 +21,8 @@ actions:
 - action: vacuum.start
   target:
     entity_id: vacuum.kanta_bai
-- action: notify.mobile_app_pranavs_pocket_tv
-  data:
-    title: "\U0001F916 Kanta Bai Deployed!"
-    message: Everyone's away — Kanta Bai is cleaning upstairs
 - action: notify.mobile_app_iphone_14_pro
   data:
-    title: "\U0001F916 Kanta Bai Deployed!"
+    title: 🤖 Kanta Bai Deployed!
     message: Everyone's away — Kanta Bai is cleaning upstairs
 mode: single

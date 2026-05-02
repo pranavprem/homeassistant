@@ -12,7 +12,7 @@ triggers:
   from: returning
   id: kanta_done
 - trigger: state
-  entity_id: vacuum.shanta_bai
+  entity_id: vacuum.son_of_shanta_bai
   to: docked
   from: returning
   id: shanta_done
@@ -23,7 +23,7 @@ triggers:
   id: skip_washer
   enabled: false
 - trigger: state
-  entity_id: binary_sensor.shanta_bai_water_shortage
+  entity_id: binary_sensor.son_of_shanta_bai_water_shortage
   to: 'on'
   id: water_shortage
 - trigger: state
@@ -34,7 +34,7 @@ triggers:
   id: garage_open
 conditions:
 - condition: time
-  after: '08:00:00'
+  after: 08:00:00
   before: '22:00:00'
 actions:
 - choose:
@@ -47,7 +47,7 @@ actions:
         entity_id: tts.google_translate_en_com
       data:
         media_player_entity_id: media_player.full_house
-        message: "Kanta Bai has started cleaning upstairs."
+        message: Kanta Bai has started cleaning upstairs.
   - conditions:
     - condition: trigger
       id: kanta_done
@@ -57,7 +57,7 @@ actions:
         entity_id: tts.google_translate_en_com
       data:
         media_player_entity_id: media_player.full_house
-        message: "Kanta Bai has finished cleaning and is back at the dock."
+        message: Kanta Bai has finished cleaning and is back at the dock.
   - conditions:
     - condition: trigger
       id: shanta_done
@@ -67,7 +67,7 @@ actions:
         entity_id: tts.google_translate_en_com
       data:
         media_player_entity_id: media_player.full_house
-        message: "Shanta Bai has finished cleaning downstairs."
+        message: Son of Shanta Bai has finished cleaning downstairs.
   - conditions:
     - condition: trigger
       id: water_shortage
@@ -77,7 +77,7 @@ actions:
         entity_id: tts.google_translate_en_com
       data:
         media_player_entity_id: media_player.full_house
-        message: "Shanta Bai's water tank needs refilling."
+        message: Son of Shanta Bai's water tank needs refilling.
   - conditions:
     - condition: trigger
       id: garage_open
@@ -87,5 +87,5 @@ actions:
         entity_id: tts.google_translate_en_com
       data:
         media_player_entity_id: media_player.full_house
-        message: "The garage door has been open for 15 minutes."
+        message: The garage door has been open for 15 minutes.
 mode: queued

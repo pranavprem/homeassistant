@@ -1,0 +1,19 @@
+id: neo_shanta_bai_maintenance
+alias: Son of Shanta Bai Maintenance Check
+description: Daily 6pm check for water shortage, dirty water, maintenance needs
+triggers:
+- trigger: time
+  at: '18:00:00'
+conditions: []
+actions:
+- variables:
+    issues: "{% set ns = namespace(problems=[]) %} {% if is_state('binary_sensor.son_of_shanta_bai_water_shortage', 'on') %}\n  {% set ns.problems = ns.problems + ['\U0001F4A7 Clean water tank needs refilling'] %}\n{% endif %} {% if is_state('binary_sensor.son_of_shanta_bai_dock_dirty_water_box', 'on') %}\n  {% set ns.problems = ns.problems + ['\U0001F6B0 Dirty water box needs emptying'] %}\n{% endif %} {% if is_state('binary_sensor.son_of_shanta_bai_dock_clean_water_box', 'on') %}\n  {% set ns.problems = ns.problems + ['\U0001F4E6 Clean water box issue'] %}\n{% endif %} {% if states('sensor.son_of_shanta_bai_filter_time_left') | float(999) < 10 %}\n  {% set ns.problems = ns.problems + ['\U0001F504 Filter needs replacement (' ~ states('sensor.son_of_shanta_bai_filter_time_left') | round(0) ~ 'h left)'] %}\n{% endif %} {% if states('sensor.son_of_shanta_bai_side_brush_time_left') | float(999) < 0 %}\n  {% set ns.problems = ns.problems + ['\U0001F58C️ Side brush overdue for replacement ('\
+      \ ~ states('sensor.son_of_shanta_bai_side_brush_time_left') | round(0) ~ 'h)'] %}\n{% endif %} {% if states('sensor.son_of_shanta_bai_dock_strainer_time_left') | float(999) < 0 %}\n  {% set ns.problems = ns.problems + ['\U0001F9F9 Dock strainer overdue (' ~ states('sensor.son_of_shanta_bai_dock_strainer_time_left') | round(0) ~ 'h)'] %}\n{% endif %} {% if states('sensor.son_of_shanta_bai_sensor_time_left') | float(999) < 0 %}\n  {% set ns.problems = ns.problems + ['\U0001F441️ Sensors overdue for cleaning (' ~ states('sensor.son_of_shanta_bai_sensor_time_left') | round(0) ~ 'h)'] %}\n{% endif %} {% if states('sensor.son_of_shanta_bai_dock_dock_error') != 'ok' %}\n  {% set ns.problems = ns.problems + ['⚠️ Dock error: ' ~ states('sensor.son_of_shanta_bai_dock_dock_error')] %}\n{% endif %} {% if states('sensor.son_of_shanta_bai_vacuum_error') != 'none' %}\n  {% set ns.problems = ns.problems + ['❌ Vacuum error: ' ~ states('sensor.son_of_shanta_bai_vacuum_error')] %}\n{% endif %} {{ ns.problems\
+      \ | join('\\n') }}\n"
+- condition: template
+  value_template: '{{ issues | length > 0 }}'
+- action: notify.mobile_app_iphone_14_pro
+  data:
+    title: 🧹 Son of Shanta Bai Needs Attention
+    message: '{{ issues }}'
+mode: single
