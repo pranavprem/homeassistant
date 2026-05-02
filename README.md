@@ -53,8 +53,8 @@ The bootstrap flow now:
    - `HA_CONFIG_PATH` — path to HA config directory on NAS
    - `TZ`, `PUID`, `PGID` — shared container settings
    - `HOMEASSISTANT_PORT` — Home Assistant host port (default `8123`)
-   - `PROXY_SUBNET` — stable Docker subnet for the `proxy` network (default `172.29.0.0/24`)
-   - `AUTOMATION_SUBNET` — stable Docker subnet for the `automation` network (default `172.29.1.0/24`)
+   - `PROXY_SUBNET` — stable Docker subnet for the `proxy` network (default `172.31.240.0/24`)
+   - `AUTOMATION_SUBNET` — stable Docker subnet for the `automation` network (default `172.31.241.0/24`)
    - `GROCY_PORT` — Grocy host port (default `9283`)
    - `HOMEBUTLER_BIND_IP` — host IP to publish HomeButler on, default `127.0.0.1`, set to the NAS LAN IP for trusted LAN access
    - `HOMEBUTLER_PORT` — HomeButler API port (default `8000`)
@@ -74,7 +74,7 @@ The bootstrap flow now:
      trusted_proxies:
        - 127.0.0.1
        - ::1
-       - 172.29.0.0/24
+       - 172.31.240.0/24
    ```
 
    Use the same CIDR as `PROXY_SUBNET` in `.env`, not a single container IP. That makes the setup self-healing when the `ha-cloudflared` container is recreated and gets a different address.
@@ -102,8 +102,8 @@ Run these on the NAS from the repo root.
    PUID=1000
    PGID=1000
    HOMEASSISTANT_PORT=8123
-   PROXY_SUBNET=172.29.0.0/24
-   AUTOMATION_SUBNET=172.29.1.0/24
+   PROXY_SUBNET=172.31.240.0/24
+   AUTOMATION_SUBNET=172.31.241.0/24
    GROCY_PORT=9283
    HOMEBUTLER_BIND_IP=127.0.0.1
    HOMEBUTLER_PORT=8000
@@ -126,7 +126,7 @@ Run these on the NAS from the repo root.
      trusted_proxies:
        - 127.0.0.1
        - ::1
-       - 172.29.0.0/24
+       - 172.31.240.0/24
    ```
 
    Keep that CIDR aligned with `PROXY_SUBNET` in `.env`. Do not pin a single `ha-cloudflared` IP.
@@ -148,6 +148,12 @@ Run these on the NAS from the repo root.
    ```bash
    docker compose --env-file .env down
    docker compose --env-file .env up -d
+   ```
+
+   If `make up` fails with `Pool overlaps with other one on this address space`, set unused CIDRs in `.env` before retrying. The current safe defaults in this repo are:
+   ```dotenv
+   PROXY_SUBNET=172.31.240.0/24
+   AUTOMATION_SUBNET=172.31.241.0/24
    ```
 
 9. Verify locally on the NAS:

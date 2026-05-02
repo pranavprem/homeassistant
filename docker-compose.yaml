@@ -174,12 +174,12 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: ${PROXY_SUBNET:-172.29.0.0/24}
+        - subnet: ${PROXY_SUBNET:-172.31.240.0/24}
   automation:
     driver: bridge
     ipam:
       config:
-        - subnet: ${AUTOMATION_SUBNET:-172.29.1.0/24}
+        - subnet: ${AUTOMATION_SUBNET:-172.31.241.0/24}
 
 # No named volumes — config path set via HA_CONFIG_PATH in .env
 # Cloudflare tunnel route examples:

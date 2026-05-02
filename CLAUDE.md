@@ -150,7 +150,7 @@ http:
   trusted_proxies:
     - 127.0.0.1
     - ::1
-    - 172.29.0.0/24
+    - 172.31.240.0/24
 ```
 
 If MQTT was previously configured to `localhost`, update it to `mosquitto` after the network change.
