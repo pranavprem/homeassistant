@@ -14,6 +14,10 @@ actions:
 - condition: state
   entity_id: binary_sensor.refrigerator_door
   state: 'on'
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🧊 Fridge Door Open!
+    message: The fridge has been open for over 5 minutes
 - action: notify.mobile_app_iphone_14_pro
   data:
     title: 🧊 Fridge Door Open!

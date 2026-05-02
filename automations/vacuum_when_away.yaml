@@ -21,6 +21,10 @@ actions:
 - action: vacuum.start
   target:
     entity_id: vacuum.kanta_bai
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🤖 Kanta Bai Deployed!
+    message: Everyone's away — Kanta Bai is cleaning upstairs
 - action: notify.mobile_app_iphone_14_pro
   data:
     title: 🤖 Kanta Bai Deployed!

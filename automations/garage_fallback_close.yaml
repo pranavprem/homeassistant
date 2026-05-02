@@ -15,6 +15,10 @@ actions:
 - action: cover.close_cover
   target:
     entity_id: cover.ratgdo_garage_door
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🚗 Garage Door Closed
+    message: Garage door was still open after 10 minutes, so the fallback auto-close ran.
 - action: notify.mobile_app_iphone_14_pro
   data:
     title: 🚗 Garage Door Closed

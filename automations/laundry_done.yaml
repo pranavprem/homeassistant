@@ -17,6 +17,10 @@ actions:
     - condition: trigger
       id: washer_done
     sequence:
+    - action: notify.mobile_app_pranavs_pocket_tv
+      data:
+        title: 🧺 Washer Done!
+        message: Blastoise finished the wash cycle — time to move clothes to the dryer
     - action: notify.mobile_app_iphone_14_pro
       data:
         title: 🧺 Washer Done!
@@ -25,6 +29,10 @@ actions:
     - condition: trigger
       id: dryer_done
     sequence:
+    - action: notify.mobile_app_pranavs_pocket_tv
+      data:
+        title: 🧺 Dryer Done!
+        message: Dryer finished — clothes are ready to fold
     - action: notify.mobile_app_iphone_14_pro
       data:
         title: 🧺 Dryer Done!

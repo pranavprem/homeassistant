@@ -10,6 +10,10 @@ actions:
     low_batteries: "{% set ns = namespace(devices=[]) %} {% set battery_sensors = [\n  'sensor.backyard_curtain_battery',\n  'sensor.deck_curtain_battery',\n  'sensor.backyard_curtain_2_battery',\n  'sensor.deck_curtain_2_battery',\n  'sensor.studio_switch_battery',\n  'sensor.guest_bedroom_switch_battery',\n  'sensor.master_bedroom_switch_battery'\n] %} {% for sensor in battery_sensors %}\n  {% if states(sensor) not in ['unavailable', 'unknown'] and states(sensor) | int(100) < 20 %}\n    {% set ns.devices = ns.devices + [state_attr(sensor, 'friendly_name') ~ ': ' ~ states(sensor) ~ '%'] %}\n  {% endif %}\n{% endfor %} {{ ns.devices | join('\\n') }}\n"
 - condition: template
   value_template: '{{ low_batteries | length > 0 }}'
+- action: notify.mobile_app_pranavs_pocket_tv
+  data:
+    title: 🔋 Low Battery Alert
+    message: '{{ low_batteries }}'
 - action: notify.mobile_app_iphone_14_pro
   data:
     title: 🔋 Low Battery Alert
