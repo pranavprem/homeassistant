@@ -1,0 +1,90 @@
+# Kasa Bridge — desk monitor outlets
+#
+# Exposes the two outlets of the EP40A desk strip (10.0.0.183) as HA switches,
+# routed through Kasa Bridge rather than the native TP-Link integration so the
+# bridge's per-device allowlist, confirmation policy, and audit log apply to
+# Home Assistant's actions too.
+#
+# Bridge: http://10.0.0.116:8765 — the NAS LAN address, not verynasbox.local.
+# Home Assistant runs on the proxy/automation bridge networks and cannot resolve
+# mDNS .local names; Kasa Bridge uses host networking, so it is reachable on the
+# host's LAN IP.
+#
+# Installed into $HA_CONFIG_PATH/packages by the ha-config-sync service in
+# docker-compose.yaml. Edit it here, push, pull on the NAS, redeploy the stack.
+#
+# Requires `homeassistant: packages: !include_dir_named packages` in
+# configuration.yaml, which scripts/bootstrap.sh already ensures.
+
+rest_command:
+  # Single command for every bridge action; callers pass action and alias.
+  # dry_run is forced false here because the bridge defaults to dry-run, and a
+  # switch that silently does nothing is worse than one that errors.
+  kasa_bridge_apply:
+    url: "http://10.0.0.116:8765/v1/actions/apply"
+    method: post
+    content_type: "application/json"
+    payload: >-
+      {"action": "{{ action }}",
+       "alias": "{{ alias }}",
+       "confirm": {{ confirm | default(false) | tojson }},
+       "dry_run": false,
+       "reason": "{{ reason | default('home assistant') }}"}
+
+rest:
+  # One poll serves both outlets: the bridge returns the whole strip's state.
+  - resource: "http://10.0.0.116:8765/v1/devices/desk_strip"
+    scan_interval: 30
+    binary_sensor:
+      - name: "Alienware Monitor Power"
+        unique_id: kasa_bridge_alienware_monitor_power
+        value_template: "{{ value_json.state.outlets.alienware_monitor.is_on }}"
+        availability: "{{ value_json.state.reachable }}"
+        device_class: power
+      - name: "Work Monitor Power"
+        unique_id: kasa_bridge_work_monitor_power
+        value_template: "{{ value_json.state.outlets.work_monitor.is_on }}"
+        availability: "{{ value_json.state.reachable }}"
+        device_class: power
+
+template:
+  - switch:
+      - name: "Alienware Monitor"
+        unique_id: kasa_bridge_switch_alienware_monitor
+        icon: mdi:monitor
+        state: "{{ is_state('binary_sensor.alienware_monitor_power', 'on') }}"
+        availability: >-
+          {{ states('binary_sensor.alienware_monitor_power')
+             not in ['unavailable', 'unknown'] }}
+        turn_on:
+          action: rest_command.kasa_bridge_apply
+          data:
+            action: strip.outlet_turn_on
+            alias: desk_strip.alienware_monitor
+            reason: "HA switch on"
+        turn_off:
+          action: rest_command.kasa_bridge_apply
+          data:
+            action: strip.outlet_turn_off
+            alias: desk_strip.alienware_monitor
+            reason: "HA switch off"
+
+      - name: "Work Monitor"
+        unique_id: kasa_bridge_switch_work_monitor
+        icon: mdi:monitor
+        state: "{{ is_state('binary_sensor.work_monitor_power', 'on') }}"
+        availability: >-
+          {{ states('binary_sensor.work_monitor_power')
+             not in ['unavailable', 'unknown'] }}
+        turn_on:
+          action: rest_command.kasa_bridge_apply
+          data:
+            action: strip.outlet_turn_on
+            alias: desk_strip.work_monitor
+            reason: "HA switch on"
+        turn_off:
+          action: rest_command.kasa_bridge_apply
+          data:
+            action: strip.outlet_turn_off
+            alias: desk_strip.work_monitor
+            reason: "HA switch off"
