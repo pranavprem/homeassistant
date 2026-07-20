@@ -1,65 +1,28 @@
 name: homeassistant
 
 services:
-  # Copies packages/*.yaml from this repo into Home Assistant's config directory
-  # on every deploy, so a package can be edited here, pushed, and picked up by a
-  # pull + redeploy. Without it this repo is only a source of templates, and
-  # packages have to be installed by running scripts/bootstrap.sh on the NAS.
-  #
-  # Runs to completion before Home Assistant starts, so HA reads the new files on
-  # first load rather than needing a second restart.
-  #
-  # Deliberately exits 0 even when it copies nothing: this stack runs the garage
-  # door and the alarms, and a failed sync must never be able to hold Home
-  # Assistant down. A sync that did nothing shows up as missing entities, with
-  # the reason in `docker logs ha-config-sync`.
-  #
-  # Only copies *.yaml, so bootstrap.sh's rendered food_stack.yaml (produced from
-  # food_stack.yaml.template) is left untouched.
-  ha-config-sync:
-    image: alpine:3.20
-    container_name: ha-config-sync
-    restart: "no"
-    volumes:
-      - ./packages:/src:ro
-      - ${HA_CONFIG_PATH}:/config
-    command:
-      - sh
-      - -c
-      - |
-        set -u
-        if [ ! -d /config ]; then
-          echo "ERROR: HA config path is not mounted; nothing copied" >&2
-          exit 0
-        fi
-        if ! mkdir -p /config/packages 2>/dev/null; then
-          echo "ERROR: cannot create /config/packages; nothing copied" >&2
-          exit 0
-        fi
-        copied=0
-        for f in /src/*.yaml; do
-          [ -e "$$f" ] || continue
-          if cp "$$f" /config/packages/; then
-            echo "installed $$(basename "$$f")"
-            copied=$$((copied + 1))
-          else
-            echo "ERROR: failed to copy $$(basename "$$f")" >&2
-          fi
-        done
-        echo "ha-config-sync: $$copied package(s) installed"
-        exit 0
-
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant
     restart: unless-stopped
-    depends_on:
-      ha-config-sync:
-        condition: service_completed_successfully
     environment:
       - TZ=${TZ:-America/Los_Angeles}
     volumes:
       - ${HA_CONFIG_PATH}:/config
+      # Packages kept in this repo are mounted straight into Home Assistant's
+      # packages directory, so editing one here and redeploying picks it up. No
+      # copy step and no extra container: a one-shot sync container sits in
+      # Portainer as a red "Exited (0)" forever, which reads as a failure.
+      #
+      # Mounted per file rather than mounting ./packages over /config/packages,
+      # because that would shadow the whole directory and hide food_stack.yaml,
+      # which scripts/bootstrap.sh renders onto the host volume from
+      # food_stack.yaml.template.
+      #
+      # Each file must exist in the repo: Docker creates a directory in place of
+      # a missing bind-mount source, and Home Assistant would then fail to load
+      # the package.
+      - ./packages/kasa_bridge.yaml:/config/packages/kasa_bridge.yaml:ro
     ports:
       - ${HOMEASSISTANT_PORT:-8123}:8123
     networks:
