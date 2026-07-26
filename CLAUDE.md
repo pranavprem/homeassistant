@@ -1,179 +1,156 @@
 # CLAUDE.md
 
-## Project Overview
-Pranav's Home Assistant setup running on a UGREEN NAS (10.0.0.116) via Docker Compose with mediaserver-style bridge networking. Externally accessible at `home.pranavprem.com` via a dedicated Cloudflare tunnel.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Food-system note:
-- Grocy is part of this stack
-- HomeButler now runs as a local internal service in this stack because SSH is intentionally closed
-- HA MCP is expected to run with Neo on the Mac mini
+## What this repo is
 
-HomeButler control plane:
-- Typed stack/service/action registry at `services/homebutler/app/registry/`
-- `/ops/stacks*` and `/ops/actions*` alongside the legacy `/ops/containers*`
-- Allowlisted actions only; no shell, no user-supplied targets. See `services/homebutler/docs/control-plane-design.md`.
+The Docker Compose deployment + configuration source for Pranav's Home Assistant stack on a
+UGREEN NAS (`10.0.0.116`), externally reachable at `home.pranavprem.com` through a dedicated
+Cloudflare tunnel. It contains three fairly different kinds of content:
 
-## Architecture
-```
-Internet → Cloudflare Tunnel → ha-cloudflared → Home Assistant / Grocy
-NAS
-├── proxy network: homeassistant, grocy, ha-cloudflared
-├── automation network: homeassistant, grocy, homebutler, mosquitto, govee2mqtt
-├── homeassistant (:8123)               — smart home hub
-├── grocy (:9283)                       — pantry / shopping / meal state
-├── homebutler (:8000, localhost only)  — local Grocy API + control layer
-├── mosquitto                           — MQTT broker on internal network
-├── govee2mqtt                          — Govee LAN/cloud bridge via MQTT
-└── ha-cloudflared                      — Cloudflare tunnel on proxy network
-```
+1. **Infrastructure** — `docker-compose.yaml`, `Makefile`, `scripts/`, `example.env`
+2. **A Python service** — `services/homebutler/` (FastAPI control plane, the only real "code")
+3. **Home Assistant configuration** — `automations/`, `dashboard.yaml`, `packages/`, `templates/`
 
-- Cloudflared routes directly to `homeassistant:8123` and `grocy:80` by service name
-- Home Assistant reaches HomeButler over the internal `automation` network at `http://homebutler:8000`
-- Mosquitto is internal-only; HA MQTT should use host `mosquitto`
-- IoT devices on local WiFi (2.4GHz, same subnet as NAS)
-- Security: `no-new-privileges: true` on all containers, no router ports exposed
-- Tradeoff: moving away from host networking may require manual/static config for integrations that depended on auto-discovery
+Only #3's `packages/` is actually mounted into Home Assistant. See "How config reaches HA" below —
+this is the most common source of confusion.
 
-## Repository Structure
-```
-├── CLAUDE.md              — this file
-├── README.md              — setup & architecture docs
-├── FOOD_SYSTEM.md         — full food / Grocy / Neo / HomeButler architecture
-├── Makefile               — bootstrap / compose helpers
-├── docker-compose.yaml    — services for HA, Grocy, HomeButler, mosquitto, govee2mqtt, cloudflared
-├── example.env            — template for .env (HA config path, Grocy, HomeButler, MQTT, Govee, Cloudflare)
-├── packages/              — Home Assistant package templates for food / HomeButler features
-├── scripts/               — bootstrap and setup helpers
-├── services/homebutler/   — internal FastAPI service for Grocy and local control actions
-├── .gitignore             — excludes .env and Python build artifacts
-├── dashboard.yaml         — "Agraharam" dashboard (Mushroom cards)
-├── automations/           — 25 automation YAML files
-│   └── *.yaml
-└── templates/
-    └── bed_occupancy.yaml — Eight Sleep bed occupancy template
-```
+## Commands
 
-## Dashboard
-- **Name:** Agraharam
-- **Style:** Mushroom cards (via HACS `custom:mushroom-*-card`)
-- **Layout:** Sections view, max 3 columns
-- **Features:** Status bar (persons, weather, lights count, garage), quick controls (all lights on/off), room controls
-
-## Automations (25 total, as of April 2026)
-All automations are in `automations/` as individual YAML files:
-
-| File | Description |
-|------|-------------|
-| `air_purifier_mode.yaml` | State-triggered air purifier mode changes |
-| `dishwasher_done.yaml` | Dishwasher completion notification |
-| `dreo_follows_eightsleep.yaml` | Dreo fan/heater follows Eight Sleep state (temp-based mode) |
-| `fridge_door_open.yaml` | Fridge door left open alert |
-| `garage_close_on_leave.yaml` | Auto-close garage when leaving |
-| `garage_left_open.yaml` | Garage left open alert |
-| `garage_open_on_arrive.yaml` | Auto-open garage on arrival |
-| `kanta_bai_offline.yaml` | Robot vacuum offline alert (30min threshold) |
-| `laundry_done.yaml` | Washer/dryer completion notification |
-| `low_battery_alert.yaml` | Low battery alerts for sensors |
-| `low_range_reminder.yaml` | Tesla low range reminder |
-| `nobody_home_lights_off.yaml` | Turn off lights when nobody home |
-| `projector_movie_mode.yaml` | Movie mode when projector turns on |
-| `projector_off_restore.yaml` | Restore settings when projector turns off |
-| `son_of_shanta_bai_maintenance.yaml` | Daily vacuum maintenance check at 6pm |
-| `sleep_summary.yaml` | Eight Sleep sleep summary |
-| `speaker_announcements.yaml` | Smart speaker announcements |
-| `tesla_charge_complete.yaml` | Tesla charge completion notification |
-| `tesla_charge_cost.yaml` | Tesla charge cost calculation (PG&E EV2-A TOU rates) |
-| `tv_off_restore.yaml` | Restore settings when TV turns off |
-| `tv_on_movie_mode.yaml` | Movie mode when TV turns on (with sunset threshold) |
-| `vacuum_when_away.yaml` | Run Kanta Bai vacuum when away |
-| `welcome_display.yaml` | Welcome display automation |
-| `welcome_home.yaml` | Welcome home automation |
-
-### Device Nicknames
-- **Kanta Bai** — primary robot vacuum (runs when away)
-- **Shanta Bai** — secondary robot vacuum (runs on her own schedule, daily maintenance check)
-
-### Automation Patterns
-- Phone notifications go to both Pranav and Abhinaya on most automations
-- Movie mode: triggered by TV/projector on, respects sunset threshold (10° elevation)
-- Dreo fan/heater: follows Eight Sleep state, uses room temperature for mode selection (not month-based), ignores unavailable→off transitions
-- Vacuum: uses time_pattern (30min) for presence checks (more reliable than state triggers)
-
-## Installed Integrations
-
-| Integration | Devices | Type |
-|-------------|---------|------|
-| Philips Hue | Lights (living room, couch lamp, painting, bedrooms, guest room) | Local (bridge) |
-| Roborock | Robot vacuums (Kanta Bai, Shanta Bai) | Cloud |
-| Google Nest | Doorbell, cameras, speakers, thermostat | Cloud |
-| LG ThinQ | Washer, dryer, fridge, dishwasher, TV | Cloud |
-| SwitchBot | Curtains | Cloud/BLE |
-| Tesla Fleet | Model 3 + Wall Connector | Cloud (OAuth) |
-| Eight Sleep (HACS) | Pod (smart mattress) | Cloud |
-| Dreo | Tower fans, portable AC, heater | Cloud |
-| Govee | Light bar (H607C) | Cloud + LAN via govee2mqtt |
-| Apple TV | Media player | Local |
-| Canon Printer | Printer | Local (IPP) |
-| Chromecast | Projector | Local |
-| HACS | Community Store | — |
-| Mosquitto | MQTT broker | Local |
-
-### Pending Integrations
-- **Konnected blaQ** — garage door opener (hardware on order; currently using ratgdo)
-- **Levoit / VeSync** — 4x Levoit Core 200S air purifiers (WiFi enabled)
-- **Non-Hue Philips light** — TBD
-
-### Tesla Fleet API
-- Public key hosted at `https://home.pranavprem.com/.well-known/appspecific/com.tesla.3p.public-key.pem`
-- Served via Cloudflare Worker (`tesla-public-key`) since HA doesn't serve `/.well-known/`
-- Scoped via OAuth
-
-## Key Technical Details
-- **PG&E EV2-A TOU rates** used for Tesla charge cost calculation
-- **Eight Sleep** installed via HACS (not native integration)
-- **Garage door** currently uses `cover.ratgdo_garage_door` entity
-- **Mushroom cards** required from HACS for the dashboard
-- **Config path on NAS:** `/volume1/media/config/homeassistant-config` (set in .env)
-
-## Deployment
 ```bash
-# On the NAS
-cd /path/to/homeassistant
-cp example.env .env  # fill in values
-docker compose up -d
+make bootstrap        # interactive first-run: writes .env, starts stack, inits Grocy,
+                      # creates a Grocy API key, installs the HA package scaffold
+make up               # docker compose up --build -d, then sync_trusted_proxies.py
+make down / logs / config
+make smoke            # compileall + `docker compose --env-file example.env config` — the
+                      # closest thing to CI; run before committing infra changes
+make sync-trusted-proxies      # patch HA configuration.yaml trusted_proxies + restart HA
+make apply-grocy-migration     # POST migrations/grocy/*.json to HomeButler
+make patch-eight-sleep-alarm-switch
 ```
 
-HA `configuration.yaml` needs trusted proxies for Cloudflare, and it should trust the stable `PROXY_SUBNET` CIDR rather than a single container IP:
-```yaml
-http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 127.0.0.1
-    - ::1
-    - 172.31.240.0/24
+HomeButler tests (run from the service directory — `conftest.py` puts that dir on `sys.path`):
+
+```bash
+cd services/homebutler
+python3 -m pytest -q                        # 64 tests, ~2s
+python3 -m pytest tests/test_ops_action_routes.py::test_run_action_ok -q
 ```
 
-If MQTT was previously configured to `localhost`, update it to `mosquitto` after the network change.
+`pytest`, `httpx`, and `fastapi.testclient` are **not** in `requirements.txt` — that file is
+runtime-only. Tests stub the `docker` SDK (`conftest.py::_install_docker_stub`) so they run without
+a Docker daemon. There is no linter or formatter configured; match surrounding style.
 
-## Remotes
-- **GitHub:** https://github.com/pranavprem/homeassistant
-- **Branch:** main
+Almost every command above only does something meaningful **on the NAS**. On a laptop, `make smoke`
+and the pytest suite are what you can actually run.
 
-## Household Context
-- Pranav and wife Abhinaya live at 319 Otono Ct, San Jose, CA 95111
-- Tesla Model 3 LR 2020 (Pranav) — never charges past 80%
-- Toyota GR86 2024 (Abhinaya)
-- 4x Levoit Core 200S/200S-P air purifiers throughout house
+## How config reaches Home Assistant
 
-## Owner
-Pranav Prem (pranavprem93@gmail.com)
+This is not obvious and gets it wrong easily:
 
-## Recent History (as of April 2026)
-- Agraharam dashboard built with Mushroom cards (status bar, quick controls, all-lights toggles)
-- Tesla charge cost updated to PG&E EV2-A TOU rates
-- Welcome display, speaker announcements, Tesla charge cost automations added
-- Shanta Bai daily maintenance check added
-- 5 new automations: battery, fridge, projector, air purifiers
-- Vacuum automation iterated through v1-v5 (settled on time_pattern every 30min)
-- Dreo decoupled from bed automations → follows Eight Sleep state directly
-- Govee2mqtt + Mosquitto added to docker-compose
+- **`automations/*.yaml` are reference copies, not deployed.** The live automations live in HA's own
+  `automations.yaml` and are written through the HA REST API. Editing a file here changes nothing
+  until it is pushed to HA. Same for `dashboard.yaml` and `templates/`.
+- **`packages/kasa_bridge.yaml` is mounted as a Compose `config`**, not a bind mount, landing at
+  `/config/packages/kasa_bridge.yaml`. This is deliberate: Portainer Git stacks deploy from their own
+  clone, so a relative bind mount can point at a path that isn't the checkout and HA silently never
+  sees the file.
+- **`packages/food_stack.yaml.template`** is rendered by `scripts/bootstrap.sh` into
+  `$HA_CONFIG_PATH/packages/food_stack.yaml`, substituting `__HOMEBUTLER_PORT__`. It is not mounted;
+  re-run bootstrap (or copy it manually) after editing.
+- Packages require `homeassistant: packages: !include_dir_named packages` in `configuration.yaml`;
+  `bootstrap.sh::ensure_packages_include` adds it.
+- `HA_CONFIG_PATH` (`/volume1/media/config/homeassistant-config`) is a host bind mount holding all
+  persistent HA state. Grocy and Mosquitto data live as siblings via `${HA_CONFIG_PATH}/../`.
+
+## Deployment model
+
+The stack is deployed as a **Portainer Git stack** pointed at this repo (`docs/portainer-stack-migration.md`).
+`name: homeassistant` is pinned at the top of `docker-compose.yaml` so Compose converges on the
+existing containers instead of spawning a duplicate project. Portainer itself lives outside this
+stack so redeploying HA doesn't kill the UI driving it. `make up` on the NAS is the manual fallback.
+
+Networks are pinned to fixed CIDRs (`PROXY_SUBNET` 172.31.240.0/24, `AUTOMATION_SUBNET` 172.31.241.0/24)
+so `http.trusted_proxies` can trust a stable subnet rather than a churning container IP:
+
+- `proxy` — homeassistant, grocy, ha-cloudflared (tunnel routes direct to container names)
+- `automation` — homeassistant, grocy, homebutler, mosquitto, govee2mqtt
+
+Cloudflared routes to `homeassistant:8123` and `grocy:80` by service name, resolved from inside the
+tunnel container — never NAS localhost. If HA still logs untrusted-proxy warnings (Synology can
+surface host-side IPs), `scripts/sync_trusted_proxies.py` reconciles the list from the env subnet,
+host LAN IP, HA logs, and the live container IP.
+
+## HomeButler (`services/homebutler/`)
+
+FastAPI service that is the local control plane. Bound to `127.0.0.1:8000` by default; HA reaches it
+at `http://homebutler:8000` over the `automation` network. Set `HOMEBUTLER_BIND_IP` to the NAS LAN IP
+only for trusted LAN access — **there is no auth in front of the control routes.**
+
+Layers: `api/routes/` (system, shopping, ops, migration) → `registry/` → `clients/` + `services/`.
+
+Non-negotiable invariants, enforced at import time and covered by tests:
+
+- The **registry is source code**, not config. `registry/stacks.py` (stack → service → container for
+  `homeassistant`, `mediaserver`, `morpheus`, `tor`) and `registry/actions.py` (allowlisted
+  `make`/`docker compose` invocations) are frozen dataclasses validated on import, so a bad entry
+  fails startup rather than a request.
+- **No shell, ever.** `services/command_runner.py` uses `subprocess.run(argv, shell=False)` with a
+  scratch-built env allowlist and a mandatory timeout. No request input reaches argv, cwd, targets,
+  or env. `RunActionRequest` is `extra="forbid"` and empty — v1 actions take no parameters.
+- `HOMEBUTLER_CONTROLLED_CONTAINERS` is **additive only**; it can extend the registry allowlist,
+  never shrink it.
+- Actions degrade visibly: a missing repo mount or executable yields `available: false` with a
+  reason, never a silent failure or a 404.
+- `/ops/containers*` is the legacy flat view, kept for compatibility. Prefer `/ops/stacks*`.
+- `HOMEBUTLER_ACTIONS_ENABLED=false` is the kill switch for `/ops/actions*`.
+
+Full rationale in `services/homebutler/docs/control-plane-design.md`. Grocy migrations are
+declarative, name-referenced bundles applied idempotently via `POST /migration/grocy/apply`
+(`migrations/grocy/*.json`); direct Grocy writes from Neo are intentionally blocked.
+
+## Automation conventions
+
+See `automations/README.md` for the per-automation index; it is the file to update when adding one.
+
+- **Notification policy:** phone notifications are reserved for actionable alerts — safety/security,
+  low battery, doors left open, offline devices, failed maintenance. Everything else uses
+  `logbook.log` so it lands in the Logbook and traces without pinging phones. Welcome Home is the
+  one deliberate exception. Recent commits converted many automations from `notify.*` to
+  `logbook.log`; don't reintroduce notifications for success/debug events.
+- Actionable notifications go to both people: `notify.mobile_app_pranav_s_pocket_tv` and
+  `notify.mobile_app_iphone_14_pro`.
+- Automation ids are prefixed `neo_` (they were created by Neo through the HA REST API).
+- Movie mode (TV/projector on) respects a sunset threshold rather than a fixed time.
+- Presence-dependent automations use `time_pattern` polling (30 min) instead of state triggers —
+  state triggers proved unreliable here; the vacuum automation went through five revisions to land
+  on this.
+- Dreo fan/heater follows Eight Sleep state directly and picks its mode from room temperature (not
+  the month), and ignores `unavailable → off` transitions.
+- Guard templates against `unknown`/`unavailable`, not just the happy-path state (see
+  `arlo_sync_presence_mode.yaml`).
+- HA can't resolve mDNS `.local` names from the bridge networks — always use the NAS LAN IP
+  (`10.0.0.116`) for host-networked services like Kasa Bridge.
+
+## Secrets
+
+`.env` and `.mcp.json` are gitignored and must stay that way — the repo is public, and Portainer
+deploys from its own clone using stack environment variables, not the NAS-local `.env`. Cloudflare
+tunnel tokens, MQTT/Govee credentials, Grocy API keys, and the Slack bot token in `.mcp.json` never
+belong in a commit. `command_runner.py` redacts known secret values from captured output.
+
+## Household context
+
+- Pranav and Abhinaya, 319 Otono Ct, San Jose, CA. Dashboard is named "Agraharam" (Mushroom cards
+  from HACS, sections view).
+- **Kanta Bai** — primary robot vacuum (runs when away). **Shanta Bai** — secondary, own schedule,
+  daily 6pm maintenance check.
+- Tesla Model 3 LR 2020 (Pranav; never charges past 80%), Toyota GR86 2024 (Abhinaya). Charge cost
+  uses PG&E EV2-A TOU rates.
+- Integrations: Hue, Roborock, Google Nest, LG ThinQ, SwitchBot, Tesla Fleet, Eight Sleep (HACS, not
+  native), Dreo, Govee (via govee2mqtt + Mosquitto), Arlo, Apple TV, Canon IPP, Chromecast, Kasa
+  Bridge. Garage is `cover.ratgdo_garage_door` (Konnected blaQ pending). Levoit/VeSync pending.
+- Tesla Fleet needs its public key at `/.well-known/appspecific/com.tesla.3p.public-key.pem`, served
+  by a Cloudflare Worker (`tesla-public-key`) because HA won't serve `/.well-known/`.
+- The food stack (Grocy + HomeButler + Neo) is documented in `FOOD_SYSTEM.md`. HA MCP runs with Neo
+  on the Mac mini; SSH to the NAS is intentionally closed, which is why HomeButler exists.
