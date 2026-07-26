@@ -10,8 +10,8 @@
 # mDNS .local names; Kasa Bridge uses host networking, so it is reachable on the
 # host's LAN IP.
 #
-# Installed into $HA_CONFIG_PATH/packages by the ha-config-sync service in
-# docker-compose.yaml. Edit it here, push, pull on the NAS, redeploy the stack.
+# Mounted into /config/packages/kasa_bridge.yaml by docker-compose.yaml as a
+# Compose config. Edit it here, push, pull on the NAS, redeploy the stack.
 #
 # Requires `homeassistant: packages: !include_dir_named packages` in
 # configuration.yaml, which scripts/bootstrap.sh already ensures.
@@ -20,16 +20,23 @@ rest_command:
   # Single command for every bridge action; callers pass action and alias.
   # dry_run is forced false here because the bridge defaults to dry-run, and a
   # switch that silently does nothing is worse than one that errors.
+  #
+  # Every interpolated value goes through `| tojson`, which emits its own
+  # quotes — do NOT wrap these in literal quotes. Building this body by pasting
+  # values inside hand-written quotes lets a caller whose string contains a
+  # double quote append arbitrary JSON keys and override `dry_run` or
+  # `confirm`. Today's callers pass literals, but `reason` is the field most
+  # likely to get wired to a template or voice value later.
   kasa_bridge_apply:
     url: "http://10.0.0.116:8765/v1/actions/apply"
     method: post
     content_type: "application/json"
     payload: >-
-      {"action": "{{ action }}",
-       "alias": "{{ alias }}",
+      {"action": {{ action | tojson }},
+       "alias": {{ alias | tojson }},
        "confirm": {{ confirm | default(false) | tojson }},
        "dry_run": false,
-       "reason": "{{ reason | default('home assistant') }}"}
+       "reason": {{ reason | default('home assistant') | tojson }}}
 
 rest:
   # One poll serves both outlets: the bridge returns the whole strip's state.

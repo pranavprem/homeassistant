@@ -9,20 +9,13 @@ services:
       - TZ=${TZ:-America/Los_Angeles}
     volumes:
       - ${HA_CONFIG_PATH}:/config
-      # Packages kept in this repo are mounted straight into Home Assistant's
-      # packages directory, so editing one here and redeploying picks it up. No
-      # copy step and no extra container: a one-shot sync container sits in
-      # Portainer as a red "Exited (0)" forever, which reads as a failure.
-      #
-      # Mounted per file rather than mounting ./packages over /config/packages,
-      # because that would shadow the whole directory and hide food_stack.yaml,
-      # which scripts/bootstrap.sh renders onto the host volume from
-      # food_stack.yaml.template.
-      #
-      # Each file must exist in the repo: Docker creates a directory in place of
-      # a missing bind-mount source, and Home Assistant would then fail to load
-      # the package.
-      - ./packages/kasa_bridge.yaml:/config/packages/kasa_bridge.yaml:ro
+      # Keep the full HA config as the persistent host bind. Repo-owned package
+      # files are mounted below as Compose configs instead of raw relative bind
+      # mounts, because Portainer Git stacks can otherwise hand Docker a host
+      # path that is not the repo checkout and HA never sees the package file.
+    configs:
+      - source: kasa_bridge_package
+        target: /config/packages/kasa_bridge.yaml
     ports:
       - ${HOMEASSISTANT_PORT:-8123}:8123
     networks:
@@ -103,9 +96,11 @@ services:
       - ${HOMEBUTLER_MORPHEUS_REPO_HOST:-/volume1/docker/morpheus}:/opt/repos/morpheus:rw
       - ${HOMEBUTLER_TOR_REPO_HOST:-/volume1/docker/tor}:/opt/repos/tor:ro
     ports:
-      # Default is NAS-local only. To let Neo reach HomeButler over the LAN,
-      # set HOMEBUTLER_BIND_IP to the NAS LAN address in .env, for example
-      # 10.0.0.116, instead of widening to 0.0.0.0.
+      # NAS-local only, deliberately. HomeButler mounts docker.sock and has no
+      # auth on /ops/*, so publishing this on the LAN is root-equivalent
+      # exposure to every device on the WiFi. Neo reaches it through Home
+      # Assistant on the internal `automation` network instead — see the
+      # rest_command/script entities in packages/food_stack.yaml.template.
       - ${HOMEBUTLER_BIND_IP:-127.0.0.1}:${HOMEBUTLER_PORT:-8000}:8000
     networks:
       - automation
@@ -134,8 +129,13 @@ services:
       - automation
     security_opt:
       - no-new-privileges:true
+    # No `:-mqtt` fallback on the credentials. A default password that ships in
+    # a public repo is not a password, and silently falling back to it means a
+    # missing MQTT_PASSWORD in .env looks like a working broker instead of a
+    # misconfigured one. Unset now yields an empty password, the healthcheck
+    # fails, and the problem is visible in `docker compose ps`.
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-u", "${MQTT_USER:-mqtt}", "-P", "${MQTT_PASSWORD:-mqtt}"]
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-u", "${MQTT_USER:-mqtt}", "-P", "${MQTT_PASSWORD}"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -151,7 +151,8 @@ services:
       - GOVEE_MQTT_HOST=mosquitto
       - GOVEE_MQTT_PORT=1883
       - GOVEE_MQTT_USER=${MQTT_USER:-mqtt}
-      - GOVEE_MQTT_PASSWORD=${MQTT_PASSWORD:-mqtt}
+      # See the mosquitto healthcheck comment: no default password.
+      - GOVEE_MQTT_PASSWORD=${MQTT_PASSWORD}
     depends_on:
       mosquitto:
         condition: service_healthy
@@ -196,6 +197,10 @@ networks:
     ipam:
       config:
         - subnet: ${AUTOMATION_SUBNET:-172.31.241.0/24}
+
+configs:
+  kasa_bridge_package:
+    file: ./packages/kasa_bridge.yaml
 
 # No named volumes — config path set via HA_CONFIG_PATH in .env
 # Cloudflare tunnel route examples:

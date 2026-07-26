@@ -56,7 +56,7 @@ The bootstrap flow now:
    - `PROXY_SUBNET` — stable Docker subnet for the `proxy` network (default `172.31.240.0/24`)
    - `AUTOMATION_SUBNET` — stable Docker subnet for the `automation` network (default `172.31.241.0/24`)
    - `GROCY_PORT` — Grocy host port (default `9283`)
-   - `HOMEBUTLER_BIND_IP` — host IP to publish HomeButler on, default `127.0.0.1`, set to the NAS LAN IP for trusted LAN access
+   - `HOMEBUTLER_BIND_IP` — host IP to publish HomeButler on. Leave at `127.0.0.1`; HomeButler is unauthenticated and has `docker.sock` mounted, so widening this is root-equivalent LAN exposure (see step 9)
    - `HOMEBUTLER_PORT` — HomeButler API port (default `8000`)
    - `CLOUDFLARED_TOKEN` — token for the already-existing HA tunnel
 
@@ -164,19 +164,22 @@ Run these on the NAS from the repo root.
    curl http://${HOMEBUTLER_BIND_IP:-127.0.0.1}:${HOMEBUTLER_PORT:-8000}/health
    ```
 
-   To let Neo reach HomeButler from the Mac mini over the LAN, set:
-   ```dotenv
-   HOMEBUTLER_BIND_IP=10.0.0.116
-   HOMEBUTLER_PORT=8998
-   ```
+   **Keep `HOMEBUTLER_BIND_IP=127.0.0.1`.** HomeButler has `/var/run/docker.sock` mounted
+   and no authentication on its control routes, so anything that can reach its port can
+   restart any registered container and run allowlisted `make` / `docker compose` actions
+   against the `homeassistant`, `mediaserver`, `morpheus`, and `tor` repos. That is
+   root-equivalent on the NAS. Binding it to the LAN address hands that to every device on
+   the WiFi, including the IoT devices sharing that subnet.
 
-   Then recreate HomeButler and test from the Mac mini:
-   ```bash
-   docker compose up -d --force-recreate homebutler
-   curl http://10.0.0.116:8998/health
-   ```
+   Neo does not need the LAN binding. Reach HomeButler **through Home Assistant** instead:
+   `packages/food_stack.yaml.template` exposes every registry restart and allowlisted action
+   as `rest_command` + `script` entities, and HA talks to `http://homebutler:8000` over the
+   internal `automation` network. Neo drives HA (which is authenticated) via HA MCP, and HA
+   drives HomeButler. See "HomeButler control plane" below.
 
-   Security note: HomeButler currently has no network auth in front of its control routes. Prefer binding to the specific NAS LAN IP, not `0.0.0.0`, and keep NAS firewall rules limited to trusted clients.
+   If you ever genuinely need direct LAN access, treat it as a change that requires auth on
+   `/ops/*` first — not just a narrower bind IP. Firewall rules alone leave every device on
+   the trusted subnet with full control.
 
 10. Verify externally:
    - open `https://home.pranavprem.com`
@@ -237,10 +240,9 @@ See `FOOD_SYSTEM.md` for the full architecture.
 ### HomeButler Grocy migration endpoint
 
 HomeButler binds to `127.0.0.1:8000` on the NAS by default, which makes it a
-localhost-only control plane unless you explicitly set `HOMEBUTLER_BIND_IP` in
-`.env` to the NAS LAN IP for trusted LAN access. Direct live Grocy writes from
-Neo are intentionally blocked, so migration bundles are applied through
-HomeButler instead:
+localhost-only control plane, and should stay that way — see step 9 in the deploy
+steps for why. Direct live Grocy writes from Neo are intentionally blocked, so
+migration bundles are applied through HomeButler instead:
 
 ```
 POST http://127.0.0.1:8000/migration/grocy/apply
@@ -268,7 +270,7 @@ wrapper:
 make apply-grocy-migration
 ```
 
-That target posts the checked-in bundle to `http://127.0.0.1:${HOMEBUTLER_PORT}/migration/grocy/apply` using the port from `.env`, so you do not need to hand-craft the curl request on the NAS. Neo can call the same route over the LAN once `HOMEBUTLER_BIND_IP` is set to the NAS LAN address.
+That target posts the checked-in bundle to `http://127.0.0.1:${HOMEBUTLER_PORT}/migration/grocy/apply` using the port from `.env`, so you do not need to hand-craft the curl request on the NAS. Run it on the NAS rather than exposing the route to the LAN.
 
 ### HomeButler control plane (stacks & actions)
 
@@ -284,6 +286,14 @@ HomeButler exposes a typed control plane over the containers it manages:
   `mediaserver.update_gluetun`, `morpheus.redeploy`, `tor.restart`) with
   availability metadata.
 - `POST /ops/actions/{action}/run` — execute an allowlisted action.
+
+The Home Assistant package template exposes this control plane as
+`rest_command` + `script` entities so Neo can call HomeButler through HA's
+internal Docker network without publishing HomeButler directly on the LAN.
+`packages/food_stack.yaml.template` currently includes restart scripts for
+every service in the registry plus scripts for every allowlisted action. The
+old shortcut script names for Grocy, Home Assistant, and Cloudflared remain as
+compatibility aliases.
 
 The registry is code-reviewed in `services/homebutler/app/registry/` — no
 runtime/shell input, no user-supplied make targets, no user-supplied

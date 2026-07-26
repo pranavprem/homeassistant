@@ -83,9 +83,14 @@ host LAN IP, HA logs, and the live container IP.
 
 ## HomeButler (`services/homebutler/`)
 
-FastAPI service that is the local control plane. Bound to `127.0.0.1:8000` by default; HA reaches it
-at `http://homebutler:8000` over the `automation` network. Set `HOMEBUTLER_BIND_IP` to the NAS LAN IP
-only for trusted LAN access — **there is no auth in front of the control routes.**
+FastAPI service that is the local control plane. Bound to `127.0.0.1:8000`; HA reaches it at
+`http://homebutler:8000` over the `automation` network.
+
+**Do not widen `HOMEBUTLER_BIND_IP`.** There is no auth on the control routes and `docker.sock` is
+mounted, so exposing the port is root-equivalent access to the NAS for anything on the WiFi — which
+includes the IoT devices on that subnet. Neo does not need it: HA bridges to HomeButler internally
+via the `rest_command` + `script` entities in `packages/food_stack.yaml.template`. Adding direct LAN
+access is a change that requires authentication on `/ops/*` first, not just a narrower bind IP.
 
 Layers: `api/routes/` (system, shopping, ops, migration) → `registry/` → `clients/` + `services/`.
 
@@ -141,8 +146,10 @@ belong in a commit. `command_runner.py` redacts known secret values from capture
 
 ## Household context
 
-- Pranav and Abhinaya, 319 Otono Ct, San Jose, CA. Dashboard is named "Agraharam" (Mushroom cards
-  from HACS, sections view).
+- Household is Pranav and Abhinaya. Dashboard is named "Agraharam" (Mushroom cards from HACS,
+  sections view). **This repo is public — keep the street address, precise coordinates, and any
+  other locating detail out of it.** HA already knows the home location from its own
+  `configuration.yaml` on the NAS, which is not in git.
 - **Kanta Bai** — primary robot vacuum (runs when away). **Shanta Bai** — secondary, own schedule,
   daily 6pm maintenance check.
 - Tesla Model 3 LR 2020 (Pranav; never charges past 80%), Toyota GR86 2024 (Abhinaya). Charge cost
