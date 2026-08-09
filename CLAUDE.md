@@ -74,7 +74,7 @@ Networks are pinned to fixed CIDRs (`PROXY_SUBNET` 172.31.240.0/24, `AUTOMATION_
 so `http.trusted_proxies` can trust a stable subnet rather than a churning container IP:
 
 - `proxy` — homeassistant, grocy, ha-cloudflared (tunnel routes direct to container names)
-- `automation` — homeassistant, grocy, homebutler, mosquitto, govee2mqtt
+- `automation` — homeassistant, grocy, homebutler, mosquitto, govee2mqtt, zigbee2mqtt
 
 Cloudflared routes to `homeassistant:8123` and `grocy:80` by service name, resolved from inside the
 tunnel container — never NAS localhost. If HA still logs untrusted-proxy warnings (Synology can

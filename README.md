@@ -21,6 +21,7 @@ The stack now follows a mediaserver-style Docker network layout. Cloudflared, Ho
 | `homebutler` | local build (`./services/homebutler`) | Internal Grocy API + local control layer for container health/restarts |
 | `mosquitto` | `eclipse-mosquitto:2` | MQTT broker on the internal automation network |
 | `govee2mqtt` | `ghcr.io/wez/govee2mqtt:latest` | Govee device bridge via MQTT |
+| `zigbee2mqtt` | `koenkk/zigbee2mqtt:latest` | Optional Zigbee device bridge via MQTT |
 | `ha-cloudflared` | `cloudflare/cloudflared:latest` | Dedicated tunnel for external access |
 
 ## Setup
@@ -107,6 +108,9 @@ Run these on the NAS from the repo root.
    GROCY_PORT=9283
    HOMEBUTLER_BIND_IP=127.0.0.1
    HOMEBUTLER_PORT=8000
+   COMPOSE_PROFILES=
+   ZIGBEE_ADAPTER_DEVICE=/dev/ttyUSB0
+   ZIGBEE_ADAPTER_TYPE=zstack
    CLOUDFLARED_TOKEN=...your tunnel token...
    ```
 
@@ -132,6 +136,13 @@ Run these on the NAS from the repo root.
    Keep that CIDR aligned with `PROXY_SUBNET` in `.env`. Do not pin a single `ha-cloudflared` IP.
 
 6. If your HA MQTT integration currently uses `localhost`, change it to broker host `mosquitto`.
+
+   To enable Zigbee2MQTT for generic Zigbee sensors without a vendor hub, attach a
+   Zigbee coordinator to the NAS, set `COMPOSE_PROFILES=zigbee`, set
+   `ZIGBEE_ADAPTER_DEVICE` to the host serial path, and set `ZIGBEE_ADAPTER_TYPE`
+   for that radio (`zstack` for Sonoff ZBDongle-P/CC2652, `ember` for Home
+   Assistant Connect ZBT-1/SkyConnect/EFR32). Zigbee2MQTT uses the existing
+   Mosquitto broker and Home Assistant MQTT discovery.
 
 7. In Cloudflare Zero Trust, update the tunnel public hostnames for this stack:
    - `home.pranavprem.com` → **HTTP** → `homeassistant` → port `8123`
@@ -320,6 +331,7 @@ rather than being hidden or silently failing.
 | Eight Sleep (HACS) | Pod | Cloud |
 | Dreo | Fan/heater | Cloud |
 | Govee | Light bar (H607C) | Cloud + LAN via govee2mqtt |
+| Zigbee2MQTT | Third Reality/Aqara/etc. Zigbee sensors | Local via Mosquitto |
 | Apple TV | Media player | Local |
 | Canon Printer | Printer | Local (IPP) |
 | Chromecast | Projector | Local |
@@ -350,7 +362,7 @@ The main dashboard ("Agraharam") uses [Mushroom cards](https://github.com/piitay
 ```
 NAS
 ├── proxy network: homeassistant, grocy, ha-cloudflared
-├── automation network: homeassistant, grocy, homebutler, mosquitto, govee2mqtt
+├── automation network: homeassistant, grocy, homebutler, mosquitto, govee2mqtt, zigbee2mqtt
 ├── homeassistant published on :8123
 ├── grocy published on :9283
 └── homebutler published on ${HOMEBUTLER_BIND_IP:-127.0.0.1}:${HOMEBUTLER_PORT:-8000}

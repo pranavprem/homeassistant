@@ -64,6 +64,7 @@ def test_homeassistant_registry_contains_expected_services() -> None:
     assert names["homeassistant"] == "homeassistant"
     assert names["grocy"] == "grocy"
     assert names["homebutler"] == "homebutler"
+    assert names["zigbee2mqtt"] == "zigbee2mqtt"
     assert names["cloudflared"] == "ha-cloudflared"
 
 

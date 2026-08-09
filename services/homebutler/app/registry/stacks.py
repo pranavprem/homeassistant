@@ -78,6 +78,7 @@ _STACKS: tuple[StackDef, ...] = (
             _svc("homebutler", "homebutler", "HomeButler control plane (self)", "control"),
             _svc("mosquitto", "mosquitto", "Internal MQTT broker", "mqtt"),
             _svc("govee2mqtt", "govee2mqtt", "Govee <-> MQTT bridge", "mqtt"),
+            _svc("zigbee2mqtt", "zigbee2mqtt", "Zigbee <-> MQTT bridge", "mqtt", "zigbee"),
             _svc("cloudflared", "ha-cloudflared", "Cloudflare tunnel for HA/Grocy", "tunnel"),
         ),
     ),

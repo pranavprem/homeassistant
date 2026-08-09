@@ -9,6 +9,7 @@ def _seed(client) -> None:
     client.fake_docker.add("homebutler")
     client.fake_docker.add("mosquitto")
     client.fake_docker.add("govee2mqtt")
+    client.fake_docker.add("zigbee2mqtt")
     client.fake_docker.add("ha-cloudflared")
     client.fake_docker.add("tor-proxy")
     # tor-firefox intentionally not added so its `container` field is null.

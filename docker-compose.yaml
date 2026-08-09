@@ -166,6 +166,39 @@ services:
     healthcheck:
       disable: true
 
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    container_name: zigbee2mqtt
+    restart: unless-stopped
+    profiles:
+      - zigbee
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-America/Los_Angeles}
+      - ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED=true
+      - ZIGBEE2MQTT_CONFIG_PERMIT_JOIN=false
+      - ZIGBEE2MQTT_CONFIG_MQTT_BASE_TOPIC=zigbee2mqtt
+      - ZIGBEE2MQTT_CONFIG_MQTT_SERVER=mqtt://mosquitto:1883
+      - ZIGBEE2MQTT_CONFIG_MQTT_USER=${MQTT_USER:-mqtt}
+      - ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD=${MQTT_PASSWORD}
+      - ZIGBEE2MQTT_CONFIG_SERIAL_PORT=${ZIGBEE_ADAPTER_DEVICE:-/dev/ttyUSB0}
+      - ZIGBEE2MQTT_CONFIG_SERIAL_ADAPTER=${ZIGBEE_ADAPTER_TYPE:-zstack}
+      - ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED=true
+      - ZIGBEE2MQTT_CONFIG_FRONTEND_PORT=8080
+      - ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_LEVEL=${ZIGBEE2MQTT_LOG_LEVEL:-info}
+    volumes:
+      - ${HA_CONFIG_PATH}/../zigbee2mqtt/data:/app/data
+    devices:
+      - ${ZIGBEE_ADAPTER_DEVICE:-/dev/ttyUSB0}:${ZIGBEE_ADAPTER_DEVICE:-/dev/ttyUSB0}
+    ports:
+      - ${ZIGBEE2MQTT_BIND_IP:-127.0.0.1}:${ZIGBEE2MQTT_PORT:-8081}:8080
+    networks:
+      - automation
+    security_opt:
+      - no-new-privileges:true
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: ha-cloudflared
