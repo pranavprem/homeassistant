@@ -20,6 +20,7 @@ The stack now follows a mediaserver-style Docker network layout. Cloudflared, Ho
 | `grocy` | `lscr.io/linuxserver/grocy:latest` | Household food data layer (pantry, shopping list, meal state) |
 | `homebutler` | local build (`./services/homebutler`) | Internal Grocy API + local control layer for container health/restarts |
 | `mosquitto` | `eclipse-mosquitto:2` | MQTT broker on the internal automation network |
+| `zigbee2mqtt` | `koenkk/zigbee2mqtt:latest` | Zigbee coordinator bridge through the NAS USB adapter |
 | `govee2mqtt` | `ghcr.io/wez/govee2mqtt:latest` | Govee device bridge via MQTT |
 | `ha-cloudflared` | `cloudflare/cloudflared:latest` | Dedicated tunnel for external access |
 
@@ -107,6 +108,10 @@ Run these on the NAS from the repo root.
    GROCY_PORT=9283
    HOMEBUTLER_BIND_IP=127.0.0.1
    HOMEBUTLER_PORT=8000
+   ZIGBEE_ADAPTER_DEVICE=/dev/serial/by-id/...your-coordinator...
+   ZIGBEE_ADAPTER_TYPE=zstack
+   ZIGBEE2MQTT_BIND_IP=127.0.0.1
+   ZIGBEE2MQTT_PORT=43117
    CLOUDFLARED_TOKEN=...your tunnel token...
    ```
 
@@ -133,18 +138,17 @@ Run these on the NAS from the repo root.
 
 6. If your HA MQTT integration currently uses `localhost`, change it to broker host `mosquitto`.
 
-   To enable Zigbee2MQTT for generic Zigbee sensors without a vendor hub, deploy
-   a separate Portainer Git stack from this repo with compose path
-   `docker-compose.zigbee.yaml`. It joins the existing `homeassistant_automation`
-   network and uses the existing Mosquitto broker plus Home Assistant MQTT
-   discovery.
+   Zigbee2MQTT is part of the main Home Assistant compose stack. It uses the
+   existing Mosquitto broker plus Home Assistant MQTT discovery, and Compose
+   passes only the configured Zigbee coordinator device through to the
+   container as `/dev/zigbee`.
 
-   Zigbee2MQTT add-on stack environment:
+   Zigbee2MQTT environment:
    ```dotenv
    HA_CONFIG_PATH=/volume1/media/config/homeassistant-config
    MQTT_USER=mqtt
    MQTT_PASSWORD=...same value as the Home Assistant stack...
-   ZIGBEE_ADAPTER_DEVICE=/dev/ttyUSB0
+   ZIGBEE_ADAPTER_DEVICE=/dev/serial/by-id/...your-coordinator...
    ZIGBEE_ADAPTER_TYPE=zstack
    ZIGBEE2MQTT_BIND_IP=127.0.0.1
    ZIGBEE2MQTT_PORT=43117

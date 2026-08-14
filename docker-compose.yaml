@@ -140,6 +140,37 @@ services:
       timeout: 10s
       retries: 3
 
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    container_name: zigbee2mqtt
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-America/Los_Angeles}
+      - ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED=true
+      - ZIGBEE2MQTT_CONFIG_PERMIT_JOIN=false
+      - ZIGBEE2MQTT_CONFIG_MQTT_BASE_TOPIC=zigbee2mqtt
+      - ZIGBEE2MQTT_CONFIG_MQTT_SERVER=mqtt://mosquitto:1883
+      - ZIGBEE2MQTT_CONFIG_MQTT_USER=${MQTT_USER:-mqtt}
+      - ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD=${MQTT_PASSWORD}
+      - ZIGBEE2MQTT_CONFIG_SERIAL_PORT=/dev/zigbee
+      - ZIGBEE2MQTT_CONFIG_SERIAL_ADAPTER=${ZIGBEE_ADAPTER_TYPE:-zstack}
+      - ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED=true
+      - ZIGBEE2MQTT_CONFIG_FRONTEND_PORT=8080
+      - ZIGBEE2MQTT_CONFIG_ADVANCED_LOG_LEVEL=${ZIGBEE2MQTT_LOG_LEVEL:-info}
+    volumes:
+      - ${HA_CONFIG_PATH:?HA_CONFIG_PATH is required}/../zigbee2mqtt/data:/app/data
+    devices:
+      - ${ZIGBEE_ADAPTER_DEVICE:?ZIGBEE_ADAPTER_DEVICE is required}:/dev/zigbee
+    ports:
+      - ${ZIGBEE2MQTT_BIND_IP:-127.0.0.1}:${ZIGBEE2MQTT_PORT:-43117}:8080
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - automation
+    security_opt:
+      - no-new-privileges:true
+
   govee2mqtt:
     image: ghcr.io/wez/govee2mqtt:latest
     container_name: govee2mqtt
