@@ -141,7 +141,9 @@ Run these on the NAS from the repo root.
    Zigbee2MQTT is part of the main Home Assistant compose stack. It uses the
    existing Mosquitto broker plus Home Assistant MQTT discovery, and Compose
    passes only the configured Zigbee coordinator device through to the
-   container as `/dev/zigbee`.
+   container as `/dev/zigbee`. The compose file disables the first-run
+   Zigbee2MQTT onboarding wizard because these environment variables provide
+   the initial config.
 
    Zigbee2MQTT environment:
    ```dotenv

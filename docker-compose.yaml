@@ -146,6 +146,7 @@ services:
     restart: unless-stopped
     environment:
       - TZ=${TZ:-America/Los_Angeles}
+      - Z2M_ONBOARD_NO_SERVER=1
       - ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED=true
       - ZIGBEE2MQTT_CONFIG_PERMIT_JOIN=false
       - ZIGBEE2MQTT_CONFIG_MQTT_BASE_TOPIC=zigbee2mqtt
