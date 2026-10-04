@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Agraharam dashboard build brief
+
+For the bespoke dashboard project, start with `docs/dashboard/PROMPT.md` and its
+linked design, integration and acceptance documents. Private machine-local context
+and the reference image live in `.dashboard-local/` (gitignored); never publish
+them or inline household data into frontend assets. Implement under
+`frontend/agraharam/`. Existing `dashboard.yaml` is historical reference, not a
+verified live registry. UI work must preserve existing dashboards, security policy
+and device automations. See `docs/dashboard/README.md` for the complete boundary.
+
 ## What this repo is
 
 The Docker Compose deployment + configuration source for Pranav's Home Assistant stack on a

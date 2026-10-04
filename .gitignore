@@ -2,3 +2,12 @@
 .mcp.json
 __pycache__/
 *.pyc
+
+# Private dashboard handoff, household bindings, screenshots and local previews.
+.dashboard-local/
+frontend/agraharam/node_modules/
+frontend/agraharam/dist/
+frontend/agraharam/playwright-report/
+frontend/agraharam/test-results/
+frontend/agraharam/.env*
+!frontend/agraharam/.env.example
