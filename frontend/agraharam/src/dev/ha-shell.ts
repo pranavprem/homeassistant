@@ -7,7 +7,7 @@
  * Import boundary (§10.3): it never imports element source. The page entry defines the card (from source in dev,
  * from the built bundle in the harness) and the shell creates it by tag name.
  */
-import { css, html, LitElement, nothing, type TemplateResult } from 'lit';
+import { css, html, LitElement, nothing, svg, type TemplateResult } from 'lit';
 import { state } from 'lit/decorators.js';
 import type { CardConfigInput, DemoScenarioId } from '../config/schema.ts';
 import { CARD_TYPE, demoCardInput } from '../demo/configs.ts';
@@ -41,7 +41,25 @@ const CARD_TAG = 'agraharam-dashboard';
 const HA_NARROW_QUERY = '(max-width: 869px)';
 const ROUTE_CHANGE_GAP_MS = 1_000;
 const EDIT_MODE_DURATION_MS = 1_000;
-const SIDEBAR_ITEMS = ['Overview', 'Agraharam', 'Energy', 'Logbook', 'History', 'Settings'] as const;
+/** Lucide-style 24 px stroke glyphs, so the fake sidebar reads like HA's without importing the card's icon set. */
+const SIDEBAR_ITEMS = [
+  {
+    label: 'Overview',
+    glyph: svg`<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>`,
+  },
+  {
+    label: 'Agraharam',
+    glyph: svg`<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>`,
+  },
+  { label: 'Energy', glyph: svg`<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>` },
+  { label: 'Logbook', glyph: svg`<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>` },
+  { label: 'History', glyph: svg`<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>` },
+  {
+    label: 'Settings',
+    glyph: svg`<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/>`,
+  },
+] as const;
+const ACTIVE_SIDEBAR_ITEM = 'Agraharam';
 
 class DevHaShell extends LitElement {
   static override styles = css`
@@ -52,20 +70,47 @@ class DevHaShell extends LitElement {
       font-size: 14px;
       line-height: 1.43;
       letter-spacing: 0.0178em;
-      color: #212121;
-      background: #fafafa;
     }
+    /* HA's default light and dark chrome colours, so the card is previewed against what surrounds it in HA. */
     .app {
+      --shell-bg: #fafafa;
+      --shell-text: #212121;
+      --shell-muted: #727272;
+      --side-bg: #fff;
+      --side-line: #e0e0e0;
+      --side-active-bg: rgb(3 169 244 / 0.12);
+      --side-active-text: #0288d1;
+      --bar-bg: #03a9f4;
+      --bar-text: #fff;
+      --control-bg: rgb(255 255 255 / 0.18);
+      --control-hover: rgb(255 255 255 / 0.3);
       display: flex;
       min-block-size: 100dvh;
+      color: var(--shell-text);
+      background: var(--shell-bg);
+    }
+    .app[data-theme='dark'] {
+      --shell-bg: #111;
+      --shell-text: #e1e1e1;
+      --shell-muted: #9b9b9b;
+      --side-bg: #1c1c1c;
+      --side-line: #2c2c2c;
+      --side-active-bg: rgb(3 169 244 / 0.16);
+      --side-active-text: #4fc3f7;
+      --bar-bg: #101e24;
+      --bar-text: #e1e1e1;
+      --control-bg: rgb(255 255 255 / 0.1);
+      --control-hover: rgb(255 255 255 / 0.18);
+      color-scheme: dark;
     }
     .sidebar {
       flex: none;
+      display: flex;
+      flex-direction: column;
       inline-size: 256px;
       box-sizing: border-box;
-      padding-block-start: 56px;
-      border-inline-end: 1px solid #e0e0e0;
-      background: #fff;
+      border-inline-end: 1px solid var(--side-line);
+      background: var(--side-bg);
       overflow: hidden;
     }
     .app[data-sidebar='collapsed'] .sidebar {
@@ -75,20 +120,69 @@ class DevHaShell extends LitElement {
       display: none;
     }
     .app[data-narrow][data-menu-open] .sidebar {
-      display: block;
+      display: flex;
       position: fixed;
       z-index: 2;
       inset-block: 0;
       inset-inline-start: 0;
+      box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
     }
-    .sidebar li {
-      padding: 12px 16px;
+    .sidebar-header {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-sizing: border-box;
+      block-size: 56px;
+      padding-inline: 16px;
+      border-block-end: 1px solid var(--side-line);
+      font-size: 20px;
       white-space: nowrap;
-      list-style: none;
+    }
+    .brand {
+      flex: none;
+      display: grid;
+      place-items: center;
+      inline-size: 24px;
+      block-size: 24px;
+      border-radius: 6px;
+      background: #03a9f4;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0;
     }
     .sidebar ul {
       margin: 0;
-      padding: 0;
+      padding: 4px 0;
+      list-style: none;
+    }
+    .sidebar li {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      block-size: 40px;
+      margin: 4px 8px;
+      padding-inline: 8px;
+      border-radius: 4px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .sidebar li[aria-current='page'] {
+      background: var(--side-active-bg);
+      color: var(--side-active-text);
+    }
+    .sidebar svg {
+      flex: none;
+      inline-size: 24px;
+      block-size: 24px;
+      color: var(--shell-muted);
+    }
+    .sidebar li[aria-current='page'] svg {
+      color: inherit;
+    }
+    .app[data-sidebar='collapsed']:not([data-narrow]) .label {
+      display: none;
     }
     .content {
       flex: 1 1 auto;
@@ -100,20 +194,52 @@ class DevHaShell extends LitElement {
       box-sizing: border-box;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       block-size: 56px;
       padding: 0 12px;
-      color: #fff;
-      background: #03a9f4;
-      overflow-x: auto;
+      color: var(--bar-text);
+      background: var(--bar-bg);
+      font-size: 13px;
       white-space: nowrap;
+      overflow: hidden;
+    }
+    /* Dev controls scroll on their own when the bar is narrow; the fade shows there is more to the right. */
+    .controls {
+      flex: 1 1 auto;
+      min-inline-size: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-inline-end: 24px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    }
+    .controls::-webkit-scrollbar {
+      display: none;
     }
     .toolbar .title {
+      flex: 0 1 auto;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
       font-size: 18px;
-      font-weight: 500;
+      margin-inline-end: 4px;
+    }
+    /* At HA-narrow widths the dev chrome must never widen the page, or it fakes a horizontal-scroll failure. */
+    .app[data-narrow] .toolbar .tag {
+      display: none;
+    }
+    .toolbar .tag {
+      flex: none;
       margin-inline-end: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--control-bg);
+      font-size: 11px;
     }
     .toolbar label {
+      flex: none;
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -122,6 +248,30 @@ class DevHaShell extends LitElement {
     .toolbar select {
       font: inherit;
       letter-spacing: normal;
+      color: inherit;
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 12px;
+      background: var(--control-bg);
+      cursor: pointer;
+      flex: none;
+    }
+    .toolbar button:hover:not(:disabled),
+    .toolbar select:hover {
+      background: var(--control-hover);
+    }
+    .toolbar button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .toolbar button:focus-visible,
+    .toolbar select:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+    .toolbar option {
+      color: var(--shell-text);
+      background: var(--side-bg);
     }
     .errors {
       padding: 2px 8px;
@@ -184,12 +334,32 @@ class DevHaShell extends LitElement {
     return html`<div
       class="app"
       data-sidebar=${this.sidebar}
+      data-theme=${this.theme}
       ?data-narrow=${this.narrow}
       ?data-menu-open=${this.menuOpen}
     >
       <nav class="sidebar" aria-label="Fake Home Assistant sidebar">
+        <div class="sidebar-header">
+          <span class="brand" aria-hidden="true">HA</span><span class="label">Home Assistant</span>
+        </div>
         <ul>
-          ${SIDEBAR_ITEMS.map((item) => html`<li>${item}</li>`)}
+          ${SIDEBAR_ITEMS.map(
+            (item) =>
+              html`<li aria-current=${item.label === ACTIVE_SIDEBAR_ITEM ? 'page' : nothing} title=${item.label}>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  ${item.glyph}
+                </svg>
+                <span class="label">${item.label}</span>
+              </li>`,
+          )}
         </ul>
       </nav>
       <div class="content">
@@ -206,39 +376,42 @@ class DevHaShell extends LitElement {
           ? html`<button @click=${() => (this.menuOpen = !this.menuOpen)} aria-label="Toggle sidebar">Menu</button>`
           : nothing
       }
-      <span class="title">Agraharam preview (not Home Assistant)</span>
-      <label
-        >Scenario
-        <select @change=${this.#onScenarioChange}>
-          ${DEMO_SCENARIO_IDS.map((id) => html`<option value=${id} ?selected=${id === this.scenario}>${id}</option>`)}
-        </select></label
-      >
-      <button @click=${this.#toggleTheme}>Theme: ${this.theme}</button>
-      <button ?disabled=${this.narrow} @click=${this.#toggleSidebar}>Sidebar: ${this.sidebar}</button>
-      <label
-        >Host
-        <select @change=${this.#onHostChange}>
-          <option value="demo" ?selected=${!fake}>demo</option>
-          <option value="fake-hass" ?selected=${fake}>fake-hass</option>
-        </select></label
-      >
-      ${
-        fake
-          ? html`<button ?disabled=${this.busy} @click=${this.#toggleConnection}>
-              ${this.connected ? 'Disconnect' : 'Reconnect'}
-            </button>`
-          : nothing
-      }
-      ${this.firstUpdateHeld ? html`<button @click=${this.#deliverFirstUpdate}>Deliver first update</button>` : nothing}
-      <button ?disabled=${this.busy} @click=${this.#routeChange}>Route change</button>
-      <button ?disabled=${this.busy} @click=${this.#editModeToggle}>Edit-mode toggle</button>
-      <button ?disabled=${this.busy} @click=${this.#hiddenFiveMinutes}>Hidden 5 min</button>
-      ${
-        fake
-          ? html`<button ?disabled=${this.busy || this.connected} @click=${this.#outageChange}>Outage change</button>`
-          : nothing
-      }
-      ${this.pageErrors > 0 ? html`<span class="errors" role="status">${this.pageErrors} page errors</span>` : nothing}`;
+      <span class="title">Agraharam preview</span>
+      <span class="tag">not Home Assistant</span>
+      <div class="controls">
+        <label
+          >Scenario
+          <select @change=${this.#onScenarioChange}>
+            ${DEMO_SCENARIO_IDS.map((id) => html`<option value=${id} ?selected=${id === this.scenario}>${id}</option>`)}
+          </select></label
+        >
+        <button @click=${this.#toggleTheme}>Theme: ${this.theme}</button>
+        <button ?disabled=${this.narrow} @click=${this.#toggleSidebar}>Sidebar: ${this.sidebar}</button>
+        <label
+          >Host
+          <select @change=${this.#onHostChange}>
+            <option value="demo" ?selected=${!fake}>demo</option>
+            <option value="fake-hass" ?selected=${fake}>fake-hass</option>
+          </select></label
+        >
+        ${
+          fake
+            ? html`<button ?disabled=${this.busy} @click=${this.#toggleConnection}>
+                ${this.connected ? 'Disconnect' : 'Reconnect'}
+              </button>`
+            : nothing
+        }
+        ${this.firstUpdateHeld ? html`<button @click=${this.#deliverFirstUpdate}>Deliver first update</button>` : nothing}
+        <button ?disabled=${this.busy} @click=${this.#routeChange}>Route change</button>
+        <button ?disabled=${this.busy} @click=${this.#editModeToggle}>Edit-mode toggle</button>
+        <button ?disabled=${this.busy} @click=${this.#hiddenFiveMinutes}>Hidden 5 min</button>
+        ${
+          fake
+            ? html`<button ?disabled=${this.busy || this.connected} @click=${this.#outageChange}>Outage change</button>`
+            : nothing
+        }
+        ${this.pageErrors > 0 ? html`<span class="errors" role="status">${this.pageErrors} page errors</span>` : nothing}
+      </div>`;
   }
 
   // -------------------------------------------------------------------------------------------------------------
