@@ -3,21 +3,33 @@
  * file and scans what is about to become public:
  *
  *   default            tracked, untracked-not-ignored and staged files under frontend/agraharam, each staged
- *                      index blob, and dist/agraharam/<version>/
+ *                      index blob, and every built dist/agraharam/<version>/ (an AGR_PATCH build included)
  *   --dist <dir>       only the files of one built directory (install.sh re-scans exactly what it copies)
  *   --range <revs>     every blob under frontend/agraharam in every commit of a `git rev-list` range, for the
  *                      commits about to be pushed
  *
  * Private files are found through AGR_PRIVATE_DIR, else `<worktree root>/.dashboard-local`. A missing private
  * directory exits 2 unless --allow-missing-private is given, so a worktree without the private files can never
- * pass silently. Hits print `path:line:column rule`, never the matched value.
+ * pass silently. Without private files (allowed missing, or a private directory holding none), there is no forbidden
+ * set, so the default and --range modes run the positive public-literal check instead (§11.1, §17.7): every
+ * entity-ID-shaped literal in src, tests, e2e and install must be fictional, exempted or a catalog identifier. That
+ * is what CI runs. --dist then reports "skipped", because postbuild already ran that check over the bundle it built.
+ * Hits print `path:line:column rule`, never the matched value.
  *
  * Exit codes: 0 clean or skipped, 1 hits or an unreadable private file, 2 usage or a missing private directory.
  */
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { buildForbiddenSet, decodeForScan, formatHit, scanForForbidden } from './lib/public-scan.mjs';
+import { CATALOG_LITERALS } from './lib/catalog-literals.mjs';
+import {
+  buildForbiddenSet,
+  checkPublicLiterals,
+  decodeForScan,
+  formatHit,
+  isPublicLiteralScope,
+  scanForForbidden,
+} from './lib/public-scan.mjs';
 import {
   findRepoRoot,
   isDirectory,
@@ -26,7 +38,6 @@ import {
   loadExemptions,
   loadPrivateSources,
   PACKAGE_PATH,
-  readPackageVersion,
   readRangeBlobs,
   readStagedBlobs,
   resolvePrivateDir,
@@ -41,7 +52,7 @@ const USAGE =
   'usage: node scripts/check-public.mjs [--dist <dir> | --range <rev-range>] [--allow-missing-private]\n' +
   '  Private files: AGR_PRIVATE_DIR, else <worktree root>/.dashboard-local.';
 
-/** @typedef {{ label: string, content: Buffer }} ScanTarget */
+/** @typedef {{ label: string, content: Buffer, path?: string }} ScanTarget `path` is repo-relative, when known */
 
 /**
  * @param {{ argv: readonly string[], cwd: string, env: Readonly<Record<string, string | undefined>>,
@@ -84,8 +95,13 @@ export function checkPublic({ argv, cwd, env, out, err }) {
   const privateDir = resolvePrivateDir({ repoRoot, cwd, env });
   if (!isDirectory(privateDir)) {
     if (options['allow-missing-private']) {
-      out('check-public: skipped: no private files (private directory not found; --allow-missing-private).');
-      return EXIT_CLEAN;
+      return checkLiteralsOnly({
+        repoRoot,
+        options,
+        reason: 'private directory not found; --allow-missing-private',
+        out,
+        err,
+      });
     }
     err(
       `check-public: private directory not found at ${privateDir}. Set AGR_PRIVATE_DIR to the directory that holds ` +
@@ -97,8 +113,7 @@ export function checkPublic({ argv, cwd, env, out, err }) {
   const sources = loadPrivateSources(privateDir);
   for (const link of sources.skippedLinks) err(`check-public: ${skippedLinkWarning(link)}`);
   if (sources.documents.length === 0 && sources.denylist.length === 0) {
-    out('check-public: skipped: no private files.');
-    return EXIT_CLEAN;
+    return checkLiteralsOnly({ repoRoot, options, reason: 'the private directory holds none', out, err });
   }
   const forbidden = buildForbiddenSet(sources, loadExemptions());
   out(
@@ -134,6 +149,50 @@ export function checkPublic({ argv, cwd, env, out, err }) {
 }
 
 /**
+ * The check that needs no private files (§17.7): the positive public-literal check over the scoped working-tree
+ * files and staged blobs, or over every scoped blob of a commit range.
+ * @param {{ repoRoot: string, options: { dist?: string, range?: string }, reason: string,
+ *           out: (line: string) => void, err: (line: string) => void }} input
+ * @returns {number} exit code
+ */
+function checkLiteralsOnly({ repoRoot, options, reason, out, err }) {
+  if (options.dist !== undefined) {
+    out(`check-public: skipped: no private files (${reason}); postbuild ran the public-literal check on the build.`);
+    return EXIT_CLEAN;
+  }
+  out(`check-public: no private files (${reason}): running the public-literal check (§17.7).`);
+  const targets =
+    options.range === undefined
+      ? workingTreeTargets(repoRoot)
+      : readRangeBlobs(repoRoot, options.range).map(({ path, commit, content }) => ({
+          label: `${path}@${commit}`,
+          path,
+          content,
+        }));
+  const scoped = targets.filter(
+    (target) => target.path !== undefined && isPublicLiteralScope(target.path.slice(PACKAGE_PATH.length + 1)),
+  );
+  const exemptions = loadExemptions();
+  let hitCount = 0;
+  for (const { label, path, content } of scoped) {
+    const files = [{ path: /** @type {string} */ (path), text: decodeForScan(content) }];
+    for (const hit of checkPublicLiterals({ files, exemptions, catalogLiterals: CATALOG_LITERALS })) {
+      out(formatHit(label, hit));
+      hitCount += 1;
+    }
+  }
+  if (hitCount > 0) {
+    err(
+      `check-public: ${hitCount} public-literal hit(s) in ${scoped.length} file(s). Use fictional *.demo_* IDs, or ` +
+        'add a reviewed generic value to scripts/public-exemptions.json; values are never printed.',
+    );
+    return EXIT_HITS;
+  }
+  out(`check-public: clean: public-literal check of ${scoped.length} file(s).`);
+  return EXIT_CLEAN;
+}
+
+/**
  * @param {{ repoRoot: string, cwd: string, options: { dist?: string, range?: string } }} input
  * @returns {{ scan: ScanTarget[], irregular: string[] } | string} targets, or a usage error message
  */
@@ -156,11 +215,31 @@ function collectTargets({ repoRoot, cwd, options }) {
 }
 
 /**
- * Working-tree files, staged blobs that differ from them, and the current build output.
+ * Working-tree files, staged blobs that differ from them, and every build output under dist/agraharam/: a release
+ * build stamps its own patch (AGR_PATCH, §17.3), so its directory need not match package.json.
  * @param {string} repoRoot
  * @returns {{ scan: ScanTarget[], irregular: string[] }}
  */
 function collectDefaultTargets(repoRoot) {
+  const scan = workingTreeTargets(repoRoot);
+  /** @type {string[]} */
+  const irregular = [];
+  const distRoot = join(repoRoot, PACKAGE_PATH, 'dist', 'agraharam');
+  if (isDirectory(distRoot)) {
+    const dist = readDirectory(distRoot, `${PACKAGE_PATH}/dist/agraharam`);
+    scan.push(...dist.scan);
+    irregular.push(...dist.irregular);
+  }
+  return { scan, irregular };
+}
+
+/**
+ * Tracked, untracked-not-ignored and staged files under the package, plus each staged blob that differs from its
+ * working-tree file.
+ * @param {string} repoRoot
+ * @returns {ScanTarget[]}
+ */
+function workingTreeTargets(repoRoot) {
   /** @type {ScanTarget[]} */
   const scan = [];
   /** @type {Map<string, Buffer>} */
@@ -169,20 +248,12 @@ function collectDefaultTargets(repoRoot) {
     const content = readFileIfPresent(join(repoRoot, path));
     if (content === undefined) continue; // listed by git but deleted from the working tree
     working.set(path, content);
-    scan.push({ label: path, content });
+    scan.push({ label: path, path, content });
   }
   for (const { path, content } of readStagedBlobs(repoRoot)) {
-    if (!working.get(path)?.equals(content)) scan.push({ label: `${path} [index]`, content });
+    if (!working.get(path)?.equals(content)) scan.push({ label: `${path} [index]`, path, content });
   }
-  const packageDir = join(repoRoot, PACKAGE_PATH);
-  const version = readPackageVersion(packageDir);
-  const distDir = version === undefined ? undefined : join(packageDir, 'dist', 'agraharam', version);
-  if (distDir !== undefined && isDirectory(distDir)) {
-    const dist = readDirectory(distDir, `${PACKAGE_PATH}/dist/agraharam/${version}`);
-    scan.push(...dist.scan);
-    return { scan, irregular: dist.irregular };
-  }
-  return { scan, irregular: [] };
+  return scan;
 }
 
 /**

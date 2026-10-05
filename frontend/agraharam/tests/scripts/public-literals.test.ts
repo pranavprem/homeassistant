@@ -1,7 +1,7 @@
 /**
- * The positive public-literal check (§11.1, §12.1): every entity-ID-shaped literal in src/demo, src/dev, tests,
- * e2e and install must be fictional (`demo_`), a reviewed exemption, or a §7.1 catalog `domain.service`. It needs
- * no private files, so it protects a machine without `.dashboard-local/` too.
+ * The positive public-literal check (§11.1, §12.1, §17.7): every entity-ID-shaped literal in src (production code
+ * included), tests, e2e and install must be fictional (`demo_`), a reviewed exemption, or a §7.1 catalog
+ * identifier. It needs no private files, so it protects a machine without `.dashboard-local/` too, and CI.
  *
  * Non-demo IDs in the unit cases are built at runtime by concatenation, so this file's own source passes.
  */
@@ -11,23 +11,19 @@ import { describe, expect, it } from 'vitest';
 import {
   buildForbiddenSet,
   checkPublicLiterals,
+  CSS_SELECTOR_LITERALS,
   FILE_EXTENSIONS,
   isPublicLiteralScope,
   KNOWN_ENTITY_DOMAINS,
   literalRegions,
   type FileHit,
 } from '../../scripts/lib/public-scan.mjs';
+import { CATALOG_LITERALS, CATALOG_SERVICES } from '../../scripts/lib/catalog-literals.mjs';
 import { findRepoRoot, listWorkingFiles, loadExemptions, PACKAGE_PATH } from '../../scripts/lib/repo-files.mjs';
 import { DOMAINS_BY_ROLE } from '../../src/config/schema.ts';
-import { ACTION_CATALOG } from '../../src/ha/actions/catalog.ts';
 import { PACKAGE_DIR } from './support/temp-repo.ts';
 
 const exemptions = loadExemptions();
-/** §7.1 catalog identifiers a public file may name: `domain.service` pairs and action kinds. */
-/** Every `domain.service` the catalog can call (for example `cover.open_cover`). */
-const ACTION_KINDS = Object.keys(ACTION_CATALOG) as (keyof typeof ACTION_CATALOG)[];
-const CATALOG_SERVICES = ACTION_KINDS.map((kind) => `${ACTION_CATALOG[kind].domain}.${ACTION_CATALOG[kind].service}`);
-const CATALOG_LITERALS = [...new Set(CATALOG_SERVICES), ...ACTION_KINDS];
 const join2 = (...parts: string[]) => parts.join('.');
 const REAL_LOOKING_LIGHT = join2('light', 'kitchen');
 
@@ -40,7 +36,15 @@ function format(hit: FileHit): string {
 }
 
 describe('public literals on the real tree', () => {
-  it('finds no non-fictional entity ID in src/demo, src/dev, tests, e2e or install', () => {
+  it('scans all of src, production code included (§17.7), plus tests, e2e and install', () => {
+    for (const path of ['src/ha/actions/catalog.ts', 'src/demo/scenarios.ts', 'tests/setup.ts', 'install/README.md']) {
+      expect(isPublicLiteralScope(path), path).toBe(true);
+    }
+    expect(isPublicLiteralScope('scripts/postbuild.mjs')).toBe(false);
+    expect(isPublicLiteralScope('docs/ARCHITECTURE.md')).toBe(false);
+  });
+
+  it('finds no non-fictional entity ID in src, tests, e2e or install', () => {
     const repoRoot = findRepoRoot(PACKAGE_DIR);
     const files = listWorkingFiles(repoRoot)
       .map((path) => path.slice(PACKAGE_PATH.length + 1))
@@ -134,6 +138,46 @@ describe('checkPublicLiterals: CSS selector arguments', () => {
     expect(check('tests/x.test.ts', `label('${closeButton}')`)).toHaveLength(1);
     expect(check('tests/x.test.ts', `root.querySelector(pick('${closeButton}'))`)).toHaveLength(1);
     expect(check('tests/x.test.ts', `const s = '${closeButton}'; root.querySelector(s);`)).toHaveLength(1);
+  });
+});
+
+describe('checkPublicLiterals: CSS selectors (exact allowlist)', () => {
+  const tile = join2('button', 'tile');
+  const short = join2('text', 'short');
+  const now = join2('time', 'now');
+  const body = join2('button', 'body');
+
+  it('allows exactly the four selectors of the card css templates', () => {
+    expect([...CSS_SELECTOR_LITERALS].sort()).toEqual([body, tile, short, now].sort());
+  });
+
+  it.each([
+    ['in a Lit css template', `const s = css\`${tile}:hover:not([aria-disabled='true']) {} ${body} {}\`;`],
+    ['as class chains', `const s = css\`.hero .${short} { inline-size: 1px; } .${now}::before {}\`;`],
+    ['minified, as in the bundle', `const s=\`${tile}{cursor:pointer}.${now}::before{content:''}\`;`],
+  ])('passes them %s', (_label, source) => {
+    expect(check('src/x.ts', source)).toEqual([]);
+  });
+
+  // Each probe would have passed the earlier "followed by a {" heuristic: button, text, time and switch are real
+  // entity domains, so context can never prove a token is a selector.
+  it.each([
+    [
+      'YAML followed by a flow mapping',
+      'install/x.yaml',
+      `- entity: ${join2('switch', 'heater')}\n  tap_action: { action: toggle }\n`,
+    ],
+    ['a comment before a brace', 'src/x.ts', `// ${join2('button', 'doorbell')} { see the handler }\nconst x = 1;`],
+    ['a test name before a brace', 'tests/x.test.ts', `it('${join2('text', 'status')}: {renders}', () => {});`],
+    ['a selector that is not on the list', 'src/x.ts', `const s = css\`${join2('button', 'tiles')} { color: red; }\`;`],
+    ['an element-domain ID in a template before a rule', 'src/x.ts', `const s = \`${join2('time', 'alarm')} {}\`;`],
+  ])('catches %s', (_label, path, source) => {
+    expect(check(path, source)).toHaveLength(1);
+  });
+
+  it('still checks an attribute value inside an allowed selector', () => {
+    const source = `const s = css\`${tile}[data-entity="${REAL_LOOKING_LIGHT}"] {}\`;`;
+    expect(check('tests/x.test.ts', source).map(format)).toEqual(['tests/x.test.ts:1:40 public-literal']);
   });
 });
 

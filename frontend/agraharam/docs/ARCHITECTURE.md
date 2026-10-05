@@ -227,13 +227,14 @@ Additions beyond the lead list, each small and justified:
 package.json                   pinned deps, engines {"node": ">=24 <25"}, scripts (§11.1)
 package-lock.json              committed
 tsconfig.json                  strict TS config (§11.2)
-build-env.ts                   version and git SHA read once; shared by the Vite, Vitest and harness configs
+build-env.ts                   version (AGR_PATCH override, §17.3), git SHA and the size target, read once; shared
+                               by the Vite, Vitest and harness configs, postbuild and stage-preview
 vite.config.ts                 card bundle build + dev server (127.0.0.1:5173)
 vite-lit-css.ts                build-only plugin: strips comments and indentation inside Lit `css` templates (§11.3)
 vite.harness.config.ts         builds harness.html into dist/preview; preview server 127.0.0.1:4173
-vitest.config.ts               two projects: `dom` (happy-dom + tests/setup.ts; every test except the next two
-                               folders) and `node` (tests/scripts/**, tests/install/**: they spawn git, bash
-                               and node, so no DOM globals or DOM setup apply)
+vitest.config.ts               two projects: `dom` (happy-dom + tests/setup.ts; every test except the next three
+                               folders) and `node` (tests/scripts/**, tests/install/**, tests/release/**: they
+                               spawn git, bash and node, so no DOM globals or DOM setup apply)
 playwright.config.ts           e2e projects, webServer = vite preview of dist/preview
 .prettierrc.json / .prettierignore   ignore: dist, test-results, playwright-report, docs/ (hand-wrapped design docs
                                whose wide tables Prettier would re-pad)
@@ -243,8 +244,13 @@ harness.html                   e2e/preview page (fake HA shell + BUILT bundle fr
 README.md                      commands, preview, commit procedure, install pointer
 docs/ARCHITECTURE.md           this file
 scripts/
-  postbuild.mjs                move maps out, copy OFL texts, allowlist + privacy scan, manifest.json, SHA256SUMS
+  postbuild.mjs                move maps out, copy OFL texts, flat allowlist, banner + privacy + literal scans,
+                               manifest.json, SHA256SUMS (§11.5, §17.2)
   stage-preview.mjs            copy dist/agraharam/<v> into dist/preview/local/agraharam/<v> (byte-identical)
+  ci/changes.sh                the workflow's `changes` job: dashboard/bundle as literal true/false (§17.5)
+  ci/stage-release.mjs         the workflow's `release-build` check: version, clean build, SHA256SUMS-listed files
+  lib/font-licenses.mjs        the two OFL fonts, their license files and the bundle's legal banner (§17.2)
+  lib/catalog-literals.mjs     §7.1 catalog identifiers allowed in public literals (catalog read by type stripping)
   generate-private-config.mjs  .dashboard-local candidates → .dashboard-local/agraharam-next.dashboard.yaml only
   lib/private-config.mjs       pure mapping functions (unit-tested)
   check-public.mjs             public-repo scan: tracked, untracked-not-ignored and staged files, staged blobs,
@@ -387,7 +393,8 @@ src/
     modal.ts                   native <dialog> rules shared by agr-drawer and agr-dialog (§5.4 rules 11, 12)
     time.ts                    minute-aligned ticker (realigns on visibilitychange), visibility helpers
 tests/                         Vitest (§12); tests/scripts/fixtures/candidates.fictional.json is a fictional
-                               candidates file shaped like the private one
+                               candidates file shaped like the private one; tests/release/ holds the §17.8
+                               workflow, hacs.json, AGR_PATCH, changes, stage-release and release-publish suites
 e2e/                           Playwright (§12)
 install/
   README.md                    deployment guide (§13)
@@ -398,6 +405,8 @@ install/
   overrides.example.json       shape of the private generator overrides (fictional; includes camera_thumbnails
                                and camera_live)
 ```
+
+Outside the package (§17): `/hacs.json` and `/.github/workflows/agraharam.yml` at the repository root.
 
 No module names shadow Node built-ins: scripts import `node:*` explicitly. No Python is added.
 `dist/`, `test-results/` and `playwright-report/` are already gitignored at the repo root.
@@ -2886,7 +2895,7 @@ therefore cover files **before** they are staged, and it must know every real ID
   - staged: `git diff --cached --name-only -z --diff-filter=ACMR -- frontend/agraharam`, and for each staged path
     the **index blob** as well (`git show :<path>` via `execFileSync`), so content staged and then fixed only in
     the working tree is still caught;
-  - every file in `dist/agraharam/<version>/` (as before).
+  - every file under `dist/agraharam/` (every built version, so an `AGR_PATCH` build is covered, §17.3).
   The union is de-duplicated; missing paths are skipped. Gitignored paths (`node_modules/`, `dist/`,
   `test-results/`, `playwright-report/` per the repo `.gitignore`) are excluded by `--exclude-standard`, and dist
   is scanned separately. Binary files (fonts, PNGs) are scanned as latin1 text, so an ID in PNG metadata is found.
@@ -2917,26 +2926,34 @@ therefore cover files **before** they are staged, and it must know every real ID
      `open_cover`, `media_play`, …) is dropped **before** rule 3; otherwise `light.turn_off` would forbid
      `turn_off` (and `TURN_OFF`) everywhere. Service strings that embed household names (for example a
      `notify.mobile_app_*` service) stay forbidden. A Vitest case asserts `service_names` covers every §7.1
-     catalog service, so `check-public.mjs` needs no TypeScript import beyond `entity-id.ts`.
+     catalog service, so the forbidden set needs no TypeScript import beyond `entity-id.ts` (the public-literal
+     mode below reads the catalog through `scripts/lib/catalog-literals.mjs`).
   The matcher tokenizes each scanned file once and looks tokens up in Sets, so its cost is linear in the scanned
   bytes whatever the size of the forbidden set. Friendly names are **not** harvested automatically: generic
   multi-word names would collide with fictional fixture names; household names go in the private denylist.
 - **Public literals** (positive check, needs no private files; `checkPublicLiterals()` in the same module, run by
   `tests/scripts/public-literals.test.ts` over every tracked and untracked-not-ignored file): every
   entity-ID-shaped literal (a string literal, JSON or YAML scalar, or prose substring that passes
-  `isValidEntityId` with a known HA domain from rule 2) in `src/demo/**`, `src/dev/**`, `tests/**` (including
-  `tests/scripts/fixtures/*.json`), `e2e/**` and `install/**` must (a) have an object ID starting with `demo_`,
+  `isValidEntityId` with a known HA domain from rule 2) in `src/**` (production code too, since §17.7),
+  `tests/**` (including `tests/scripts/fixtures/*.json`), `e2e/**` and `install/**`, and, inside postbuild, in the
+  built `agraharam.js` must (a) have an object ID starting with `demo_`,
   (b) be listed in `scripts/public-exemptions.json` (reviewed generic values, including the service strings
   the fitness tests assert are absent, such as `alarm_control_panel.alarm_disarm`), or (c) be a `domain.service`
-  pair from the §7.1 catalog. Anything else fails with `path:line:column` and rule `public-literal`. This
+  pair or action kind from the §7.1 catalog (`scripts/lib/catalog-literals.mjs`). Four CSS selectors of the card's
+  Lit `css` templates are allowed by exact value only (`CSS_SELECTOR_LITERALS` in `public-scan.mjs`:
+  `button.body`, `button.tile`, `text.short`, `time.now`); context never decides, because `button`, `text` and
+  `time` are real entity domains. Anything else fails with `path:line:column` and rule `public-literal`. This
   enforces §10.1's "all IDs are `*.demo_*`" even on a machine without `.dashboard-local/`, and catches a real ID
   that the private files happen not to contain. Planted IDs in scanner tests therefore use `demo_` object IDs.
 - **Output**: each hit prints `path:line:column` and the rule (`entity-id`, `object-id` or `denylist`), never the
   matched value or its surrounding line, and the script exits 1. `--dist <dir>` limits the scan to one built
   directory (used by `install.sh`). A missing private directory exits 2 unless `--allow-missing-private` is
-  given (then it prints "skipped" and exits 0), so on a clone without `.dashboard-local/` both `check:public` and
-  `verify` exit 2; a private directory without JSON files prints "skipped: no private files" and exits 0. The
-  postbuild dist scan (§11.5) uses the same `public-scan.mjs` forbidden set, matcher and exemptions.
+  given, so on a clone without `.dashboard-local/` both `check:public` and `verify` exit 2. Without a forbidden set
+  (missing and allowed, or a private directory without JSON files), `check:public` runs the public-literal check
+  instead (§17.7): over the scoped working-tree files and staged blobs by default, or over every scoped blob of a
+  `--range`; hits print `path:line:column public-literal` and exit 1. `--dist` then prints "skipped", because
+  postbuild already ran that check over the bundle. CI runs exactly this mode. The postbuild dist scan (§11.5) uses
+  the same `public-scan.mjs` forbidden set, matcher and exemptions.
 - **Commit procedure** (README, and WP14's handoff): `npm run verify` (which runs `check:public`, now covering
   untracked files), then `git add …`, then run `npm run check:public` **again** so the staged blobs are scanned,
   then commit. The lead's commit step in the pipeline runs the same sequence. No git hook is installed
@@ -2960,14 +2977,17 @@ Elements register through `defineOnce` side effects. Tests use side-effect impor
 
 ### 11.3 Vite (`vite.config.ts`): plain build, not library mode
 
-Library mode force-inlines fonts as base64 (verified), so the bundle uses a plain Rolldown build:
+The bundle is one self-contained module (§17.2), built as a plain Rolldown build. The fonts are embedded
+deliberately through `?inline` imports (§11.4); every other asset would be emitted as a separate file, which the
+postbuild allowlist rejects, so nothing is inlined implicitly:
 
 ```ts
 import { defineConfig } from 'vite';
-import { APP_VERSION, GIT_SHA } from './build-env.ts';
+import { APP_VERSION, BUNDLE_SIZE_TARGET_BYTES, GIT_SHA } from './build-env.ts';
+import { legalBanner } from './scripts/lib/font-licenses.mjs';
 
 export default defineConfig({
-  base: './',                                     // asset URLs become new URL('fonts/x.woff2', import.meta.url)
+  base: './',
   define: { __APP_VERSION__: JSON.stringify(APP_VERSION), __GIT_SHA__: JSON.stringify(GIT_SHA) },
   server: { host: '127.0.0.1', port: 5173, strictPort: true },
   build: {
@@ -2976,18 +2996,26 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: 'hidden',                          // .map produced, no sourceMappingURL; moved out by postbuild
     modulePreload: false,
-    assetsInlineLimit: 0,
+    assetsInlineLimit: 0,                         // an accidental asset import becomes a file and fails the allowlist
     copyPublicDir: false,
-    license: { fileName: 'LICENSES/THIRD_PARTY_LICENSES.md' },
+    chunkSizeWarningLimit: BUNDLE_SIZE_TARGET_BYTES / 1000,   // Vite counts kB as 1000 B; one file is the point
+    license: { fileName: 'THIRD_PARTY_LICENSES.md' },
     rolldownOptions: {
       input: 'src/agraharam.ts',
       preserveEntrySignatures: 'exports-only',
-      output: { format: 'es', entryFileNames: 'agraharam.js',
-                assetFileNames: 'fonts/[name]-[hash][extname]', codeSplitting: false },
+      output: { format: 'es', entryFileNames: 'agraharam.js', codeSplitting: false,
+                postBanner: legalBanner(PACKAGE_DIR) },          // after minification, so it always leads the file
     },
   },
 });
 ```
+
+Emitted file names (§17.2, flat): `agraharam.js` and `THIRD_PARTY_LICENSES.md` from Vite; postbuild adds
+`OFL-1.1-Newsreader.txt`, `OFL-1.1-Hanken-Grotesk.txt`, `manifest.json` and `SHA256SUMS`. No `fonts/` or
+`LICENSES/` directory exists any more. The legal banner (`scripts/lib/font-licenses.mjs`) is a `/*! … */` comment
+holding both fonts' copyright notices, read from each Fontsource package's LICENSE file, "SIL Open Font License,
+Version 1.1", `https://openfontlicense.org`, and where the full texts are; postbuild requires the bundle to start
+with exactly it.
 
 The config also registers `litCssMinify()` (`vite-lit-css.ts`, build only): it finds every `css` tagged template
 in `src/` with the TypeScript parser and removes comments and the whitespace CSS ignores from their static text,
@@ -2998,7 +3026,11 @@ one build (a few anti-aliased pixels in under 0.005 % of a frame).
 
 `build-env.ts` reads `package.json` (`with { type: 'json' }`), runs `execFileSync('git', ['rev-parse',
 '--short=12', 'HEAD'])` (no shell; `'unknown'` on failure), and gets `commitTime` from
-`git log -1 --format=%cI` plus `dirty` from `git status --porcelain -- .`. `vite.harness.config.ts` uses
+`git log -1 --format=%cI` plus `dirty` from `git status --porcelain -- .`. `APP_VERSION` is
+`resolveAppVersion(package.json version, AGR_PATCH)` (§17.3): unset or empty `AGR_PATCH` keeps the package version;
+`^[1-9]\d*$` gives MAJOR.MINOR.AGR_PATCH (package.json must hold MAJOR.MINOR.0); any other value throws
+`BuildEnvError`, so the build, the harness build and Vitest all refuse to start. `stage-preview.mjs` and the e2e
+bundle spec use the same `APP_VERSION`. `vite.harness.config.ts` uses
 `base: '/'`, input `harness.html`, `outDir: dist/preview`, defines `__HARNESS_BUNDLE_URL__ =
 '/local/agraharam/<v>/agraharam.js'`, and sets its preview server to `127.0.0.1:4173`, `strictPort`.
 
@@ -3020,68 +3052,91 @@ so HA's card picker does not start a full demo.
 
 ### 11.4 Fonts (`src/styles/fonts.ts`)
 
+Both faces are embedded (§17.2). Vite `?inline` gives a base64 `data:` URL; `ensureFonts` decodes each to an
+`ArrayBuffer` once and registers a binary `FontFace`, so loading never depends on a `font-src` policy or a second
+request:
+
 ```ts
-import serifUrl from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url';
-import sansUrl from '@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2?url';
+import serifData from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?inline';
+import sansData from '@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2?inline';
 let registered = false;
 /** Called from the root's connectedCallback. Never at module load: the resource loads on every dashboard. */
 export function ensureFonts(): void {
   if (registered || typeof FontFace === 'undefined' || !document.fonts) return;
   registered = true;
-  for (const [family, url, weight] of [['Agraharam Serif', serifUrl, '200 800'],
-                                       ['Agraharam Sans', sansUrl, '100 900']] as const) {
-    const face = new FontFace(family, `url(${url}) format('woff2')`, { weight, display: 'swap' });
+  for (const [family, dataUrl, weight] of [['Agraharam Serif', serifData, '200 800'],
+                                           ['Agraharam Sans', sansData, '100 900']] as const) {
+    const bytes = decodeDataUrl(dataUrl);           // atob → Uint8Array → ArrayBuffer; undefined if not base64
+    if (bytes === undefined) { log.warn('font-load-failed'); continue; }
+    const face = new FontFace(family, bytes, { weight, display: 'swap' });
     document.fonts.add(face);
     void face.load().catch(() => log.warn('font-load-failed'));   // falls back to system stacks
   }
 }
 ```
 
-### 11.5 Install bundle layout (`dist/agraharam/<version>/`)
+Decoding and registration happen on first connect only (D3), never at module load. The font bytes travel inside
+the module, so they download, as part of its JavaScript, on every HA dashboard page that loads the resource (the
+§17.2 trade-off); `tests/root/fonts.test.ts` checks the decoded bytes equal the package fonts.
+
+### 11.5 Release directory layout (`dist/agraharam/<version>/`, flat)
+
+One flat directory serves both channels (§17.2): it is the HACS release asset set and the `install.sh` source, and
+`install.sh` also installs a release downloaded into a directory named after its version.
 
 ```text
-agraharam.js                         single ES module (target ≤ 220 KB minified; Lit + app + demo fixtures)
-fonts/newsreader-latin-opsz-normal-<hash>.woff2
-fonts/hanken-grotesk-latin-wght-normal-<hash>.woff2
-LICENSES/THIRD_PARTY_LICENSES.md     Vite build.license (lit BSD-3, lucide ISC + Feather MIT, Fontsource OFL)
-LICENSES/OFL-1.1-Newsreader.txt      copied from the package LICENSE
-LICENSES/OFL-1.1-Hanken-Grotesk.txt
-manifest.json                        {name, version, git_sha, git_dirty, commit_time, node, entry,
-                                      resource_url:'/local/agraharam/<v>/agraharam.js',
-                                      files:[{path, bytes, sha256}]}  (sorted; reproducible)
-SHA256SUMS                           "<sha256>  <path>" for every file above, sorted; `shasum -a 256 -c`
+agraharam.js                 single ES module, both fonts embedded; starts with the /*! legal banner (§11.3)
+THIRD_PARTY_LICENSES.md      Vite build.license (lit BSD-3, lucide ISC + Feather MIT, both Fontsource OFL packages)
+OFL-1.1-Newsreader.txt       copied from the package LICENSE
+OFL-1.1-Hanken-Grotesk.txt   copied from the package LICENSE
+manifest.json                {name, version, git_sha, git_dirty, commit_time, node, entry,
+                              files:[{path, bytes, sha256}]}  (sorted; reproducible; no resource_url, because the
+                              URL depends on the channel)
+SHA256SUMS                   "<sha256>  <name>" for every file above, flat names, sorted; `sha256sum -c`
 ```
 
-**Size target (integration decision, supersedes the 220 KB figure above and in §15 #19).** `postbuild.mjs` prints one
-size line (raw and gzip bytes against the target) and warns above **480 KB raw**, where KB means KiB (480 × 1024 =
-491,520 B, `BUNDLE_SIZE_TARGET_BYTES`); each build's exact raw size per file is in its `manifest.json`, and the
-gzip size only in the size line. After the maintainability pass (§16.16) the bundle measured 437,486 B raw and 125,015 B gzip,
-down from 482,999 B and 134,426 B (the Lit `css` minification alone saves about 37.6 KB raw): nine sections, the full §7.1 catalog with
-request validation, config validation, the DemoHost with fictional fixtures for nine scenarios, Lit and the curated
-Lucide nodes. The largest contributors are the action gateway, Home, the demo fixtures and the primitives; none is
-optional. 480 KB loads in well under HA's 2 s define window on the LAN or through the tunnel (§15 #19), the fonts
-load separately with `display: swap`, and features are not cut for size. The figure stays a warning, not a failure,
-so a real regression is visible in the build log.
+**Size target (§17.2, supersedes the 480 KiB integration figure and the original 220 KB).** `postbuild.mjs` prints
+one size line (raw and gzip bytes against the target) and warns above **720 KiB raw** (720 × 1024 = 737,280 B,
+`BUNDLE_SIZE_TARGET_BYTES` in `build-env.ts`, which Vite's chunk report uses too); each build's exact raw size per
+file is in its `manifest.json`, and the gzip size only in the size line. With both fonts embedded (132,000 B and
+34,704 B of WOFF2, about 222 KB as base64) the bundle measures about 661 KB raw and 295 KB gzip; before §17 it was
+437,680 B raw and 125,017 B gzip (§16.17): nine sections, the full §7.1 catalog with request validation, config
+validation, the DemoHost with fictional fixtures for nine scenarios, Lit and the curated Lucide nodes. 720 KiB
+loads well under HA's 2 s define window on the LAN or through the tunnel (§15 #19), and features are not cut for
+size. The figure stays a warning, not a failure, so a real regression is visible in the build log.
 
 `scripts/postbuild.mjs`, in order; any failure exits non-zero:
 
-1. Move `*.map` to `dist/sourcemaps/<version>/`. That directory is never installed. Fixtures are fictional, but
-   `/local` is unauthenticated, so maps stay out anyway.
-2. Copy the two OFL texts into `LICENSES/` and assert `THIRD_PARTY_LICENSES.md` exists.
-3. Allowlist: only `agraharam.js`, `fonts/*.woff2` and `LICENSES/*.{md,txt}` may exist (before manifest and sums).
+1. Move `*.map` to `dist/sourcemaps/<version>/`. That directory is never shipped. Fixtures are fictional, but
+   `/local` and `/hacsfiles` are unauthenticated, so maps stay out anyway.
+2. Copy the two OFL texts next to the bundle, assert `THIRD_PARTY_LICENSES.md` exists and names both
+   `@fontsource-variable` packages (the fonts' only package notice now that they are inside the module).
+3. Allowlist: exactly `agraharam.js`, `THIRD_PARTY_LICENSES.md` and the two OFL texts, flat (no subdirectory), before
+   the manifest and sums.
 4. Privacy and safety scan of `agraharam.js`:
+   - embedded data is exactly the two package fonts (rule `embedded-data`): there are exactly as many matches of
+     `` /data:[^,"'`]*;base64,/g `` as fonts, each is `data:font/woff2;base64,` and ends its string literal, and each
+     payload decodes to bytes whose SHA-256 equals one of the `node_modules/@fontsource-variable/*/files/*.woff2`
+     files the card embeds (each once); no other MIME-typed `data:` URL (base64 or not, such as a
+     `data:text/javascript,…` import) appears. Only those verified payloads are blanked for the text rules below,
+     because a three-letter rule such as `eyJ` occurs in random base64 by chance; the private scan reads the font
+     files themselves, as it read the separate font files before;
+   - it starts with exactly the legal banner (rule `legal-banner`), whose copyright notices are printable ASCII
+     without a comment end (else the build stops with `FontLicenseError`);
    - no `sourceMappingURL`;
    - no raw decorator syntax (`/^\s*@[A-Za-z_$][\w$]*\(/m`);
    - no regex lookbehind (`(?<=` or `(?<!`), which breaks parsing before Safari 16.4 (§1.2 item 11);
    - no `.toSorted(`, `.toReversed(` or `.toSpliced(` (ES2023 array-copy methods, below the floor; `lib: ES2022`
      catches our own code, this catches dependencies);
-   - no `http(s)://` except `http://www.w3.org/`;
+   - no `http(s)://` except `http://www.w3.org/`, and the font notice URLs inside the banner;
    - none of: `authSig`, `access_token=`, `Bearer `, `eyJ`, `10.0.0.`, `.dashboard-local`, `dev-ha-shell`,
      `FakeHass`, `__agrCalls`;
+   - the positive public-literal check (§11.1, §17.7) over the module's string literals: every entity-ID-shaped
+     literal is `*.demo_*`, exempted or a catalog identifier, whatever source file it came from;
    - when any `../../.dashboard-local/**/*.json` exists locally, nothing in the forbidden set of
      `scripts/lib/public-scan.mjs` (built from every private JSON file: entity IDs, nested IDs, bare compound
-     object IDs, denylist literals) may appear in any dist file, except the reviewed exemptions shared with
-     `check-public.mjs` (§11.1).
+     object IDs, denylist literals) may appear in any dist file or embedded font, except the reviewed exemptions
+     shared with `check-public.mjs` (§11.1).
 5. Write `manifest.json`, then `SHA256SUMS`.
 6. Log the size line for `agraharam.js`.
 
@@ -3094,7 +3149,8 @@ sourcemaps, `index.html` and `harness.html`.
 
 ### 12.1 Unit and component tests (Vitest + happy-dom)
 
-Vitest runs two projects (§3): `dom` (happy-dom) and `node` (`tests/scripts/**`, `tests/install/**`).
+Vitest runs two projects (§3): `dom` (happy-dom) and `node` (`tests/scripts/**`, `tests/install/**`,
+`tests/release/**`).
 `tests/setup.ts` (dom project only) installs controllable `IntersectionObserver` and `ResizeObserver` fakes, a
 `setVisibility('hidden' | 'visible')` helper, `URL.createObjectURL`/`revokeObjectURL` spies, and fake timers per
 test. `tests/helpers/mount.ts` mounts the card with `FakeHass` (from `src/dev/fake-hass.ts`) and exposes deep
@@ -3223,7 +3279,7 @@ constants (`QUIET_MS` is twice the longest commit debounce). Do not use the Play
 
 | Spec | Checks |
 |---|---|
-| `e2e/bundle.spec.ts` | module served from `/local/agraharam/<v>/agraharam.js`; `customElements.get('agraharam-dashboard').version` equals `manifest.json.version` (the element came from the built bundle, not source); both fonts reach status `loaded` and `document.fonts.check` passes; served bytes match `SHA256SUMS`; no console errors |
+| `e2e/bundle.spec.ts` | module served from `/local/agraharam/<v>/agraharam.js`; `customElements.get('agraharam-dashboard').version` equals `manifest.json.version` (the element came from the built bundle, not source); both embedded fonts reach status `loaded` with zero font or `.woff2` requests, and `document.fonts.check` passes (§17.8); `agraharam.js` starts with the legal banner and `THIRD_PARTY_LICENSES.md` lists both font packages; served bytes match the flat `SHA256SUMS`; no console errors |
 | `e2e/layout.spec.ts` | matrix: 1440×900 and 1194×834 × sidebar expanded/collapsed, 1136×800 collapsed (card 1080), 720×900 and 640×900 (HA narrow, card 720 and 640), and 390×844, i.e. every row of both §6.1 tables, including the tightest content boxes at 1080, 720 and 640 and the 1138 collapsed case: `data-layout`, header variant, forecast cell count and hero size equal the §6.1 tables; `scrollWidth ≤ clientWidth` for document, frame and `agr-header` (no horizontal scroll, no header overflow) with `dense` (`armed_vacation`) and `offline` (stale pill); no panel overflows the frame; every open drawer's bounding box is inside the viewport at 390×844; columns in wide mode have aligned bottoms (±2 px). §6.2.1 gates, with `host=fake-hass`: `normal` at 1440×900 collapsed fits the viewport height (hard) and each panel's height versus its §6.2.1 target is written to `test-results/metrics/layout.json`; `dense` at 1440×900 has no horizontal overflow and aligned bottoms (hard) and its vertical overflow is written to the same file (reported); the compact header at 390 with "Alarm state unknown" wraps the pill instead of overflowing; quiet panels never stretch |
 | `e2e/a11y.spec.ts` | axe (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`) on normal, degraded, offline, alert, restricted and dense × light/dark at 1440 and 390, and with every drawer and dialog open: zero violations of any impact; custom check that every visible focusable `button`, `[role=button]` and `input`, aria-disabled ones included (offline asserts some were checked), has a box ≥ 44×44; no nested interactive elements |
 | `e2e/keyboard.spec.ts` (Chromium + WebKit) | All Tab presses via `tabKey(browserName)`. Tab to the security pill → Enter opens the drawer and focuses its heading; the rest of the page is inert; Tab and Shift+Tab wrap inside; the focus-visible ring is drawn; Escape closes and focus returns to the pill. Drawer + confirm stacked: Escape closes only the confirm dialog. Backdrop click closes a drawer but not a confirm dialog. Confirm dialog: initial focus on Cancel; Enter → closed with no action (fake-hass `__agrCalls` empty). Room drawer slider via arrow keys → one call after debounce. Climate drawer HVAC modes: Tab into the group, press ArrowLeft/Right/Up/Down, Home and End → `__agrCalls` has no `callService`; Enter on a non-current mode → exactly one `climate.set_hvac_mode`; the same for the media drawer's source list. An `aria-disabled` action button is reachable by Tab, announces its reason, and Enter does nothing. Open drawer, then "Edit-mode toggle" remount → no dialog left open; reopening is modal again. Camera dialog (fake-hass fallback): opens, then Escape → no further snapshot fetches |
@@ -3253,9 +3309,14 @@ constants (`QUIET_MS` is twice the longest commit debounce). Do not use the Play
 ```text
 usage: install/install.sh --dest <HA config>/www/agraharam [--version X.Y.Z] [--src DIR] [--apply] [--allow-dirty]
                           [--allow-missing-private]
-  default: dry run (no writes). --src defaults to ../dist/agraharam/<version from package.json>.
+  default: dry run (no writes). --src defaults to ../dist/agraharam/<version from package.json>; it may also be a
+  release downloaded into a directory named after its version (`gh release download vX.Y.Z --dir X.Y.Z`).
   --allow-missing-private  let the privacy re-scan skip on a machine without the private files (the plan says so)
 ```
+
+This is the `/local` channel, the fallback to HACS; the two are mutually exclusive (§17.6). A release build's
+version carries its run number (§17.3), so pass `--version X.Y.Z` for anything but a local build of `package.json`'s
+version.
 
 Checks, run in both modes and in this order. Exit codes: 2 usage, 3 verification, 4 destination conflict.
 
@@ -3268,8 +3329,9 @@ Checks, run in both modes and in this order. Exit codes: 2 usage, 3 verification
    redirecting the copy outside the HA config share.
 3. The source directory exists, and `manifest.json.version` equals the directory name and `--version`.
 4. `SHA256SUMS` verifies (`shasum -a 256 -c` or `sha256sum -c`, whichever exists).
-5. The file set equals the allowlist (`agraharam.js`, `fonts/*.woff2`, `LICENSES/*`, `manifest.json`,
-   `SHA256SUMS`), with no extra files.
+5. The file set equals the flat allowlist exactly (`agraharam.js`, `THIRD_PARTY_LICENSES.md`,
+   `OFL-1.1-Newsreader.txt`, `OFL-1.1-Hanken-Grotesk.txt`, `manifest.json`, `SHA256SUMS`): every one present, no
+   extra file (a `notes.md` included) and no directory, and every file but `SHA256SUMS` listed in it.
 6. `manifest.git_dirty` is false, unless `--allow-dirty` is given (a warning is printed either way).
 7. `<dest>/<version>` does **not** exist. Otherwise exit 4. Existing versions are never overwritten.
 8. If `node` is on `PATH`, `node scripts/check-public.mjs --dist <src>` re-runs the privacy scan on the exact
@@ -3283,10 +3345,14 @@ agraharam install plan (dry run: nothing written)
 source       dist/agraharam/0.1.0   manifest 0.1.0  git 1a2b3c4d5e6f  clean
 destination  /Volumes/config/www/agraharam/0.1.0   (absent: ok)
 destination parent absent: will create /Volumes/config/www/agraharam   (first install only)
-checksums    7 files verified
-copy         agraharam.js                                      183,204 B  sha256 3f2a…9c1d
-copy         fonts/hanken-grotesk-latin-wght-normal-Ab12.woff2  34,704 B  sha256 …
-…
+checksums    5 files verified
+privacy      re-scanned with check-public --dist
+copy         agraharam.js                    660,676 B  sha256 3f2a…9c1d
+copy         THIRD_PARTY_LICENSES.md          18,709 B  sha256 …
+copy         OFL-1.1-Hanken-Grotesk.txt        4,530 B  sha256 …
+copy         OFL-1.1-Newsreader.txt            4,520 B  sha256 …
+copy         manifest.json                       846 B  sha256 …
+copy         SHA256SUMS                          431 B  sha256 …
 resource     /local/agraharam/0.1.0/agraharam.js   (type: module; create or update, see install/README.md)
 dashboard    url_path agraharam-next, view path home   (create once; see install/README.md)
 restart      not performed; required only if www did not exist when HA last started
@@ -3297,7 +3363,7 @@ With `--apply`, on a first install where `<dest>` (`…/www/agraharam`) does not
 **non-recursive** `mkdir -m 0755 <dest>`, only after checks 1, 2 and 2a passed (so `www` exists, is not a
 symlink and resolves to the given path). It never creates `www` and never uses `mkdir -p`. It then re-checks that
 `<dest>` is a real directory (not a symlink) before writing. The dry run prints "destination parent absent: will
-create <dest>" instead. The script then copies into `<dest>/.<version>.partial-<pid>` (files 0644, directories
+create <dest>" instead. The script then copies into `<dest>/.<version>.partial-<pid>` (files 0644, the directory
 0755), re-verifies `SHA256SUMS` there, then renames atomically to `<dest>/<version>`. On failure, a `trap` removes only
 its own partial directory. It never deletes other paths, never touches `configuration.yaml` or `.storage`, never
 restarts HA, and never edits other versions.
@@ -3415,6 +3481,9 @@ restarts HA, and never edits other versions.
 
 ### 13.5 Resource registration and dashboard creation (admin, after `install.sh --apply`)
 
+This is the `/local` channel. Under HACS (the primary channel, §17.6), HACS registers the resource; the dashboard
+creation, read-only verification and staged enablement below are the same.
+
 Preflight checks, all read-only:
 
 1. Open `https://<ha>/local/agraharam/<v>/manifest.json` in the browser. It must return the manifest. A 404 when
@@ -3456,12 +3525,15 @@ WebSocket path (deterministic alternative): the admin runs these in the browser 
 using their own logged-in session. This is a manual operator step; dashboard code never does this.
 
 The guards are code, not comments. Core does not deduplicate resources, and two Agraharam URLs would load two
-bundle versions and trigger `defineOnce`'s version-conflict path.
+bundle versions and trigger `defineOnce`'s version-conflict path. The guard counts both channels' prefixes
+(§17.6): any `/hacsfiles/homeassistant` resource (matched without a trailing slash, as HACS 2.0.5 matches it) means
+the HACS channel is in use, and the snippet stops rather than add or edit a second registration.
 
 ```js
 const hass = document.querySelector('home-assistant').hass;               // operator console only
 const VERSION = '0.1.0';
 const URL_PREFIX = '/local/agraharam/';
+const HACS_PREFIX = '/hacsfiles/homeassistant';                           // the HACS channel's resources (§17.6)
 const url = `${URL_PREFIX}${VERSION}/agraharam.js`;
 // Paste the JSON body of .dashboard-local/agraharam-next.dashboard.yaml (comment lines removed) in place of null.
 const CONFIG = null;
@@ -3470,7 +3542,12 @@ if (!CONFIG || typeof CONFIG !== 'object' || !Array.isArray(CONFIG.views) || CON
 }
 
 const resources = await hass.callWS({ type: 'lovelace/resources' });      // back up this JSON privately
-const ours = resources.filter((r) => typeof r.url === 'string' && r.url.startsWith(URL_PREFIX));
+const ours = resources.filter((r) => typeof r.url === 'string'
+  && (r.url.startsWith(URL_PREFIX) || r.url.startsWith(HACS_PREFIX)));
+if (ours.some((r) => r.url.startsWith(HACS_PREFIX))) {
+  throw new Error(`A ${HACS_PREFIX} resource exists: HACS manages Agraharam. The channels are exclusive; `
+    + 'see "Switching channels" in install/README.md. Nothing was written.');
+}
 if (ours.length > 1) throw new Error(`Found ${ours.length} Agraharam resources. Fix by hand; stop.`);
 
 const dashboards = await hass.callWS({ type: 'lovelace/dashboards/list' }); // back up this JSON privately
@@ -3507,13 +3584,15 @@ try {
 ```
 
 For an upgrade of an already-created dashboard, run only the resource part (the dashboard guard would stop the
-script by design): the same `resources` read, the `ours.length > 1` guard, and then the `update` call. The
+script by design): the same `resources` read, both guards (HACS prefix, then exactly one `/local` resource), and
+then the `update` call. Under HACS, updates go through HACS (§17.6), never through this snippet. The
 snippet never undoes anything itself; it prints the exact undo commands for the objects it created or changed.
 After the WebSocket path, run the read-only verification above before setting `controls: true`.
 
 Readback:
 
-- `lovelace/resources` contains exactly one Agraharam URL.
+- `lovelace/resources` contains exactly one Agraharam URL, counting both `/local/agraharam/` and
+  `/hacsfiles/homeassistant`.
 - `lovelace/dashboards/list` contains `agraharam-next`, and the other entries are unchanged against the backup.
 - `lovelace/config {url_path: 'agraharam-next'}` deep-equals the saved config.
 - Load `/agraharam-next/home`: the card renders with no console errors.
@@ -3523,7 +3602,9 @@ Readback:
 
 ### 13.6 Rollback (exact objects only)
 
-- **Bad version**: edit the Agraharam resource URL back to the previous `/local/agraharam/<prev>/agraharam.js`,
+- **Under HACS** (§17.6): rollback goes through HACS only: Agraharam → ⋮ → Redownload → pick the previous version,
+  then reload clients. Never edit the HACS resource URL by hand.
+- **Bad version** (`/local` channel): edit the Agraharam resource URL back to the previous `/local/agraharam/<prev>/agraharam.js`,
   then reload clients. Keep the bad version's files until no client references them, then delete only
   `www/agraharam/<bad>/` through the file share.
 - **Remove entirely**: read the dashboard `id` and the resource `id` from the create responses saved during
@@ -3665,7 +3746,7 @@ entities, scenario variants and device behaviors only through its own `SectionFi
 |---|---|---|---|
 | 1 | HA version today | 2026.9.2 was last observed 2026-09-17 | Read `hass.config.version` in diagnostics after the demo install; re-check the §4.3 contract if it is not 2026.9.x/2026.10.x |
 | 2 | `/local` serving | `www` may not have existed at startup | Preflight manifest URL (§13.5); report a restart separately, never perform one |
-| 3 | File channel | No authorized NAS transfer path is established | Ask the user for the share path; install.sh refuses unknown layouts |
+| 3 | File channel | No authorized NAS transfer path is established | HACS releases (§17) need none: HA pulls the release. For the `/local` fallback, ask the user for the share path; install.sh refuses unknown layouts |
 | 4 | Sidebar and toolbar sizes | 256/56 px and 56 px are assumptions | Measure the card width live at 1194 and 1440; adjust `BREAKPOINTS` in one constant |
 | 5 | Native live view | `ha-camera-stream` inside our shadow root and top-layer dialog: context timing and stream types per camera integration are untested | Verify each camera's live view in HA; the snapshot fallback is always available; never change camera privacy to test |
 | 6 | Capabilities | Climate, fan, curtain and media `supported_features` are unknown for several entities | The UI reads features at runtime; review the diagnostics feature column after first live render |
@@ -3681,7 +3762,7 @@ entities, scenario variants and device behaviors only through its own `SectionFi
 | 16 | Contexts vs `hass` | HA may later stop pushing `hass` to cards | Only `HassHost` changes; a context-based host would implement the same `HostRuntime` |
 | 17 | Node type stripping | The generator imports TS directly | Fallback: a Vitest-based `config:check` that validates the generated file |
 | 18 | Wall-tablet engine | Unknown browser engine and version | Stated floor Safari/iOS 16.4+, Chrome/Edge 108+, Firefox 110+ (§1.2 item 11); no lookbehind in the bundle (postbuild check); run the WebKit e2e project before deployment; fonts use document-level registration that works in all three engines |
-| 19 | Bundle size and the 2 s define window | If the module takes over 2 s to load, HA's "custom element doesn't exist" card is visible until it does | Budget of 220 KB JS; fonts are not on the critical path (`display: swap`) |
+| 19 | Bundle size and the 2 s define window | If the module takes over 2 s to load, HA's "custom element doesn't exist" card is visible until it does. Since §17.2 both fonts are inside the module (about 661 KB raw, 295 KB gzip), so they are on its load path and download on every dashboard page | Target 720 KiB raw (§11.5, §17.2), a postbuild warning, never a failure; HACS also writes a `.gz` that HA's aiohttp serves; fonts decode and register only on first connect (D3) with `display: swap` |
 | 20 | Content density | Real counts exceed the demo; the reference's balance may not survive them. The live configuration has more comfort entities than the 2-tile Climate budget, so "+N more" will show | §6.2.1 budget and per-panel height targets; `normal` must fit at 1440×900 (hard gate); `dense` overflow is reported in `layout.json`; tune `budget.ts` after the first live render |
 | 21 | Misleading script names | A script's name may not describe what it does (a persistent disarm can carry a legacy name) | One script per role (validation + gateway), Silence Sound confirms unless the alarm is sounding, and the private generator's exact label map; the operator verifies each role against live script config before enabling real bindings (#7) |
 | 22 | Camera thumbnail default | Cameras without a privacy binding start as "Live view on request" in the generated config, which is less glanceable than the reference | Deliberate fail-closed default (§13.4). The operator opts outdoor cameras in through `camera_thumbnails` after checking each one; indoor cameras stay off |
@@ -3689,6 +3770,7 @@ entities, scenario variants and device behaviors only through its own `SectionFi
 | 24 | Resync barrier signal | The barrier clears on the first new `hass.states` reference after the known pre-snapshot map (§4.4). This relies on 20260826.7 keeping the states reference for every non-state update; a future frontend that rebuilt `states` on a config push would clear it early | The per-entity `freshSinceResync` check still keeps cameras closed until their privacy entity object is replaced; re-check `connection-mixin.ts` on each HA upgrade (#1). A barrier whose known pre-snapshot map never changes holds (fail closed), which a live house never shows for long |
 | 25 | Resync grace before a slow snapshot (accepted) | When the first map a host observes after `ready` is not the known pre-snapshot map, it is ambiguous; in the rare case that it is a pre-snapshot map that changed while no host observed it (a change just before the drop, on a detached card), and the snapshot takes longer than `RESYNC_GRACE_MS`, the barrier clears on pre-snapshot states | Entities whose objects are still the outage base's stay stale (`freshSinceResync`), so only entities changed in that unobserved window could read as current until the snapshot lands moments later. Maps observed while the socket is down count as final, which removes the common detached-tab case. Accepted rather than holding the dashboard in "Reconnecting" indefinitely on a quiet house (§16.15). **Indistinguishable case (§16.17):** an entity that changed in that unobserved pre-drop window and was then deleted during the outage keeps its unobserved object, which differs from the outage base, so after the barrier clears it reads as fresh rather than stale until HA's next change. No local check can tell it apart from the case above (only the snapshot itself could, and it never mentions a deleted entity); it needs both an unobserved change and a deletion inside one outage. The gateway words any not-yet-refreshed entity as "Paused until Home Assistant sends current states", never "wasn't found". **C2 residual: none.** A retained, detached HassHost whose own map is older than the tracker's base is held resyncing until its own next `update()` (§16.17), so it never ingests its older map as fresh; the only cost is "Reconnecting" on a card nobody is looking at |
 | 26 | Tracker created between `ready` and the snapshot (accepted) | Trackers exist only once a card has observed the connection. A tracker first created after `ready` fired but before the snapshot (the first Agraharam card on the page, for example the user switching to this dashboard from another one in exactly that window) never saw the outage, starts clear, and cannot detect the window, so for that round trip it shows pre-outage states as current | The window is one round trip (hundreds of ms). A runtime rebuilt during an outage reuses the module-level tracker, and a replaced connection object starts its tracker armed, so neither is affected. Creating trackers at module load would need `hass.connection` before any card exists, which the card API does not provide (§16.15) |
+| 27 | HACS 2.0.5 resource prefix | HACS 2.0.5 finds its own resource by matching `/hacsfiles/<repo>` **without** a trailing slash, so a resource of another repository whose name starts with `homeassistant` (`/hacsfiles/homeassistant-…`) would be rewritten or deleted, and HACS re-creates its resource after every install or update when none matches | The HACS preflight (§17.6, install/README.md) stops if any resource starts with `/hacsfiles/homeassistant` but not `/hacsfiles/homeassistant/`; the §13.5 guard counts both channel prefixes; channels are exclusive and the HACS resource URL is never edited by hand |
 
 ---
 
@@ -4348,3 +4430,300 @@ test whose expectation changed (an entity the snapshot did not refresh) now expe
 - **Measured after this pass.** The bundle is 437,680 B raw and 125,017 B gzip (target 491,520 B). Unit and
   component tests 2,612; default e2e 245; the all-browser layout, a11y and keyboard run 444 (Chromium 148, Firefox
   148, WebKit 138 plus the WebKit keyboard project's 10).
+
+---
+
+## 17. Continuous delivery through HACS releases (addendum, 2026-10-05)
+
+Status: revision 3, lead-authored, approved in architecture review round 3 (log in §17.10); implemented (notes in
+§17.11). The household chose HACS releases as the delivery channel and a required CI gate. §13's manual `/local`
+install stays as the fallback channel; the two channels are mutually exclusive (§17.6).
+
+### 17.1 Flow
+
+```text
+PR ──► CI: changes → verify → e2e → gate "agraharam-ci"
+merge to main ──► same CI on main ──► release-build (read-only token: build, scan, upload artifact)
+                                   └─► release-publish (write token, no package code): verify sums, guards,
+                                       gh release create vX.Y.N, post-publish "is newest" check
+HACS polls GitHub ──► HA Settings → Updates → Agraharam → Update (deliberate admin click)
+                  ──► www/community/<repo>/agraharam.js, resource re-tagged (?hacstag=…) ──► next page load
+```
+
+Nothing is pushed into the house. HA pulls, and only when an admin presses Update.
+
+### 17.2 Single-file bundle, flat dist
+
+The card ships as one module with both OFL fonts embedded, which works whichever way HACS treats release assets
+(its docs say only `.js` files are downloaded; its 2.0.5 code downloads every asset flat into
+`www/community/<repo>/`, so every release asset is publicly served under `/hacsfiles/<repo>/`; all are generic).
+
+- Fonts: Vite `?inline` imports give base64; `fonts.ts` decodes them to an `ArrayBuffer` once and registers
+  `new FontFace(family, bytes, …)`, so loading never depends on a `font-src` policy. Registration still happens on
+  first connect only (D3). Trade-off: the font bytes now download and parse on every HA dashboard page, because the
+  resource is global; previously they were fetched only when the card mounted.
+- Legal banner: injected with Rolldown `output.postBanner` as a `/*! … */` comment that is self-contained: both
+  fonts' copyright lines, "SIL Open Font License, Version 1.1", `https://openfontlicense.org`, and the repository
+  path of the full texts. Neither font has a Reserved Font Name.
+- Flat dist for both channels: `dist/agraharam/<version>/{agraharam.js, THIRD_PARTY_LICENSES.md,
+  OFL-1.1-Newsreader.txt, OFL-1.1-Hanken-Grotesk.txt, manifest.json, SHA256SUMS}`. `SHA256SUMS` lists flat names.
+  `manifest.json` drops `resource_url` (it depended on the channel). The same directory is the release asset set
+  and the `install.sh` source; `install.sh` can install a downloaded release.
+- Size: about 660 KB raw (about 295 KB gzip, estimated). The raw target becomes 720 KiB. HACS also writes a `.gz`
+  that aiohttp serves.
+
+### 17.3 Version stamping and tags
+
+- `package.json` holds `MAJOR.MINOR.0`. `build-env.ts` accepts `AGR_PATCH` (digits, `^[1-9]\d*$`): when set,
+  `APP_VERSION` is `MAJOR.MINOR.AGR_PATCH`. Unset or empty means no override. Any other value fails the build.
+- Release builds set `AGR_PATCH=$GITHUB_RUN_NUMBER`. Tags are `vMAJOR.MINOR.PATCH`, which HACS and HA compare as
+  real SemVer (a prefixed `agraharam-v…` tag parses as UNKNOWN and degrades to "different means update").
+- Repository invariant: every non-draft, non-prerelease release in this repository is an Agraharam release that
+  carries `agraharam.js`. HACS ignores GitHub's "latest" flag and takes the first non-draft, non-prerelease release
+  in list order, which GitHub orders by the target commit's date.
+- Monotonic guard: `release-publish` refuses unless the new tag is absent and strictly greater (`sort -V`) than
+  every existing release tag. A release tag is strict SemVer, `^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`;
+  any other tag starting with `v` (`v1`, `vacuum-schedule`) is ignored by the guard and by `changes`, because
+  `sort -V` would rank it above every release, which would silently skip releases and then block all of them. If the
+  workflow file is ever renamed, `run_number` restarts and every release is refused visibly; the remedy is to bump
+  MINOR.
+
+### 17.4 `hacs.json` (repository root)
+
+```json
+{ "name": "Agraharam", "filename": "agraharam.js", "homeassistant": "2026.9.0" }
+```
+
+`filename` replaces HACS's "file must match the repository name" rule, and release assets are searched before the
+repository root and `dist/`, so the monorepo needs no committed build output. With no release, HACS falls back to
+the default branch, finds no `agraharam.js`, and reports the repository as not compliant (fails closed). The first
+release must therefore exist before the household adds the custom repository. Description and topics are only
+validated by the HACS Action, not for custom repositories, so no topics are added (they would make a household
+infrastructure repository easier to find).
+
+### 17.5 Workflow `.github/workflows/agraharam.yml`
+
+General rules:
+- Triggers: `pull_request` (to main), `push` (main), `workflow_dispatch` (runs CI; never publishes).
+  Never `pull_request_target`.
+- `runs-on: ubuntu-24.04`. Workflow-level concurrency cancels pull-request runs only; every run on main has a group
+  of its own, so at the workflow level it is never queued behind or replaced by another run (release-publish has a
+  job-level group, see job 6 and the liveness note): `group: ${{ github.workflow }}-${{ github.event_name == 'pull_request'
+  && github.ref || github.run_id }}`, `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`.
+  Top-level `permissions: contents: read`.
+- Every `uses:` is pinned to a full SHA with a version comment: `actions/checkout`
+  3d3c42e5aac5ba805825da76410c181273ba90b1 (v7.0.1), `actions/setup-node`
+  820762786026740c76f36085b0efc47a31fe5020 (v7.0.0), `actions/upload-artifact`
+  043fb46d1a93c77aae656e7c1c64a875d1fc6a0a (v7.0.1), `actions/download-artifact`
+  3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c (v8.0.1). No third-party actions. Every checkout sets
+  `persist-credentials: false`.
+- No `${{ … }}` expression appears inside any `run:` script. Every value reaches scripts through `env:`.
+- `setup-node` uses `node-version-file: frontend/agraharam/.nvmrc`; installs use `npm ci --ignore-scripts` (the
+  lockfile's only install script is the macOS-only `fsevents`).
+
+Jobs:
+1. `changes` (contents: read). Outputs `dashboard` and `bundle`, each a literal `true` or `false`, never file names
+   (pull-request file names are attacker-controlled). Both are computed against the same base: the PR base for
+   pull requests; for pushes, the commit of the newest release tag (strict SemVer, §17.3; highest version by
+   `sort -V`) when it is an ancestor of `$GITHUB_SHA`, else `before`; with no release tag at all, both outputs are
+   `true`. Diffing pushes against the last release means a failed or skipped publish is picked up by the next
+   push to main, and the shared base means a stack-only push can never release untested code. `dashboard`:
+   anything under `frontend/agraharam/**`, `hacs.json` or the workflow file. `bundle` is a denylist so mistakes lean
+   toward releasing: anything under `frontend/agraharam/**` except `docs/**`, `tests/**`, `e2e/**`, `install/**`
+   and, at the top of the package only, `*.md`, `playwright.config.ts`, `vitest.config.ts`, `vite.harness.config.ts`,
+   `harness.html` and `index.html`, plus `hacs.json`. `src/**` and `scripts/**` always count, Markdown included. It fails toward testing: any git error, an all-zero or unreachable base, shallow
+   history, or `workflow_dispatch` yields `true` for both.
+2. `verify` (needs changes, if `dashboard`; full-history checkout): `npm ci --ignore-scripts`, `format:check`,
+   `typecheck`, `test`, `build` (postbuild now also runs the positive literal scan over the built bundle, §17.7),
+   then the public-literal check: `check:public --allow-missing-private` (without private files it runs
+   `checkPublicLiterals` over the scoped working-tree files), and `check:public --allow-missing-private --range
+   "$BASE..$GITHUB_SHA"` over every scoped blob of the commits under test, with `BASE` the PR base or the push's
+   `before` passed through `env:`, skipped (the working-tree check still stands) when it is all-zero, malformed or
+   not in the clone.
+3. `e2e` (needs changes and verify, if `dashboard`): `npx playwright install --with-deps chromium webkit`, `npm run test:e2e`,
+   then `AGR_E2E_BROWSERS=all npx playwright test e2e/layout.spec.ts e2e/a11y.spec.ts --project=webkit`. On
+   failure, upload the Playwright report and test results (fictional data) for 7 days.
+4. Gate, `name: agraharam-ci`, `if: always()`, needs changes, verify and e2e. It reads `needs.changes.result`,
+   `needs.changes.outputs.dashboard`, `needs.changes.outputs.bundle`, `needs.verify.result` and `needs.e2e.result`
+   through `env:` and fails unless `changes` succeeded, `bundle` is not `true` without `dashboard` being `true`, and
+   either (`dashboard` is `true` and verify and e2e both `success`) or (`dashboard` is `false` and both `skipped`).
+   This is the single required status check.
+5. `release-build` (contents: read; needs changes and the gate; if push to `refs/heads/main` and `bundle` is
+   `true`). Checkout with `persist-credentials: false`, `npm ci --ignore-scripts`,
+   `AGR_PATCH=$GITHUB_RUN_NUMBER npm run build` (which includes the built-bundle literal scan), assert
+   `manifest.version` equals the computed version, `git_dirty` is false and `git_sha` is a prefix of
+   `$GITHUB_SHA`, `SHA256SUMS` lists exactly postbuild's release files, and upload exactly those plus `SHA256SUMS`
+   itself as an artifact (retention 1 day).
+6. `release-publish` (contents: write only; needs changes, gate and release-build; same `if`; concurrency
+   `agraharam-release`, `cancel-in-progress: false`). No checkout of package code, no setup-node, no npm, npx or
+   node. Steps: download the artifact (digest-checked), `sha256sum -c SHA256SUMS`, derive `TAG` as `v` plus
+   `manifest.json`'s version with `jq` and assert its patch equals `$GITHUB_RUN_NUMBER`, the monotonic and
+   tag-absent guard over release tags only (`jq` `select(test(…))` with the §17.3 pattern), an ancestor check (`gh api repos/$GH_REPO/compare/$GITHUB_SHA...main` reports `ahead` or
+   `identical`), write `notes.md` from a fixed template (tag, full SHA, `compare/<previous tag>...<tag>` link; no
+   commit subjects), delete only a leftover draft of this exact tag, then `gh release create "$TAG" --target
+   "$GITHUB_SHA" --notes-file notes.md` attaching only the `SHA256SUMS`-listed files, which must include
+   `agraharam.js`, and `SHA256SUMS` (never
+   `notes.md`, so a downloaded release passes `install.sh`'s exact allowlist), and finally a post-publish check
+   that the first non-draft, non-prerelease release in `GET /releases` is `$TAG` (else fail: HACS would keep
+   offering an older version).
+   `GH_TOKEN` and `GH_REPO` are set in that step's `env:` only.
+
+Liveness: because pushes diff against the last release tag, a failed or skipped publish ships with the next push
+to main of any kind, or with "Re-run failed jobs" on the same run (same `run_number`, tag still absent, so the guard
+passes). The same holds for a cancelled publish: GitHub keeps at most one pending job per concurrency group, so a
+`release-publish` that queues later cancels the one still pending, even with `cancel-in-progress: false` (a running
+one is never cancelled). The cancelled one may belong to the later run; its changes still ship with the next push to
+main or a re-run of that job, because pushes diff against the last release tag. There is deliberately no schedule trigger. If a release tag at or above this version
+already points to a commit that descends from `$GITHUB_SHA` and `releases/tags/<tag>` is a published
+(non-draft, non-prerelease) release carrying `agraharam.js`, the run was superseded by a newer release and
+`release-publish` exits 0 with a notice; a bare tag or a draft there is red, like every other guard failure. Cost:
+after an unreleased docs-only dashboard change, later pushes to main rerun the dashboard CI until the next release. `workflow_dispatch` never publishes. A published release is
+never deleted by automation.
+
+### 17.6 One-time household steps and channel rules
+
+GitHub (repository settings, by the household):
+- Ruleset on `main`: require the `agraharam-ci` check from the GitHub Actions app, with an owner or admin bypass so
+  direct pushes of stack changes keep working. The release jobs are self-gating either way, because they need the
+  gate.
+- Immutable releases on (applies to future releases: assets locked, tags cannot move, attestations generated,
+  verifiable with `gh release verify-asset`).
+- Tag ruleset on `v[0-9]*.[0-9]*.[0-9]*` (the release tags, §17.3; GitHub rulesets use fnmatch patterns) blocking
+  update and delete.
+- Default workflow permissions read-only; require approval for workflow runs from outside contributors; restrict
+  allowed actions to GitHub-authored ones with SHA pinning if offered. 2FA or a hardware key, and periodically
+  audit write-scoped tokens (PATs, apps, deploy keys, including any agent's).
+
+Home Assistant, after the first release exists:
+1. Read-only preflight: list resources. Stop if any URL starts with `/hacsfiles/homeassistant` but not with
+   `/hacsfiles/homeassistant/` (HACS 2.0.5 matches the prefix without a slash and would rewrite or delete it). If a
+   `/local/agraharam/` resource exists, follow "Switching channels" below first (channels are exclusive).
+2. HACS → ⋮ → Custom repositories → `https://github.com/<owner>/homeassistant`, type Dashboard → Download. HACS
+   registers `/hacsfiles/homeassistant/agraharam.js?hacstag=…`.
+3. Create the dashboard and run the read-only verification before `controls: true` (§13.5, unchanged).
+
+Operation:
+- Update: Settings → Updates → Agraharam → Update, then reload clients. Auto-install through an HA automation is
+  possible but not set up; it would remove the human step.
+- Rollback under HACS goes through HACS only: Agraharam → ⋮ → Redownload → pick the previous version.
+- Switching channels: to `/local`, remove the repository in HACS first (this deletes its resource). To return to
+  HACS, delete the `/local` resource first. HACS re-creates its resource after every install or update whenever no
+  resource starts with `/hacsfiles/homeassistant`, so editing the resource URL by hand would produce a second
+  registration. The §13.5 guard counts both prefixes. The runtime version-conflict notice remains the safety net.
+
+### 17.7 Security considerations
+
+- What the workflow guarantees: a release made by this workflow comes from a commit on `main` that passed verify and
+  e2e, was built with a read-only token, and was published by a job that runs no package code.
+- What it cannot guarantee: HACS installs the newest release whoever created it. Any account or credential with
+  `contents: write` on this repository can publish a release that skips CI. Immutable releases, the tag ruleset,
+  least-privilege tokens and the admin's deliberate Update click are the controls; the exposure equals any HACS card.
+- Pull-request runs use the PR's own workflow file, so for PRs the gate is a quality check, not a security boundary.
+  Main's run, plus review of `.github/workflows/**` and `hacs.json`, is the boundary. Fork PRs get a read-only token
+  and no secrets and cannot reach the release jobs; releases created with `GITHUB_TOKEN` trigger no workflows.
+- Release notes are a fixed template (no commit subjects), because HACS renders release bodies as markdown in HA's
+  admin update dialog.
+- Integrity: `SHA256SUMS` is attached and immutable releases add attestations. HACS itself verifies neither.
+- Public data: CI cannot run the private forbidden-set scan. It does run the positive literal check, now extended to
+  all production `src/**` string literals, to every scoped blob of the commits under test (`check:public
+  --allow-missing-private --range`) and to the string literals of the built `agraharam.js`; exemptions stay in
+  `scripts/public-exemptions.json`. The local commit procedure (`check:public` and `check:public --range
+  <upstream>..HEAD` before every push, §16.10 and the README) remains the private-value guard.
+- `/hacsfiles` is served without authentication, the same posture as `/local`: generic files only.
+
+### 17.8 Tests
+
+- Fonts: the bundle embeds both faces; `e2e/bundle.spec.ts` asserts both load with zero `.woff2` requests;
+  `agraharam.js` starts with the banner; `THIRD_PARTY_LICENSES.md` still lists both font packages.
+- Flat dist: postbuild allowlist, flat `SHA256SUMS`, no `resource_url`, 720 KiB target; `install.sh` allowlist and
+  tests updated, including installing a flat release directory.
+- `AGR_PATCH`: valid override stamps manifest and bundle; unset or empty uses the package version; invalid fails.
+- `hacs.json`: exact keys and values.
+- Workflow fitness test (exact-pinned `yaml` devDependency): SHA-pinned `uses:`; no `pull_request_target`;
+  top-level `contents: read`; `contents: write` only on `release-publish`; `release-publish` has no checkout, npm,
+  npx or node steps; every checkout sets `persist-credentials: false`; no `${{` inside any `run:`; the gate checks
+  `needs.changes.result`; release jobs need the gate and are restricted to pushes to main; every `needs.<job>`
+  referenced in a job's `if:` or `env:` appears in that job's own `needs` list; workflow-level concurrency only
+  cancels pull-request runs.
+- Extended public-literal scan over production `src/**`, and over the built bundle inside postbuild.
+
+### 17.9 Documentation sync
+
+§11.3 (asset file names), §11.4 (`?inline` and ArrayBuffer fonts), §11.5 (flat layout, 720 KiB), §13.2 (dry-run
+lines without fonts), §13.5 (guard counts both resource prefixes), §15 (#19 and the HACS 2.0.5 prefix note),
+`install/README.md` (HACS as the primary channel, exclusivity, rollback), the package README and root CLAUDE.md.
+
+### 17.10 Review log (round 1)
+
+Adopted: B1 (split release-build and release-publish, `persist-credentials: false`, `--ignore-scripts`),
+B2 (fail-toward-testing `changes`, strict gate), W1 (HACS facts corrected; first release before adding the
+repository; no topics), W2 (flat dist), W3 (exclusive channels, preflight for the 2.0.5 prefix bug), W4 (templated
+notes), W5 (no `${{` in `run:`), W6 (honest posture, immutable releases, tag ruleset, ancestor check), W7 (extended
+literal scan), W8 (liveness), S1-S10. Not adopted: S11 (a dedicated repository would need a cross-repo token,
+against "no secrets beyond GITHUB_TOKEN").
+
+Round 2 (confirmation): adopted R1(a) (`release-build` and `e2e` list `changes` in `needs`, plus a fitness rule)
+and R1(b) (workflow-level concurrency for pull requests only), and notes 1-8: tag derived from `manifest.json`
+with a run-number assertion, `notes.md` generated in `release-publish` and never attached, `bundle` as a denylist,
+the built-bundle literal scan inside postbuild, the preflight pointing to the switching rule, the supersede note
+for §17.9, and both change outputs computed against the newest release tag on pushes.
+
+Round 3: approved. Folded in its notes: no `v*` tag means everything changed, "newest tag" is the highest version,
+the liveness paragraph, and a superseded run exits 0 with a notice.
+
+### 17.11 Implementation notes
+
+§17.10 already holds the review log, so the implementation note is this section. The design above is implemented
+as written; these notes record how, and the few refinements the implementation needed. None weakens a §17 rule.
+
+- **Files.** `/hacs.json`; `/.github/workflows/agraharam.yml`; `scripts/ci/changes.sh` (the `changes` job, bash,
+  run from the repository root); `scripts/ci/stage-release.mjs` (the `release-build` check and staging, Node,
+  allowed there); `scripts/lib/font-licenses.mjs` (font license metadata and the banner);
+  `scripts/lib/catalog-literals.mjs`; `tests/release/*` (workflow fitness, `hacs.json`, `AGR_PATCH`, `changes`,
+  `stage-release` and `release-publish` suites, in the `node` Vitest project). `release-publish` stays inline bash
+  with `gh`, `jq` and `sha256sum`; `tests/release/publish.test.ts` runs its scripts exactly as written against a
+  fake `gh`, so its guards are tested as behaviour, not only as text.
+- **Banner.** Built from each Fontsource LICENSE's distinct `Copyright … (…)` notices (the italic duplicate
+  collapses), then the license name, `https://openfontlicense.org`, "with no Reserved Font Name" and the full texts'
+  location: the two `OFL-1.1-*.txt` files beside `agraharam.js` in every release, which in the repository are
+  `frontend/agraharam/dist/agraharam/<version>/` after a build (the texts are copied from `node_modules` and are not
+  committed). Postbuild requires the bundle to start with exactly this text; the notice URLs are allowed inside the
+  banner only.
+- **Embedded data.** `eyJ` occurred three times in the fonts' base64 by chance, so the text rules of postbuild step
+  4 must skip the font payloads. They skip only payloads verified as the two package font files, byte for byte, and
+  any other embedded data fails the build (§11.5 step 4).
+- **Literal scan over production `src`.** Extending the scope found 13 literals, none real: 9 CSS selectors in Lit
+  `css` templates (`button.tile`, `button.body`, `.text.short`, `.time.now`) and 4 comments (`light.a`-style examples
+  and `event.repeat`). The comments now use `demo_` IDs and `KeyboardEvent.repeat`. The selectors are allowed by
+  exact value through `CSS_SELECTOR_LITERALS` (§11.1), which the minified bundle needs too. (A first version used a
+  context rule, "an element-name domain or a class chain followed by `{`"; security review showed it let real IDs
+  through in YAML, comments and test names, so it was removed.) `public-exemptions.json` is unchanged.
+- **Versions in the tooling.** `check:public` scans every `dist/agraharam/*` version, so an `AGR_PATCH` build is
+  covered; `stage-preview.mjs` and `e2e/bundle.spec.ts` take `APP_VERSION`; `BUNDLE_SIZE_TARGET_BYTES` moved to
+  `build-env.ts` so Vite's chunk warning uses the same 720 KiB.
+- **Workflow details.** Every `setup-node` sets `package-manager-cache: false` (no dependency cache on any job,
+  release-build included); every job has `timeout-minutes` and its own `permissions` (the gate has none);
+  `download-artifact` sets `digest-mismatch: error` explicitly. Notes and scratch files go to `$RUNNER_TEMP`,
+  outside the artifact directory; the compare link is written only when the previous tag is `vX.Y.Z`. Leftover
+  drafts are found through the releases API by `draft` and exact `tag_name`.
+- **install.sh** requires all six release files by exact name, refuses any directory, and installs a downloaded
+  release from a directory named after its version (`gh release download vX.Y.Z --dir X.Y.Z`). The dry-run copy
+  column is narrower now that names are flat.
+- **Documentation.** Besides the §17.9 list: §3, §11.1, §12, §13.6 (HACS rollback) and `install/resource.yaml`.
+  install/README.md writes the custom repository as `https://github.com/<owner>/homeassistant`, keeping the
+  account name out of the package docs; the household uses the real URL. It adds a read-only HACS preflight snippet,
+  tested like the §13.5 snippets.
+- **Security review (round 1) fixes.** Release tags are strict SemVer in `changes` and in the guard (a stray `v1` or
+  `vacuum-schedule` tag had outranked every release under `sort -V`), and the §17.6 tag ruleset pattern narrowed to
+  match; a run is "superseded" only by a published, non-prerelease release that carries `agraharam.js`; the gate
+  also fails on `bundle` without `dashboard`; `release-publish` refuses a `SHA256SUMS` without `agraharam.js`, and
+  `stage-release.mjs` requires exactly postbuild's release files; CI runs the public-literal check over the
+  working tree and the commits under test; `.md` files are excluded from `bundle` only at the top of the package;
+  `AGR_PATCH` requires `MAJOR.MINOR.0` without leading zeros; a font that cannot be decoded or registered logs
+  `font-load-failed` and never throws out of `connectedCallback`; the workflow comments describe the concurrency
+  behaviour above; the fake `gh` merges paginated pages into one array, as the real `gh api --paginate` does.
+- **Validation.** actionlint 1.7.12 with ShellCheck 0.11.0 reports nothing for the workflow; ShellCheck reports
+  nothing for `changes.sh` and `install.sh`.
+- **Measured** (after the review fixes). `agraharam.js` 660,733 B raw and 295,028 B gzip (target 737,280 B). Unit
+  and component tests 2,844 in 135 files. Default e2e 246 (Chromium plus the WebKit keyboard project); the §17.5
+  WebKit layout and a11y run 138 (before the review fixes, which did not touch layout).

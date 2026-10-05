@@ -1,37 +1,49 @@
 /**
- * Postbuild (§11.5) on a temp package laid out like a fresh `vite build`: maps moved out, licenses copied, the exact
- * allowlist enforced, the privacy and browser-floor scan, and a reproducible manifest plus SHA256SUMS.
+ * Postbuild (§11.5, §17.2) on a temp package laid out like a fresh `vite build`: maps moved out, licenses copied
+ * flat, the exact allowlist enforced, the legal banner, the privacy, browser-floor and public-literal scans, and a
+ * reproducible manifest plus flat SHA256SUMS.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { BUNDLE_SIZE_TARGET_BYTES } from '../../build-env.ts';
+import { FontLicenseError, legalBanner } from '../../scripts/lib/font-licenses.mjs';
 import { buildForbiddenSet, parseExemptions } from '../../scripts/lib/public-scan.mjs';
+import { BUILT_FILES, postbuild, PostbuildError, scanBundleText, sizeLine } from '../../scripts/postbuild.mjs';
 import {
-  BUNDLE_SIZE_TARGET_BYTES,
-  postbuild,
-  PostbuildError,
-  scanBundleText,
-  sizeLine,
-} from '../../scripts/postbuild.mjs';
-import {
+  bundleText,
   CLEAN_BUNDLE,
+  dataUrl,
+  EMBEDDED_FONTS,
   FAKE_BUILD_INFO as BUILD,
-  FAKE_FONTS as FONTS,
+  FAKE_FONT_FILES,
   layOutViteOutput as layOut,
   writeFile as write,
 } from './support/fake-build.ts';
 
 const VERSION = '9.9.9';
 const NO_EXEMPTIONS = parseExemptions({});
+/** The flat release directory: the four built files plus the manifest and checksums (§17.2). */
+const RELEASE_FILES = [
+  'OFL-1.1-Hanken-Grotesk.txt',
+  'OFL-1.1-Newsreader.txt',
+  'SHA256SUMS',
+  'THIRD_PARTY_LICENSES.md',
+  'agraharam.js',
+  'manifest.json',
+];
+const SERIF_FONT_FILE = 'node_modules/@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2';
+/** The embedded-font constants with these two payloads, as the minified fonts.ts writes them. */
+const embeddedFonts = (...payloads: string[]) => `const ${payloads.map((p, i) => `f${i}="${p}"`).join(',')};\n`;
 
 let packageDir: string;
 let bundleDir: string;
 
-function layOutViteOutput(bundle = CLEAN_BUNDLE): void {
-  layOut(packageDir, VERSION, bundle);
+function layOutViteOutput(bundle = CLEAN_BUNDLE, fonts = EMBEDDED_FONTS): void {
+  layOut(packageDir, VERSION, bundle, fonts);
 }
 
 function run(forbidden: Parameters<typeof postbuild>[0]['forbidden'] = null) {
@@ -58,18 +70,26 @@ afterEach(() => {
   rmSync(packageDir, { recursive: true, force: true });
 });
 
-describe('postbuild: the §11.5 tree', () => {
-  it('moves source maps out, copies both OFL texts and writes the manifest and checksums', () => {
+describe('postbuild: the flat §17.2 directory', () => {
+  it('moves source maps out, copies both OFL texts flat and writes the manifest and checksums', () => {
     layOutViteOutput();
     run();
-    expect(existsSync(join(bundleDir, 'agraharam.js.map'))).toBe(false);
-    expect(readFileSync(join(packageDir, 'dist/sourcemaps', VERSION, 'agraharam.js.map'), 'utf8')).toBe(
-      '{"version":3}',
-    );
-    expect(readFileSync(join(bundleDir, 'LICENSES/OFL-1.1-Newsreader.txt'), 'utf8')).toContain('Newsreader');
-    expect(readFileSync(join(bundleDir, 'LICENSES/OFL-1.1-Hanken-Grotesk.txt'), 'utf8')).toContain('Hanken');
+    expect(existsSync(join(packageDir, 'dist/sourcemaps', VERSION, 'agraharam.js.map'))).toBe(true);
+    expect(readdirSync(bundleDir).sort()).toEqual(RELEASE_FILES);
+    expect(readFileSync(join(bundleDir, 'OFL-1.1-Newsreader.txt'), 'utf8')).toContain('Demoserif');
+    expect(readFileSync(join(bundleDir, 'OFL-1.1-Hanken-Grotesk.txt'), 'utf8')).toContain('Demosans');
 
     const manifest = JSON.parse(readFileSync(join(bundleDir, 'manifest.json'), 'utf8'));
+    expect(Object.keys(manifest)).toEqual([
+      'name',
+      'version',
+      'git_sha',
+      'git_dirty',
+      'commit_time',
+      'node',
+      'entry',
+      'files',
+    ]);
     expect(manifest).toMatchObject({
       name: 'agraharam-dashboard',
       version: VERSION,
@@ -78,30 +98,24 @@ describe('postbuild: the §11.5 tree', () => {
       commit_time: BUILD.commitTime,
       node: 'v24.0.0',
       entry: 'agraharam.js',
-      resource_url: `/local/agraharam/${VERSION}/agraharam.js`,
     });
-    expect(manifest.files.map((file: { path: string }) => file.path)).toEqual([
-      'LICENSES/OFL-1.1-Hanken-Grotesk.txt',
-      'LICENSES/OFL-1.1-Newsreader.txt',
-      'LICENSES/THIRD_PARTY_LICENSES.md',
-      'agraharam.js',
-      FONTS.sans,
-      FONTS.serif,
-    ]);
+    expect(manifest).not.toHaveProperty('resource_url');
+    expect(manifest.files.map((file: { path: string }) => file.path)).toEqual([...BUILT_FILES]);
+    const bundle = bundleText(packageDir);
     const entry = manifest.files.find((file: { path: string }) => file.path === 'agraharam.js');
     expect(entry).toEqual({
       path: 'agraharam.js',
-      bytes: Buffer.byteLength(CLEAN_BUNDLE),
-      sha256: createHash('sha256').update(CLEAN_BUNDLE).digest('hex'),
+      bytes: Buffer.byteLength(bundle),
+      sha256: createHash('sha256').update(bundle).digest('hex'),
     });
   });
 
-  it('writes SHA256SUMS for every file including the manifest, verifiable with the standard tool', () => {
+  it('writes flat SHA256SUMS for every file including the manifest, verifiable with the standard tool', () => {
     layOutViteOutput();
     run();
     const lines = readFileSync(join(bundleDir, 'SHA256SUMS'), 'utf8').trimEnd().split('\n');
-    expect(lines).toHaveLength(7);
-    expect(lines.map((line) => line.slice(66))).toContain('manifest.json');
+    expect(lines.map((line) => line.slice(66))).toEqual(RELEASE_FILES.filter((file) => file !== 'SHA256SUMS'));
+    for (const line of lines) expect(line).toMatch(/^[0-9a-f]{64} {2}[^/\s]+$/);
     for (const line of lines) expect(line).toMatch(/^[0-9a-f]{64} {2}\S+$/);
     const tool = spawnSync('shasum', ['-a', '256', '-c', 'SHA256SUMS'], { cwd: bundleDir, encoding: 'utf8' });
     const fallback = tool.error
@@ -142,29 +156,87 @@ describe('postbuild: the §11.5 tree', () => {
 
   it('requires THIRD_PARTY_LICENSES.md and the font package licenses', () => {
     layOutViteOutput();
-    rmSync(join(bundleDir, 'LICENSES/THIRD_PARTY_LICENSES.md'));
+    rmSync(join(bundleDir, 'THIRD_PARTY_LICENSES.md'));
     expect(() => run()).toThrow(/THIRD_PARTY_LICENSES\.md is missing/);
     layOutViteOutput();
     rmSync(join(packageDir, 'node_modules/@fontsource-variable/hanken-grotesk/LICENSE'));
     expect(() => run()).toThrow(/hanken-grotesk\/LICENSE is missing\. Run "npm ci"/);
   });
+
+  it('requires THIRD_PARTY_LICENSES.md to list both font packages (their only package notice, §17.8)', () => {
+    layOutViteOutput();
+    write(join(bundleDir, 'THIRD_PARTY_LICENSES.md'), '# Licenses\n\n## @fontsource-variable/newsreader - 5.3.0\n');
+    expect(() => run()).toThrow(/does not list @fontsource-variable\/hanken-grotesk/);
+  });
 });
 
 describe('postbuild: allowlist', () => {
-  it('refuses any file outside the allowlist', () => {
+  it('refuses any file outside the flat allowlist, emitted font files and subdirectories included', () => {
     layOutViteOutput();
     write(join(bundleDir, 'index.html'), '<!doctype html>');
     write(join(bundleDir, 'assets/chunk.js'), 'export {};');
-    expect(failureRules()).toEqual(['assets/chunk.js not-allowlisted', 'index.html not-allowlisted']);
+    write(join(bundleDir, 'fonts/newsreader-latin-opsz-normal-Ab12.woff2'), Buffer.from([0x77, 0x4f, 0x46, 0x32]));
+    expect(failureRules()).toEqual([
+      'assets/chunk.js not-allowlisted',
+      'fonts/newsreader-latin-opsz-normal-Ab12.woff2 not-allowlisted',
+      'index.html not-allowlisted',
+    ]);
+  });
+});
+
+describe('postbuild: legal banner (§17.2)', () => {
+  it('requires the bundle to start with exactly the banner built from both font licenses', () => {
+    layOutViteOutput();
+    const banner = legalBanner(packageDir);
+    expect(banner.startsWith('/*! ')).toBe(true);
+    expect(banner.endsWith('*/')).toBe(true);
+    expect(banner).toContain('Newsreader: Copyright 2020 The Demoserif Project Authors');
+    expect(banner).toContain('Hanken Grotesk: Copyright 2020 The Demosans Project Authors');
+    expect(banner).toContain('SIL Open Font License, Version 1.1');
+    expect(banner).toContain('https://openfontlicense.org');
+    expect(banner).toContain('OFL-1.1-Newsreader.txt and OFL-1.1-Hanken-Grotesk.txt');
+    expect(banner).toContain('frontend/agraharam/');
+    expect(banner.match(/Demoserif Project Authors \(/g), 'duplicate notices collapse').toHaveLength(1);
+    run();
+    expect(readFileSync(join(bundleDir, 'agraharam.js'), 'utf8').startsWith(`${banner}\n`)).toBe(true);
   });
 
-  it('requires exactly one font of each family and no third font', () => {
+  it('fails the build when a font license has no copyright notice to carry', () => {
     layOutViteOutput();
-    write(join(bundleDir, 'fonts/extra-face-123.woff2'), Buffer.from([0]));
-    expect(failureRules()).toEqual(['fonts/ unexpected-font-count']);
-    rmSync(join(bundleDir, 'fonts/extra-face-123.woff2'));
-    rmSync(join(bundleDir, FONTS.serif));
-    expect(failureRules()).toContain('fonts/newsreader-latin-opsz-normal-<hash>.woff2 expected-exactly-one');
+    write(join(packageDir, 'node_modules/@fontsource-variable/newsreader/LICENSE'), 'SIL Open Font License\n');
+    expect(() => run()).toThrow(/newsreader\/LICENSE has no "Copyright … \(…\)" notice/);
+  });
+
+  it.each([
+    ['a comment end', 'Copyright 2020 Demo */ alert(1) /* Authors (https://example.invalid/x)'],
+    ['a non-ASCII character', 'Copyright © 2020 Demo Authors (https://example.invalid/x)'],
+    ['a control character', 'Copyright 2020 Demo\tAuthors (https://example.invalid/x)'],
+  ])('refuses a copyright notice with %s, which could break out of the banner', (_label, notice) => {
+    layOutViteOutput();
+    write(
+      join(packageDir, 'node_modules/@fontsource-variable/hanken-grotesk/LICENSE'),
+      `${notice}\n\nThis Font Software is licensed under the SIL Open Font License, Version 1.1.\n`,
+    );
+    expect(() => legalBanner(packageDir)).toThrow(FontLicenseError);
+    expect(() => legalBanner(packageDir)).toThrow(/hanken-grotesk\/LICENSE: .*cannot go into the bundle banner/);
+    expect(() => run()).toThrow(FontLicenseError);
+  });
+
+  it('fails a bundle without the banner, or with a banner that is not first', () => {
+    layOutViteOutput();
+    write(join(bundleDir, 'agraharam.js'), CLEAN_BUNDLE);
+    expect(failureRules()).toContain('agraharam.js legal-banner');
+    layOutViteOutput();
+    write(join(bundleDir, 'agraharam.js'), `export{};\n${bundleText(packageDir)}`);
+    expect(failureRules()).toContain('agraharam.js legal-banner');
+  });
+
+  it('allows the notice URLs in the banner only', () => {
+    const banner = '/*! Demo: Copyright 2020 Demo (https://example.invalid/demo) */';
+    expect(scanBundleText(`${banner}\nexport{};`, { banner })).toEqual([]);
+    expect(scanBundleText(`${banner}\nfetch("https://example.invalid/demo");`, { banner })).toEqual([
+      { line: 2, column: 8, rule: 'external-url' },
+    ]);
   });
 });
 
@@ -201,24 +273,39 @@ describe('postbuild: privacy and safety scan', () => {
     expect(scanBundleText('x\n  y.toSorted()')).toEqual([{ line: 2, column: 4, rule: 'es2023-array-copy' }]);
   });
 
-  it('fails on a planted forbidden ID from the private set, in the bundle and in a binary font', () => {
+  it('fails on a planted forbidden ID from the private set, in the bundle and inside an embedded font', () => {
     const forbidden = buildForbiddenSet(
       { documents: [{ groups: { people: [{ entity_id: 'person.demo_planted_owner' }] } }] },
       NO_EXEMPTIONS,
     );
-    layOutViteOutput(`${CLEAN_BUNDLE}const o="person.demo_planted_owner";\n`);
-    write(
-      join(bundleDir, FONTS.sans),
-      Buffer.concat([Buffer.from([0x77, 0x4f, 0x00]), Buffer.from('demo_planted_owner')]),
+    const font = Buffer.concat([Buffer.from([0x77, 0x4f, 0x00]), Buffer.from('demo_planted_owner')]);
+    layOutViteOutput(
+      `${CLEAN_BUNDLE}const o="person.demo_planted_owner";\n`,
+      embeddedFonts(dataUrl(font), dataUrl(FAKE_FONT_FILES.sans)),
     );
+    write(join(packageDir, SERIF_FONT_FILE), font);
     const rules = failureRules(forbidden);
     expect(rules).toContain('agraharam.js entity-id');
-    expect(rules).toContain(`${FONTS.sans} object-id`);
+    expect(rules).toContain('agraharam.js [embedded font 1] object-id');
     try {
       run(forbidden);
     } catch (error) {
       expect((error as Error).message).not.toContain('demo_planted_owner');
     }
+  });
+
+  it('fails a non-fictional entity ID among the bundle string literals (§17.7), allowing the four CSS selectors', () => {
+    const realLooking = ['light', 'kitchen'].join('.');
+    layOutViteOutput(`${CLEAN_BUNDLE}const c=\`button.tile{x:1}.time.now::before{y:2}\`,i="${realLooking}";\n`);
+    const rules = failureRules();
+    expect(rules).toEqual(['agraharam.js public-literal']);
+  });
+
+  it('passes demo IDs, exempted values and catalog services among the bundle string literals', () => {
+    layOutViteOutput(
+      `${CLEAN_BUNDLE}const a=["light.demo_lamp","sun.sun","cover.open_cover","light.set_brightness"];\n`,
+    );
+    expect(() => run()).not.toThrow();
   });
 
   it('passes a clean bundle against a forbidden set', () => {
@@ -228,7 +315,64 @@ describe('postbuild: privacy and safety scan', () => {
   });
 });
 
-describe('postbuild size line (§11.5)', () => {
+describe('postbuild: embedded data is exactly the two package fonts (§17.2)', () => {
+  it('masks the verified font payloads only: their base64 may hold a forbidden literal by chance', () => {
+    expect(dataUrl(FAKE_FONT_FILES.serif)).toContain('base64,eyJ');
+    layOutViteOutput();
+    expect(() => run()).not.toThrow();
+  });
+
+  it.each([
+    ['an extra data:text/plain', `const t="${dataUrl(Buffer.from('demo text'), 'text/plain')}";`],
+    ['a base64 data:text/javascript import', `import("${dataUrl(Buffer.from('export{}'), 'text/javascript')}");`],
+    ['a plain data:text/javascript import', 'import("data:text/javascript,export const x=1");'],
+    ['a data:image/jpeg', `const i="${dataUrl(Buffer.from([0xff, 0xd8, 0xff, 0xe0]), 'image/jpeg')}";`],
+    ['a third copy of a package font', `const x="${dataUrl(FAKE_FONT_FILES.sans)}";`],
+  ])('fails the build on %s', (_label, planted) => {
+    layOutViteOutput(`${CLEAN_BUNDLE}${planted}\n`);
+    expect(failureRules()).toContain('agraharam.js embedded-data');
+    expect(existsSync(join(bundleDir, 'manifest.json'))).toBe(false);
+  });
+
+  it.each([
+    ['a font whose bytes differ from the package file', [dataUrl(Buffer.from('other')), dataUrl(FAKE_FONT_FILES.sans)]],
+    ['a missing font', [dataUrl(FAKE_FONT_FILES.sans)]],
+    ['the same font twice instead of both', [dataUrl(FAKE_FONT_FILES.sans), dataUrl(FAKE_FONT_FILES.sans)]],
+    [
+      'a font payload that is not the whole string',
+      [`${dataUrl(FAKE_FONT_FILES.serif)}!x`, dataUrl(FAKE_FONT_FILES.sans)],
+    ],
+    ['a font under another MIME type', [dataUrl(FAKE_FONT_FILES.serif, 'font/woff'), dataUrl(FAKE_FONT_FILES.sans)]],
+  ])('fails the build on %s', (_label, payloads) => {
+    layOutViteOutput(CLEAN_BUNDLE, embeddedFonts(...payloads));
+    expect(failureRules()).toContain('agraharam.js embedded-data');
+  });
+
+  it('still applies the text rules inside a rejected payload', () => {
+    layOutViteOutput(`${CLEAN_BUNDLE}const t="${dataUrl(Buffer.from('{"x":1}'), 'text/plain')}";\n`);
+    expect(failureRules()).toEqual(
+      expect.arrayContaining(['agraharam.js embedded-data', 'agraharam.js forbidden-literal']),
+    );
+  });
+
+  it('rejects any embedded data when no fonts are expected, at its position', () => {
+    expect(scanBundleText('const f="data:font/woff2;base64,AAAA";')).toEqual([
+      { line: 1, column: 10, rule: 'embedded-data' },
+    ]);
+  });
+
+  it('needs the package font files to compare against', () => {
+    layOutViteOutput();
+    rmSync(join(packageDir, SERIF_FONT_FILE));
+    expect(() => run()).toThrow(/newsreader-latin-opsz-normal\.woff2 is missing\. Run "npm ci"/);
+  });
+});
+
+describe('postbuild size line (§11.5, §17.2)', () => {
+  it('targets 720 KiB raw', () => {
+    expect(BUNDLE_SIZE_TARGET_BYTES).toBe(737_280);
+  });
+
   it('reports raw and gzip bytes against the target, and warns above it', () => {
     const small = Buffer.from('export {};\n'.repeat(10));
     expect(sizeLine(small)).toMatch(

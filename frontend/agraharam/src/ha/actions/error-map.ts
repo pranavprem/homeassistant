@@ -21,8 +21,8 @@ const WHITESPACE_RE = /\s+/g;
 /**
  * An entity ID or `domain.service` token in HA's text ("Entity cover.demo_x does not support action
  * cover.open_cover"): a `domain.object_id` pair of lowercase slugs, the domain starting with a letter (so "21.5"
- * stays), not part of a longer dotted run. A list of them ("light.a, light.b and light.c") is one match, separators
- * included. No lookbehind (§1.2 item 11): the character before is captured and put back.
+ * stays), not part of a longer dotted run. A list of them ("light.demo_a, light.demo_b and light.demo_c") is one
+ * match, separators included. No lookbehind (§1.2 item 11): the character before is captured and put back.
  */
 const ID_PATTERN = '[a-z][a-z\\d]*(?:_[a-z\\d]+)*\\.[a-z\\d]+(?:_[a-z\\d]+)*';
 const ENTITY_ID_RUN_RE = new RegExp(
@@ -89,7 +89,7 @@ export function mapRejection(error: unknown): MappedRejection {
 
 /**
  * HA's message as shown in normal UI: plain text (see plainText) with every entity-ID-shaped token removed, then
- * capped at HA_MESSAGE_MAX_CHARS. HA words errors with raw IDs ("Entity cover.x does not support action …"), and
+ * capped at HA_MESSAGE_MAX_CHARS. HA words errors with raw IDs ("Entity cover.demo_x does not support action …"), and
  * the dashboard never shows an entity ID outside Diagnostics (§7.3). Undefined when nothing readable remains, so the
  * caller falls back to its own copy.
  */

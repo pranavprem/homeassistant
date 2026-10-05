@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Agraharam install helper (architecture §13.2).
+# Agraharam install helper for the /local channel (architecture §13.2, §17.6).
 #
-# Copies one verified build (dist/agraharam/<version>/) into <HA config>/www/agraharam/<version>/ through an
-# authorized file channel, for example the NAS file share mounted on this machine. Dry run by default.
+# Copies one verified build (dist/agraharam/<version>/, or a release downloaded into a directory named after its
+# version) into <HA config>/www/agraharam/<version>/ through an authorized file channel, for example the NAS file
+# share mounted on this machine. Dry run by default. The directory is flat (§17.2): the module with both fonts
+# embedded, three license texts, the manifest and the checksums.
 #
 # It never restarts Home Assistant, never touches configuration.yaml or .storage, never overwrites or edits an
 # existing version directory, never creates www itself and never follows a symbolic link at the destination.
@@ -30,7 +32,8 @@ usage: install/install.sh --dest <HA config>/www/agraharam [--version X.Y.Z] [--
   --dest                   the agraharam directory inside HA's www directory, as an absolute path with no
                            symbolic links
   --version                release to install; must match the source directory name and its manifest
-  --src                    a built release directory (defaults to the package's dist/agraharam/<version>)
+  --src                    a built release directory (defaults to the package's dist/agraharam/<version>), or a
+                           release downloaded into a directory named after its version
   --apply                  copy the files (without it nothing is written)
   --allow-dirty            accept a build made from uncommitted changes (a warning is printed)
   --allow-missing-private  let the privacy re-scan skip on a machine without the private files (the plan says so)
@@ -117,11 +120,18 @@ group_digits() {
   printf '%s%s' "$digits" "$grouped"
 }
 
-# A path is allowlisted when it is the entry, a top-level font, a license text, the manifest or the checksums.
-# License texts are .md or .txt only, as postbuild allows: /local serves files unauthenticated on the HA origin,
-# so an .html or .svg license file would be active content there.
+# The exact flat file set of a release (§17.2), in copy order: the module, the license texts, the manifest and the
+# checksums. Nothing else is ever copied: /local serves files unauthenticated on the HA origin, so an unexpected
+# .html or .svg file would be active content there.
+readonly RELEASE_FILES=(agraharam.js THIRD_PARTY_LICENSES.md OFL-1.1-Hanken-Grotesk.txt OFL-1.1-Newsreader.txt
+  manifest.json SHA256SUMS)
+
 is_allowlisted() {
-  [[ $1 =~ ^(agraharam\.js|manifest\.json|SHA256SUMS|fonts/[A-Za-z0-9._-]+\.woff2|LICENSES/[A-Za-z0-9._-]+\.(md|txt))$ ]]
+  local name
+  for name in "${RELEASE_FILES[@]}"; do
+    [ "$1" = "$name" ] && return 0
+  done
+  return 1
 }
 
 # Lists every entry under $1 as "<type> <relative path>" (f file, d directory, o anything else), NUL-safe.
@@ -214,35 +224,27 @@ fi
 listed=$(verify_sums "$src") || die "$EXIT_VERIFY" "SHA256SUMS in $src does not verify. Rebuild; never edit a build."
 sum_count=$(printf '%s\n' "$listed" | grep -c . || true)
 
-# 5. The file set equals the allowlist, and every file except SHA256SUMS is listed in it.
-files=()
+# 5. The file set equals the allowlist exactly (flat, no directories), and every file except SHA256SUMS is listed in
+#    it.
 while IFS= read -r entry; do
   type=${entry%% *}
   rel=${entry#* }
   case $type in
-    d) [[ $rel =~ ^(fonts|LICENSES)$ ]] || die "$EXIT_VERIFY" "unexpected directory in the source: $rel" ;;
+    d) die "$EXIT_VERIFY" "unexpected directory in the source: $rel (a release directory is flat)" ;;
     f)
       is_allowlisted "$rel" || die "$EXIT_VERIFY" "file not on the install allowlist: $rel"
       if [ "$rel" != SHA256SUMS ] && ! printf '%s\n' "$listed" | grep -Fxq -- "$rel"; then
         die "$EXIT_VERIFY" "file not covered by SHA256SUMS: $rel"
       fi
-      files+=("$rel")
       ;;
     *) die "$EXIT_VERIFY" "not a regular file (symbolic link or special file) in the source: $rel" ;;
   esac
 done < <(list_entries "$src" | LC_ALL=C sort)
-for required in agraharam.js manifest.json SHA256SUMS; do
-  printf '%s\n' ${files[@]+"${files[@]}"} | grep -Fxq -- "$required" || die "$EXIT_VERIFY" "missing $required in $src"
+for required in "${RELEASE_FILES[@]}"; do
+  [ -f "$src/$required" ] || die "$EXIT_VERIFY" "missing $required in $src"
 done
+files=("${RELEASE_FILES[@]}")
 [ "$sum_count" -eq $((${#files[@]} - 1)) ] || die "$EXIT_VERIFY" "SHA256SUMS lists files that are not in $src."
-# A stable, readable copy order: the module, its fonts, the licenses, then the manifest and checksums.
-ordered=()
-for group in agraharam.js fonts/ LICENSES/ manifest.json SHA256SUMS; do
-  for rel in "${files[@]}"; do
-    case $rel in "$group"*) ordered+=("$rel") ;; esac
-  done
-done
-files=("${ordered[@]}")
 
 # 6. A build from uncommitted changes is refused unless explicitly allowed.
 git_sha=$(manifest_field "$src" git_sha)
@@ -306,7 +308,7 @@ printf 'privacy      %s\n' "$privacy_scan"
 for rel in "${files[@]}"; do
   bytes=$(wc -c <"$src/$rel" | tr -d ' ')
   sum=$(sha256_of "$src/$rel")
-  printf 'copy         %-52s %10s B  sha256 %s…%s\n' "$rel" "$(group_digits "$bytes")" "${sum:0:4}" "${sum: -4}"
+  printf 'copy         %-28s %10s B  sha256 %s…%s\n' "$rel" "$(group_digits "$bytes")" "${sum:0:4}" "${sum: -4}"
 done
 printf 'resource     /local/agraharam/%s/agraharam.js   (type: module; create or update, see install/README.md)\n' \
   "$version"
@@ -345,7 +347,6 @@ mkdir -m "$DIR_MODE" "$partial" ||
   die "$EXIT_CONFLICT" "could not create $partial (a stale partial directory from an earlier run?). Remove it" \
     "through the file share, then re-run."
 partial_created=true
-for sub in fonts LICENSES; do mkdir -m "$DIR_MODE" "$partial/$sub"; done
 for rel in "${files[@]}"; do
   cp -- "$src/$rel" "$partial/$rel"
   # Some network shares map permissions themselves and refuse chmod; the copy is still valid.

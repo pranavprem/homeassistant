@@ -1,0 +1,374 @@
+# Agraharam dashboard: CI on every pull request and push to main, and a HACS release for every push to main that
+# changes the bundle (frontend/agraharam/docs/ARCHITECTURE.md §17).
+#
+# Security rules, checked by frontend/agraharam/tests/release/workflow.test.ts:
+# - actions are pinned to full commit SHAs, every checkout drops its credentials, installs never run package scripts;
+# - no ${{ }} expression appears inside a run script: values reach scripts through env only;
+# - only release-publish can write, and it runs no package code: download, verify, guard, publish.
+name: agraharam
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Workflow level: a pull request's newer run cancels its older one. Every run on main has a group of its own (its
+# run id), so at this level it is never queued behind, or replaced by, another run. release-publish has a job-level
+# group of its own, where GitHub does replace a pending job (see there).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      dashboard: ${{ steps.diff.outputs.dashboard }}
+      bundle: ${{ steps.diff.outputs.bundle }}
+    steps:
+      - name: Check out the full history and tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Decide what this run tests and releases
+        id: diff
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: bash frontend/agraharam/scripts/ci/changes.sh
+
+  verify:
+    name: verify
+    needs: [changes]
+    if: needs.changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend/agraharam
+    steps:
+      - name: Check out the full history (the literal check reads every commit under test)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/agraharam/.nvmrc
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - name: Build (postbuild scans the built bundle's string literals too)
+        run: npm run build
+      - name: Public-literal check of the working tree and of every commit under test (CI has no private files)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          # Without .dashboard-local, check:public runs the positive public-literal check (§17.7).
+          npm run check:public -- --allow-missing-private
+          case $EVENT_NAME in
+            pull_request) base=$PR_BASE_SHA ;;
+            push) base=$PUSH_BEFORE ;;
+            *) base='' ;;
+          esac
+          if [[ $base =~ ^[0-9a-f]{40}$ && $base != 0000000000000000000000000000000000000000 ]] &&
+            git cat-file -e "$base^{commit}" 2>/dev/null; then
+            npm run check:public -- --allow-missing-private --range "$base..$GITHUB_SHA"
+          else
+            echo 'No usable base commit (new branch, force push or manual run): the working-tree check above stands.'
+          fi
+
+  e2e:
+    name: e2e
+    needs: [changes, verify]
+    if: needs.changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend/agraharam
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/agraharam/.nvmrc
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e
+      - name: Layout and accessibility in WebKit (wall tablets are often Safari)
+        run: AGR_E2E_BROWSERS=all npx playwright test e2e/layout.spec.ts e2e/a11y.spec.ts --project=webkit
+      - name: Keep the Playwright report (fictional data only)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agraharam-playwright
+          path: |
+            frontend/agraharam/playwright-report/
+            frontend/agraharam/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  gate:
+    # The single required status check.
+    name: agraharam-ci
+    needs: [changes, verify, e2e]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require a complete result
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          DASHBOARD: ${{ needs.changes.outputs.dashboard }}
+          BUNDLE: ${{ needs.changes.outputs.bundle }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          set -euo pipefail
+          echo "changes: $CHANGES_RESULT, dashboard: $DASHBOARD, bundle: $BUNDLE, verify: $VERIFY_RESULT, e2e: $E2E_RESULT"
+          if [[ $CHANGES_RESULT != success ]]; then
+            echo '::error::The changes job did not succeed, so nothing is known about this run.'
+            exit 1
+          fi
+          # A release must never skip the tests: every bundle change is also a dashboard change.
+          if [[ $BUNDLE == true && $DASHBOARD != true ]]; then
+            echo '::error::The changes job reported a bundle change without a dashboard change.'
+            exit 1
+          fi
+          case "$DASHBOARD/$VERIFY_RESULT/$E2E_RESULT" in
+            true/success/success) echo 'Dashboard CI passed.' ;;
+            false/skipped/skipped) echo 'No dashboard change: nothing to test.' ;;
+            *)
+              echo '::error::Dashboard CI is incomplete: verify and e2e must both succeed, or both be skipped.'
+              exit 1
+              ;;
+          esac
+
+  release-build:
+    name: release-build
+    needs: [changes, gate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.bundle == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend/agraharam
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/agraharam/.nvmrc
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Build MAJOR.MINOR.<run number> (postbuild runs the built-bundle literal scan)
+        run: AGR_PATCH=$GITHUB_RUN_NUMBER npm run build
+      - name: Check the build and stage exactly the SHA256SUMS-listed files
+        run: node scripts/ci/stage-release.mjs dist/release
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agraharam-release
+          path: frontend/agraharam/dist/release/
+          retention-days: 1
+          if-no-files-found: error
+
+  release-publish:
+    name: release-publish
+    needs: [changes, gate, release-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.bundle == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    # A running publish is never cancelled. GitHub keeps at most one pending job per group, though, so whichever
+    # publish queues last cancels the one still pending, even with cancel-in-progress: false. The cancelled one may
+    # belong to the later run; its changes still ship with the next push to main or a re-run of that job (§17.5
+    # liveness), because pushes diff against the last release tag.
+    concurrency:
+      group: agraharam-release
+      cancel-in-progress: false
+    # No checkout and no package code here: only the downloaded artifact, bash, gh, jq and sha256sum.
+    steps:
+      - name: Download the release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: agraharam-release
+          path: release
+          digest-mismatch: error
+
+      - name: Verify the checksums
+        working-directory: release
+        run: |
+          set -euo pipefail
+          sha256sum --check --strict SHA256SUMS
+
+      - name: Derive the tag from the manifest
+        id: tag
+        working-directory: release
+        run: |
+          set -euo pipefail
+          version=$(jq -er '.version' manifest.json)
+          # §17.3: vMAJOR.MINOR.PATCH, where PATCH is this run's number.
+          if [[ ! $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.([1-9][0-9]*)$ ]] ||
+            [[ ${BASH_REMATCH[3]} != "$GITHUB_RUN_NUMBER" ]]; then
+            echo "::error::manifest.json does not hold MAJOR.MINOR.$GITHUB_RUN_NUMBER; refusing to publish."
+            exit 1
+          fi
+          echo "tag=v$version" >>"$GITHUB_OUTPUT"
+
+      - name: Refuse unless the tag is new and higher than every release tag
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Release tags only (strict SemVer): sort -V ranks a stray `v1` or `vacuum-schedule` above every release.
+          gh api --paginate "repos/$GH_REPO/git/matching-refs/tags/v" |
+            jq -r '.[].ref | ltrimstr("refs/tags/") | select(test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"))' \
+              >"$RUNNER_TEMP/tags"
+          highest=$(sort -V "$RUNNER_TEMP/tags" | tail -n 1)
+          if ! grep -Fxq -- "$TAG" "$RUNNER_TEMP/tags" &&
+            [[ $(printf '%s\n%s\n' "$highest" "$TAG" | sort -V | tail -n 1) == "$TAG" ]]; then
+            echo 'publish=true' >>"$GITHUB_OUTPUT"
+            echo "previous=$highest" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Superseded: a release tag at or above this version points to this commit or a descendant of it, and it is
+          # a published Agraharam release (a bare tag or a draft would leave HACS without the update: fail instead).
+          while IFS= read -r tag; do
+            [[ $(printf '%s\n%s\n' "$TAG" "$tag" | sort -V | tail -n 1) == "$tag" ]] || continue
+            commit=$(gh api "repos/$GH_REPO/commits/tags/$tag" | jq -er '.sha')
+            status=$(gh api "repos/$GH_REPO/compare/$GITHUB_SHA...$commit" | jq -er '.status')
+            if [[ $status == ahead || $status == identical ]]; then
+              release=$(gh api "repos/$GH_REPO/releases/tags/$tag" 2>/dev/null || echo '{}')
+              # A draft or missing release answers 404, which becomes {} and fails this check like any non-release.
+              if ! jq -e '(.draft == false) and (.prerelease == false) and any(.assets[]?; .name == "agraharam.js")' \
+                <<<"$release" >/dev/null; then
+                echo "::error::$tag covers this commit but is not a published release with agraharam.js; not treating this run as superseded."
+                exit 1
+              fi
+              echo "::notice::$tag already releases this commit or a newer one: this run was superseded and publishes nothing."
+              echo 'publish=false' >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done <"$RUNNER_TEMP/tags"
+          echo "::error::$TAG is not new and higher than every release tag (highest: ${highest:-none}). If run numbers restarted, bump MINOR in package.json."
+          exit 1
+
+      - name: Refuse unless this commit is on main
+        if: steps.guard.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          status=$(gh api "repos/$GH_REPO/compare/$GITHUB_SHA...main" | jq -er '.status')
+          if [[ $status != ahead && $status != identical ]]; then
+            echo "::error::This commit is not on main (compare status: $status); refusing to publish."
+            exit 1
+          fi
+
+      - name: Write the release notes from a fixed template
+        if: steps.guard.outputs.publish == 'true'
+        env:
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          PREVIOUS: ${{ steps.guard.outputs.previous }}
+        run: |
+          set -euo pipefail
+          # No commit subjects: HACS renders this body as markdown in Home Assistant's update dialog (§17.7).
+          {
+            echo "Agraharam dashboard $TAG, built and tested from commit $GITHUB_SHA."
+            echo
+            if [[ $PREVIOUS =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Changes since $PREVIOUS: $GITHUB_SERVER_URL/$GH_REPO/compare/$PREVIOUS...$TAG"
+            else
+              echo 'First Agraharam release.'
+            fi
+            echo
+            echo 'Install with HACS: Settings → Updates → Agraharam → Update, then reload every client.'
+            echo 'Every asset is listed in SHA256SUMS.'
+          } >"$RUNNER_TEMP/notes.md"
+
+      - name: Delete a leftover draft of this tag only
+        if: steps.guard.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # gh release create uploads into a draft first, so a failed upload can leave one behind.
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" |
+            jq -r --arg tag "$TAG" '.[] | select(.draft and .tag_name == $tag) | .id' >"$RUNNER_TEMP/drafts"
+          while IFS= read -r id; do
+            [[ $id =~ ^[0-9]+$ ]] || { echo '::error::Unexpected release id.'; exit 1; }
+            echo "Deleting the leftover draft release $id of $TAG."
+            gh api --method DELETE "repos/$GH_REPO/releases/$id"
+          done <"$RUNNER_TEMP/drafts"
+
+      - name: Publish the release with exactly the SHA256SUMS-listed files
+        if: steps.guard.outputs.publish == 'true'
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          assets=()
+          has_bundle=false
+          while IFS= read -r line; do
+            [[ $line =~ ^[0-9a-f]{64}\ \ ([A-Za-z0-9][A-Za-z0-9._-]*)$ ]] || { echo '::error::Malformed SHA256SUMS.'; exit 1; }
+            assets+=("${BASH_REMATCH[1]}")
+            [[ ${BASH_REMATCH[1]} != agraharam.js ]] || has_bundle=true
+          done <SHA256SUMS
+          # HACS installs the first published release: every one must carry the card.
+          [[ $has_bundle == true ]] || { echo '::error::SHA256SUMS does not list agraharam.js.'; exit 1; }
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" \
+            -- "${assets[@]}" SHA256SUMS
+
+      - name: Check that HACS will offer this release
+        if: steps.guard.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # HACS takes the first non-draft, non-prerelease release in list order and ignores the "latest" flag.
+          first=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" |
+            jq -rn 'first(inputs[] | select((.draft | not) and (.prerelease | not))) | .tag_name')
+          if [[ $first != "$TAG" ]]; then
+            echo "::error::The first non-draft, non-prerelease release is ${first:-none}, not $TAG: HACS would keep offering it."
+            exit 1
+          fi
+          echo "HACS will offer $TAG."

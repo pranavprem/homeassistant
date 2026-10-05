@@ -14,6 +14,8 @@ const PKG = 'frontend/agraharam';
 const SINGLE_WORD_OBJECT = ['pan', 'try'].join('');
 const SINGLE_WORD_ID = ['switch', SINGLE_WORD_OBJECT].join('.');
 const DENYLIST_PHRASE = 'Quillfeather Lane';
+/** Built at runtime, so this file's own source passes the public-literal check. */
+const REAL_LOOKING_LIGHT = ['light', 'kitchen'].join('.');
 
 const CANDIDATES = {
   schema_version: 1,
@@ -94,6 +96,8 @@ describe('check-public: one repo with every kind of planted value', () => {
     for (const [path, content] of Object.entries(files)) repo.write(`${PKG}/${path}`, content);
     repo.write(`${PKG}/node_modules/some-package/index.js`, "module.exports = 'person.demo_quinn';\n");
     repo.write(`${PKG}/dist/agraharam/9.9.9/agraharam.js`, 'const c="camera.demo_attic";\n');
+    // A release build stamps its own patch (AGR_PATCH), so its directory differs from package.json's version.
+    repo.write(`${PKG}/dist/agraharam/9.9.17/agraharam.js`, 'const d="camera.demo_attic";\n');
     repo.git('add', `${PKG}/src/tracked.ts`, `${PKG}/package.json`, '.gitignore');
     repo.git('commit', '-q', '-m', 'tracked');
     // Staged, then fixed only in the working tree: the index blob still holds the ID.
@@ -160,8 +164,9 @@ describe('check-public: one repo with every kind of planted value', () => {
     expect(result.stdout).not.toContain('node_modules');
   });
 
-  it('scans the built dist directory', () => {
+  it('scans every built dist directory, including a patched release build', () => {
     expect(hitLines(result)).toContain(`${PKG}/dist/agraharam/9.9.9/agraharam.js:1:10 entity-id`);
+    expect(hitLines(result)).toContain(`${PKG}/dist/agraharam/9.9.17/agraharam.js:1:10 entity-id`);
   });
 
   it('prints path:line:column and the rule, never the matched value', () => {
@@ -187,25 +192,29 @@ describe('check-public: private directory discovery (§16.10)', () => {
     }
   });
 
-  it('skips with exit 0 under --allow-missing-private', () => {
+  it('runs the public-literal check under --allow-missing-private, and passes a clean tree', () => {
     const repo = createTempRepo('agr-check-public-allow-');
     try {
+      repo.write(`${PKG}/src/clean.ts`, "export const LAMP = 'light.demo_lamp';\n");
       const result = runNodeScript(SCRIPT, ['--allow-missing-private'], repo.root);
-      expect(result.status).toBe(0);
-      expect(result.stdout).toContain('skipped: no private files');
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toContain('running the public-literal check');
+      expect(result.stdout).toMatch(/clean: public-literal check of [1-9]\d* file\(s\)/);
     } finally {
       repo.remove();
     }
   });
 
-  it('skips with exit 0 when the private directory holds no private files', () => {
+  it('runs the public-literal check when the private directory holds no private files', () => {
     const repo = createTempRepo('agr-check-public-empty-');
     try {
       mkdirSync(repo.privateDir);
       repo.write('.dashboard-local/notes.md', 'not json');
+      repo.write(`${PKG}/src/real.ts`, `export const LAMP = '${REAL_LOOKING_LIGHT}';\n`);
       const result = runNodeScript(SCRIPT, [], repo.root);
-      expect(result.status).toBe(0);
-      expect(result.stdout).toContain('skipped: no private files');
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain('(the private directory holds none): running the public-literal check');
+      expect(hitLines(result)).toEqual([`${PKG}/src/real.ts:1:22 public-literal`]);
     } finally {
       repo.remove();
     }
@@ -267,6 +276,68 @@ describe('check-public: private directory discovery (§16.10)', () => {
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('cannot parse private file broken.json');
       expect(result.stdout + result.stderr).not.toContain('demo_secret_value');
+    } finally {
+      repo.remove();
+    }
+  });
+});
+
+describe('check-public: the public-literal check without private files (§17.7, CI)', () => {
+  const allow = ['--allow-missing-private'];
+
+  it('fails a non-fictional ID in any scoped file, untracked or staged, without printing it', () => {
+    const repo = createTempRepo('agr-check-public-literals-');
+    try {
+      repo.write(`${PKG}/src/untracked.ts`, `const A = '${REAL_LOOKING_LIGHT}';\n`);
+      repo.write(`${PKG}/tests/staged.test.ts`, `const B = '${REAL_LOOKING_LIGHT}';\n`);
+      repo.git('add', `${PKG}/tests/staged.test.ts`);
+      repo.write(`${PKG}/tests/staged.test.ts`, "const B = 'light.demo_fixed';\n");
+      repo.write(`${PKG}/docs/notes.md`, `Out of scope: ${REAL_LOOKING_LIGHT}.\n`);
+      repo.write(`${PKG}/scripts/tool.mjs`, `const C = '${REAL_LOOKING_LIGHT}';\n`);
+      const result = runNodeScript(SCRIPT, allow, repo.root);
+      expect(result.status).toBe(1);
+      expect(hitLines(result)).toEqual([
+        `${PKG}/src/untracked.ts:1:12 public-literal`,
+        `${PKG}/tests/staged.test.ts [index]:1:12 public-literal`,
+      ]);
+      expect(result.stdout + result.stderr).not.toContain(REAL_LOOKING_LIGHT);
+    } finally {
+      repo.remove();
+    }
+  });
+
+  it('--range checks every scoped blob in the commits, including one removed again', () => {
+    const repo = createTempRepo('agr-check-public-literal-range-');
+    try {
+      repo.git('add', '-A');
+      repo.git('commit', '-q', '-m', 'base');
+      const base = repo.git('rev-parse', 'HEAD').trim();
+      repo.write(`${PKG}/e2e/added.spec.ts`, `const A = '${REAL_LOOKING_LIGHT}';\n`);
+      repo.git('add', '-A');
+      repo.git('commit', '-q', '-m', 'add');
+      repo.write(`${PKG}/e2e/added.spec.ts`, "const A = 'light.demo_lamp';\n");
+      repo.git('add', '-A');
+      repo.git('commit', '-q', '-m', 'fix');
+      const clean = runNodeScript(SCRIPT, allow, repo.root);
+      expect(clean.status, 'the working tree is clean').toBe(0);
+      const result = runNodeScript(SCRIPT, [...allow, '--range', `${base}..HEAD`], repo.root);
+      expect(result.status).toBe(1);
+      expect(hitLines(result)).toHaveLength(1);
+      expect(hitLines(result)[0]).toMatch(
+        new RegExp(`^${PKG}/e2e/added\\.spec\\.ts@[0-9a-f]{12}:1:12 public-literal$`),
+      );
+    } finally {
+      repo.remove();
+    }
+  });
+
+  it('--dist reports skipped: postbuild already ran the check over the bundle it built', () => {
+    const repo = createTempRepo('agr-check-public-literal-dist-');
+    try {
+      repo.write('release/agraharam.js', `const A = '${REAL_LOOKING_LIGHT}';\n`);
+      const result = runNodeScript(SCRIPT, [...allow, '--dist', 'release'], repo.root);
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('check-public: skipped: no private files');
     } finally {
       repo.remove();
     }

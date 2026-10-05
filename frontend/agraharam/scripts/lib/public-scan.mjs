@@ -7,10 +7,11 @@
  * - the forbidden set: every real entity ID found in the private `.dashboard-local/**\/*.json` files (keys and
  *   values, recursively), prose substrings with a known entity domain, bare compound object IDs and private
  *   denylist literals, minus the reviewed exemptions; public files must contain none of them;
- * - the public-literal check: every entity-ID-shaped literal in fixtures, tests, e2e and install files must be a
- *   fictional `*.demo_*` ID, a reviewed exemption or a §7.1 catalog `domain.service` pair (the caller passes the
- *   catalog's `CATALOG_SERVICES`, so this module needs no TypeScript beyond `entity-id.ts`). It needs no private
- *   files, so it also protects a machine without `.dashboard-local/`.
+ * - the public-literal check: every entity-ID-shaped literal in src (production code included), tests, e2e and
+ *   install files, and in the built bundle, must be a fictional `*.demo_*` ID, a reviewed exemption or a §7.1
+ *   catalog identifier (the caller passes `CATALOG_LITERALS` from `catalog-literals.mjs`, so this module needs no
+ *   TypeScript beyond `entity-id.ts`). It needs no private files, so it also protects a machine without
+ *   `.dashboard-local/`, including CI (§17.7).
  *
  * Hits carry a position and a rule, never the matched text: printing the value would leak it into terminals,
  * CI logs and transcripts.
@@ -142,8 +143,18 @@ export const MIN_BARE_OBJECT_ID_LENGTH = 8;
 /** Fictional fixture IDs use this object-ID prefix (§10.1). */
 export const DEMO_OBJECT_PREFIX = 'demo_';
 
-/** Package-relative directories whose entity-ID-shaped literals must be fictional (§11.1). */
-export const PUBLIC_LITERAL_SCOPES = Object.freeze(['src/demo/', 'src/dev/', 'tests/', 'e2e/', 'install/']);
+/**
+ * Type-and-class or class-chain selectors in the card's Lit `css` templates (and so in the bundle's string literals)
+ * that look like entity IDs: `button.tile`, `button.body`, `.text.short` and `.time.now`. They are allowed by exact
+ * value only, never by context: `button`, `text` and `time` are real entity domains, so a rule such as "followed by
+ * a `{`" would also let a real ID through in YAML, a comment or a test name. A new selector of this shape fails the
+ * check until it is added here (or renamed). This list does not touch the private forbidden set, which still
+ * catches these values if a household ever uses them.
+ */
+export const CSS_SELECTOR_LITERALS = new Set(['button.body', 'button.tile', 'text.short', 'time.now']);
+
+/** Package-relative directories whose entity-ID-shaped literals must be fictional (§11.1, all of src since §17.7). */
+export const PUBLIC_LITERAL_SCOPES = Object.freeze(['src/', 'tests/', 'e2e/', 'install/']);
 
 /** Extensions lexed as JavaScript/TypeScript: only their string literals and comments are literals. */
 const SCRIPT_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs', '.jsx']);
@@ -407,11 +418,12 @@ export function isPublicLiteralScope(packagePath) {
 }
 
 /**
- * The positive public-literal check (§11.1). For script files only string literals and comments count as
- * literals (a property access such as `event.target` is code); every other file is prose or data throughout.
+ * The positive public-literal check (§11.1, §17.7). For script files only string literals and comments count as
+ * literals (a property access such as `event.target` is code); every other file is prose or data throughout. The
+ * exact CSS selectors in `CSS_SELECTOR_LITERALS` are allowed anywhere.
  * @param {{ files: readonly { path: string, text: string }[], exemptions: Exemptions,
  *           catalogLiterals: readonly string[] }} input `catalogLiterals` holds the §7.1 catalog's
- *   `domain.service` pairs and action kinds (`CATALOG_SERVICES` and `ACTION_KINDS` from src/ha/actions/catalog.ts)
+ *   `domain.service` pairs and action kinds (`CATALOG_LITERALS` from catalog-literals.mjs)
  * @returns {FileHit[]}
  */
 export function checkPublicLiterals({ files, exemptions, catalogLiterals }) {
@@ -425,7 +437,7 @@ export function checkPublicLiterals({ files, exemptions, catalogLiterals }) {
     for (const [start, end, isSelector] of regions) {
       for (const [from, to] of isSelector ? attributeSelectorRanges(text, start, end) : [[start, end]]) {
         for (const token of entityIdTokens(text, from, to)) {
-          if (!isProseEntityId(token.id)) continue;
+          if (!isProseEntityId(token.id) || CSS_SELECTOR_LITERALS.has(token.id)) continue;
           const object = token.id.slice(token.id.indexOf('.') + 1);
           if (isFictionalObjectId(object) || exemptions.entityIds.has(token.id) || catalog.has(token.id)) continue;
           hits.push({ path, ...locate(token.offset), rule: 'public-literal' });

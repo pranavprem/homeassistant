@@ -1,9 +1,11 @@
 /**
- * install.sh (§13.2, §12.1) spawned with bash against temp directories: a release made by the real postbuild, a
- * fake HA config share, and fictional private files for the privacy re-scan.
+ * install.sh (§13.2, §12.1, §17.2) spawned with bash against temp directories: a flat release made by the real
+ * postbuild (and the same files as a downloaded release), a fake HA config share, and fictional private files for
+ * the privacy re-scan.
  */
 import { spawnSync } from 'node:child_process';
 import {
+  copyFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -17,22 +19,21 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildFakeRelease, CLEAN_BUNDLE } from '../scripts/support/fake-build.ts';
+import { buildFakeRelease } from '../scripts/support/fake-build.ts';
 import { isolatedEnv, PACKAGE_DIR } from '../scripts/support/temp-repo.ts';
 
 const INSTALL_SH = join(PACKAGE_DIR, 'install/install.sh');
 const VERSION = '9.9.9';
 const PLANTED_ID = 'person.demo_install_owner';
+/** The flat §17.2 release: also exactly the release assets the workflow attaches. */
 const EXPECTED_FILES = [
-  'LICENSES/OFL-1.1-Hanken-Grotesk.txt',
-  'LICENSES/OFL-1.1-Newsreader.txt',
-  'LICENSES/THIRD_PARTY_LICENSES.md',
+  'OFL-1.1-Hanken-Grotesk.txt',
+  'OFL-1.1-Newsreader.txt',
   'SHA256SUMS',
+  'THIRD_PARTY_LICENSES.md',
   'agraharam.js',
-  'fonts/hanken-grotesk-latin-wght-normal-Ef34Gh.woff2',
-  'fonts/newsreader-latin-opsz-normal-Ab12Cd.woff2',
   'manifest.json',
 ];
 
@@ -98,21 +99,20 @@ describe('install.sh: dry run', () => {
     );
     expect(lines).toContain(`destination  ${dest}/${VERSION}   (absent: ok)`);
     expect(lines).toContain(`destination parent absent: will create ${dest}   (first install only)`);
-    expect(lines).toContain('checksums    7 files verified');
+    expect(lines).toContain('checksums    5 files verified');
     expect(lines).toContain('privacy      re-scanned with check-public --dist');
     const copied = lines.filter((line) => line.startsWith('copy ')).map((line) => line.split(/\s+/)[1]);
     expect(copied).toEqual([
       'agraharam.js',
-      'fonts/hanken-grotesk-latin-wght-normal-Ef34Gh.woff2',
-      'fonts/newsreader-latin-opsz-normal-Ab12Cd.woff2',
-      'LICENSES/OFL-1.1-Hanken-Grotesk.txt',
-      'LICENSES/OFL-1.1-Newsreader.txt',
-      'LICENSES/THIRD_PARTY_LICENSES.md',
+      'THIRD_PARTY_LICENSES.md',
+      'OFL-1.1-Hanken-Grotesk.txt',
+      'OFL-1.1-Newsreader.txt',
       'manifest.json',
       'SHA256SUMS',
     ]);
+    const bundleBytes = statSync(join(src, 'agraharam.js')).size.toLocaleString('en-US');
     expect(lines.find((line) => line.startsWith('copy         agraharam.js'))).toMatch(
-      new RegExp(`\\s${Buffer.byteLength(CLEAN_BUNDLE)} B {2}sha256 [0-9a-f]{4}…[0-9a-f]{4}$`),
+      new RegExp(`\\s${bundleBytes} B {2}sha256 [0-9a-f]{4}…[0-9a-f]{4}$`),
     );
     expect(lines.slice(-4)).toEqual([
       `resource     /local/agraharam/${VERSION}/agraharam.js   (type: module; create or update, see install/README.md)`,
@@ -144,12 +144,24 @@ describe('install.sh: --apply', () => {
       expect(readFileSync(join(installed, file)).equals(readFileSync(join(src, file))), file).toBe(true);
       expect(statSync(join(installed, file)).mode & 0o777, file).toBe(0o644);
     }
-    for (const dir of [dest, installed, join(installed, 'fonts'), join(installed, 'LICENSES')]) {
-      expect(statSync(dir).mode & 0o777, dir).toBe(0o755);
-    }
+    for (const dir of [dest, installed]) expect(statSync(dir).mode & 0o777, dir).toBe(0o755);
     expect(readdirSync(dest)).toEqual([VERSION]);
     const verify = spawnSync('shasum', ['-a', '256', '-c', 'SHA256SUMS'], { cwd: installed, encoding: 'utf8' });
     if (!verify.error) expect(verify.status).toBe(0);
+  });
+
+  it('installs a flat release downloaded into a directory named after its version', () => {
+    // As `gh release download v9.9.9 --dir 9.9.9` leaves it: exactly the attached assets, nothing else.
+    const downloaded = join(tmp, 'downloads', VERSION);
+    mkdirSync(downloaded, { recursive: true });
+    for (const file of EXPECTED_FILES) copyFileSync(join(src, file), join(downloaded, file));
+    const result = install(['--dest', dest, '--src', downloaded, '--version', VERSION, '--apply']);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(new RegExp(`^source {7}\\S+/downloads/${VERSION} {3}manifest ${VERSION} `, 'm'));
+    expect(filesOnly(join(dest, VERSION))).toEqual(EXPECTED_FILES);
+    for (const file of EXPECTED_FILES) {
+      expect(readFileSync(join(dest, VERSION, file)).equals(readFileSync(join(downloaded, file))), file).toBe(true);
+    }
   });
 
   it('installs a second version beside the first without touching it', () => {
@@ -245,18 +257,39 @@ describe('install.sh: refusals', () => {
   });
 
   it.each([
-    ['a file outside the allowlist', 'index.html'],
-    ['a license file that is not .md or .txt (active content on /local)', 'LICENSES/notice.html'],
-    ['an allowlisted name not covered by SHA256SUMS', 'fonts/extra-face.woff2'],
-  ])('refuses %s with exit 3', (_label, file) => {
+    ['a file outside the allowlist', 'index.html', 'file not on the install allowlist'],
+    ['active content beside the bundle', 'notice.svg', 'file not on the install allowlist'],
+    ['release notes next to the assets (the workflow never attaches them)', 'notes.md', 'not on the install allowlist'],
+    ['a subdirectory, which a flat release never has', 'fonts/face.woff2', 'unexpected directory in the source'],
+  ])('refuses %s with exit 3', (_label, file, message) => {
+    mkdirSync(dirname(join(src, file)), { recursive: true });
     writeFileSync(join(src, file), 'extra');
     const result = install(standardArgs('--apply'));
     expect(result.status).toBe(3);
+    expect(result.stderr).toContain(message);
     expect(tree(www)).toEqual([]);
   });
 
+  it('refuses a release file that SHA256SUMS does not cover', () => {
+    const sums = readFileSync(join(src, 'SHA256SUMS'), 'utf8').split('\n');
+    writeFileSync(join(src, 'SHA256SUMS'), sums.filter((line) => !line.endsWith('OFL-1.1-Newsreader.txt')).join('\n'));
+    const result = install(standardArgs('--apply'));
+    expect(result.status).toBe(3);
+    expect(result.stderr).toContain('file not covered by SHA256SUMS: OFL-1.1-Newsreader.txt');
+    expect(tree(www)).toEqual([]);
+  });
+
+  it('refuses a release with a missing file, even when SHA256SUMS omits it too', () => {
+    rmSync(join(src, 'OFL-1.1-Hanken-Grotesk.txt'));
+    const sums = readFileSync(join(src, 'SHA256SUMS'), 'utf8').split('\n');
+    writeFileSync(join(src, 'SHA256SUMS'), sums.filter((line) => !line.endsWith('Hanken-Grotesk.txt')).join('\n'));
+    const result = install(standardArgs());
+    expect(result.status).toBe(3);
+    expect(result.stderr).toContain('missing OFL-1.1-Hanken-Grotesk.txt');
+  });
+
   it('refuses a symbolic link inside the source', () => {
-    symlinkSync(join(src, 'agraharam.js'), join(src, 'LICENSES', 'link.txt'));
+    symlinkSync(join(src, 'agraharam.js'), join(src, 'link.txt'));
     expect(install(standardArgs()).status).toBe(3);
   });
 

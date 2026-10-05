@@ -1,8 +1,9 @@
 /**
  * The install documents are executable claims, so they are tested: the resource URL tracks the package version,
- * both example dashboards validate, and the §13.5 operator console snippets in install/README.md run against a
- * fake `hass.callWS`: they throw before any write on an empty CONFIG, never overwrite a dashboard or add a second
- * resource, and print undo commands that work exactly as printed.
+ * both example dashboards validate, and the operator console snippets in install/README.md run against a fake
+ * `hass.callWS`: the HACS preflight only reads and stops on the HACS 2.0.5 prefix clash or a `/local` resource; the
+ * §13.5 snippets throw before any write on an empty CONFIG or a HACS resource, never overwrite a dashboard or add a
+ * second resource, and print undo commands that work exactly as printed. The HACS steps of §17.6 are checked too.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -102,6 +103,52 @@ describe('install/README.md operator steps', () => {
   });
 });
 
+describe('install/README.md HACS channel (§17.6)', () => {
+  const readme = readInstall('README.md');
+  const hacs = readme.slice(
+    readme.indexOf('## HACS channel (primary)'),
+    readme.indexOf('## /local channel (fallback)'),
+  );
+
+  it('makes HACS the primary channel and the channels mutually exclusive', () => {
+    expect(readme).toContain('**mutually exclusive**');
+    expect(readme.indexOf('## HACS channel (primary)')).toBeLessThan(readme.indexOf('## 1. Build and verify'));
+  });
+
+  it('lists the GitHub settings checklist', () => {
+    for (const item of [
+      'requires the `agraharam-ci` status check',
+      'Immutable releases on',
+      'A tag ruleset on the release tags, pattern `v[0-9]*.[0-9]*.[0-9]*`, that blocks update and delete',
+      'default workflow permissions read-only',
+      'require approval for workflow runs from outside',
+      'write-scoped tokens',
+    ]) {
+      expect(hacs, item).toContain(item);
+    }
+  });
+
+  it('runs the first release check and the read-only preflight before adding the repository, then §13.5', () => {
+    const order = [
+      '**The first release exists.**',
+      '**Read-only preflight.**',
+      'but not with `/hacsfiles/homeassistant/`',
+      'Custom repositories',
+      'type **Dashboard**',
+      '**Create the dashboard and verify it read-only**',
+    ].map((text) => hacs.indexOf(text));
+    for (const position of order) expect(position).toBeGreaterThan(-1);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('updates through Settings → Updates, rolls back with HACS Redownload, and switches channels safely', () => {
+    expect(hacs).toContain('Settings → Updates → Agraharam → Update');
+    expect(hacs).toContain('HACS → Agraharam → ⋮ → Redownload → pick the previous version');
+    expect(hacs).toContain('remove the repository in HACS first');
+    expect(hacs).toContain('delete the `/local/agraharam/` resource first');
+  });
+});
+
 /** The fenced js block between the README's start and end markers for `name`. */
 function snippet(name: string): string {
   const readme = readInstall('README.md');
@@ -168,6 +215,9 @@ function withConfig(code: string, config: unknown): string {
 
 const OTHER_RESOURCE = { id: 'res-other', url: '/hacsfiles/demo-card/demo-card.js', type: 'module' };
 const OLD_AGRAHARAM = { id: 'res-old', url: '/local/agraharam/0.0.1/agraharam.js', type: 'module' };
+const HACS_AGRAHARAM = { id: 'res-hacs', url: '/hacsfiles/homeassistant/agraharam.js?hacstag=12345', type: 'module' };
+/** Another repository whose name starts with the same word: HACS 2.0.5 would treat it as Agraharam's resource. */
+const PREFIX_CLASH = { id: 'res-clash', url: '/hacsfiles/homeassistant-demo-card/card.js', type: 'module' };
 
 function installHandlers(overrides: Partial<Record<string, Handler>> = {}): Record<string, Handler> {
   return {
@@ -187,8 +237,50 @@ function printedCommands(errors: readonly string[]): string[] {
   return errors.flatMap((text) => text.split('\n')).filter((line) => line.startsWith('await hass.callWS('));
 }
 
+describe('README HACS preflight snippet (§17.6)', () => {
+  const code = snippet('hacs-preflight-snippet');
+
+  it.each([
+    ['only unrelated resources', [OTHER_RESOURCE]],
+    ['HACS already registered Agraharam', [OTHER_RESOURCE, HACS_AGRAHARAM]],
+    ['no resources', []],
+  ])('passes with %s, reading only', async (_label, resources) => {
+    const hass = fakeHass(installHandlers({ 'lovelace/resources': () => resources }));
+    const { thrown, logs } = await runSnippet(code, hass);
+    expect(thrown).toBeUndefined();
+    expect(logs).toEqual(['Preflight passed: no resource conflicts with the HACS channel.']);
+    expect(hass.calls).toEqual([{ type: 'lovelace/resources' }]);
+  });
+
+  it('stops on a resource that starts with /hacsfiles/homeassistant but not /hacsfiles/homeassistant/', async () => {
+    const hass = fakeHass(installHandlers({ 'lovelace/resources': () => [OTHER_RESOURCE, PREFIX_CLASH] }));
+    const { thrown } = await runSnippet(code, hass);
+    expect(String(thrown)).toContain('Stop: 1 resource(s) start with /hacsfiles/homeassistant but not');
+    expect(String(thrown)).not.toContain(PREFIX_CLASH.url);
+    expect(hass.calls).toEqual([{ type: 'lovelace/resources' }]);
+  });
+
+  it('stops when the /local channel is in use (channels are exclusive)', async () => {
+    const hass = fakeHass(installHandlers({ 'lovelace/resources': () => [OLD_AGRAHARAM] }));
+    const { thrown } = await runSnippet(code, hass);
+    expect(String(thrown)).toContain('Follow "Switching channels" first');
+    expect(hass.calls).toEqual([{ type: 'lovelace/resources' }]);
+  });
+});
+
 describe('README first-install snippet (§13.5)', () => {
   const code = snippet('first-install-snippet');
+
+  it.each([
+    ['a HACS resource', [HACS_AGRAHARAM]],
+    ['a resource sharing the HACS prefix without its slash', [PREFIX_CLASH]],
+    ['a HACS resource beside a /local one', [OLD_AGRAHARAM, HACS_AGRAHARAM]],
+  ])('counts both channel prefixes: stops after one read on %s', async (_label, resources) => {
+    const hass = fakeHass(installHandlers({ 'lovelace/resources': () => resources }));
+    const { thrown } = await runSnippet(withConfig(code, CONFIG), hass);
+    expect(String(thrown)).toContain('HACS manages Agraharam');
+    expect(hass.calls.map((call) => call.type)).toEqual(['lovelace/resources']);
+  });
 
   it('uses the current package version', () => {
     expect(code).toContain(`const VERSION = '${PACKAGE_VERSION}';`);
@@ -306,6 +398,13 @@ describe('README first-install snippet (§13.5)', () => {
 
 describe('README upgrade snippet', () => {
   const code = snippet('upgrade-snippet');
+
+  it('stops without writing when HACS manages Agraharam', async () => {
+    const hass = fakeHass(installHandlers({ 'lovelace/resources': () => [OLD_AGRAHARAM, HACS_AGRAHARAM] }));
+    const { thrown } = await runSnippet(code, hass);
+    expect(String(thrown)).toContain('Update it in HACS');
+    expect(hass.calls.map((call) => call.type)).toEqual(['lovelace/resources']);
+  });
 
   it('uses the current package version', () => {
     expect(code).toContain(`const VERSION = '${PACKAGE_VERSION}';`);

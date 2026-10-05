@@ -2,7 +2,7 @@
  * Action button (§5.5, §7.2). A native <button>. A disabled Availability sets aria-disabled="true" plus a click
  * guard (never the native `disabled` attribute), so the button stays reachable and announces its reason through
  * aria-describedby. Emits 'agr-activate' (no detail, { bubbles: true, composed: false }) once per click, Enter or
- * Space; keydowns with `event.repeat` are suppressed so a held Enter cannot click repeatedly.
+ * Space; repeated keydowns (`KeyboardEvent.repeat`) are suppressed so a held Enter cannot click repeatedly.
  *
  * Status text is static: the section's live region is the only live region (§16.10).
  */

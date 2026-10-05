@@ -1,4 +1,5 @@
-# Agraharam: the one Lovelace resource for the card (architecture §13.3).
+# Agraharam: the one Lovelace resource for the card on the /local channel (architecture §13.3). Under HACS, the
+# primary channel, HACS registers its own /hacsfiles/homeassistant/ resource: never add this one as well (§17.6).
 #
 # Register it ONCE, after install.sh --apply has copied this version to <HA config>/www/agraharam/<version>/:
 # Settings → Dashboards → ⋮ → Resources → Add resource, URL below, type "JavaScript module". The WebSocket path in

@@ -1,20 +1,19 @@
 /**
- * The built bundle as Home Assistant would serve it (§11.3, §11.5, §12.2 bundle.spec; ACCEPTANCE "All asset/module/
- * font URLs resolve at the deployed versioned /local base path"). harness.html loads the card from
- * /local/agraharam/<version>/, exactly the resource URL the install registers, so these checks prove the element
- * under test is the built module (not source), that its fonts resolve relative to that versioned path, and that
- * the served files are byte-identical to SHA256SUMS.
+ * The built bundle as Home Assistant would serve it (§11.3, §11.5, §12.2 bundle.spec, §17.2, §17.8; ACCEPTANCE "All
+ * asset/module/font URLs resolve at the deployed versioned /local base path"). harness.html loads the card from
+ * /local/agraharam/<version>/, exactly the resource URL the /local install registers, so these checks prove the
+ * element under test is the built module (not source), that it is one self-contained file (both fonts embedded, no
+ * font request), that it carries its legal banner, and that the served files are byte-identical to SHA256SUMS.
  */
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { APP_VERSION } from '../build-env.ts';
+import { FONT_LICENSES, legalBanner } from '../scripts/lib/font-licenses.mjs';
 import { expect, test } from './fixtures.ts';
 import { expectFontsLoaded, openHarness } from './helpers/harness.ts';
 
-const PACKAGE_VERSION = (
-  JSON.parse(readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8')) as { version: string }
-).version;
-const BUNDLE_BASE = `/local/agraharam/${PACKAGE_VERSION}/`;
+const PACKAGE_DIR = join(import.meta.dirname, '..');
+const BUNDLE_BASE = `/local/agraharam/${APP_VERSION}/`;
 const MODULE_PATH = `${BUNDLE_BASE}agraharam.js`;
 
 test('the card element is defined by the built module served from the versioned /local path', async ({ page }) => {
@@ -32,27 +31,23 @@ test('the card element is defined by the built module served from the versioned 
   expect(card?.status).toBe(200);
   expect(card?.type).toMatch(/javascript/);
   const manifest = (await (await page.request.get(`${BUNDLE_BASE}manifest.json`)).json()) as { version: string };
-  expect(manifest.version).toBe(PACKAGE_VERSION);
+  expect(manifest.version).toBe(APP_VERSION);
   const elementVersion = await page.evaluate(
     () => (customElements.get('agraharam-dashboard') as unknown as { version?: string } | undefined)?.version,
   );
   expect(elementVersion, 'the element came from the built bundle').toBe(manifest.version);
 });
 
-test('both fonts load from the bundle directory and document.fonts.check passes', async ({ page }) => {
-  const fonts: { path: string; status: number }[] = [];
-  page.on('response', (response) => {
-    const url = new URL(response.url());
-    if (url.pathname.endsWith('.woff2')) fonts.push({ path: url.pathname, status: response.status() });
+test('both embedded fonts load with zero font requests, and document.fonts.check passes', async ({ page }) => {
+  const fontRequests: string[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (request.resourceType() === 'font' || url.pathname.endsWith('.woff2')) fontRequests.push(url.pathname);
   });
   await openHarness(page, { host: 'demo' });
   await expectFontsLoaded(page);
 
-  expect(fonts).toHaveLength(2);
-  for (const font of fonts) {
-    expect(font.path.startsWith(`${BUNDLE_BASE}fonts/`), `${font.path} resolves under ${BUNDLE_BASE}`).toBe(true);
-    expect(font.status).toBe(200);
-  }
+  expect(fontRequests, 'the fonts are inside agraharam.js (§17.2)').toEqual([]);
   expect(
     await page.evaluate(() => [
       document.fonts.check('16px "Agraharam Serif"'),
@@ -61,14 +56,27 @@ test('both fonts load from the bundle directory and document.fonts.check passes'
   ).toEqual([true, true]);
 });
 
-test('every served bundle file matches SHA256SUMS', async ({ page }) => {
+test('the module starts with the legal banner, and the license files name both fonts', async ({ page }) => {
+  const bundle = await (await page.request.get(MODULE_PATH)).text();
+  expect(bundle.startsWith(`${legalBanner(PACKAGE_DIR)}\n`), 'agraharam.js starts with the §17.2 banner').toBe(true);
+
+  const notices = await (await page.request.get(`${BUNDLE_BASE}THIRD_PARTY_LICENSES.md`)).text();
+  for (const font of FONT_LICENSES) {
+    expect(notices, `THIRD_PARTY_LICENSES.md lists ${font.licensePackage}`).toContain(`## ${font.licensePackage} `);
+    const license = await page.request.get(`${BUNDLE_BASE}${font.licenseFile}`);
+    expect(license.status(), font.licenseFile).toBe(200);
+    expect(await license.text()).toContain('SIL Open Font License');
+  }
+});
+
+test('every served bundle file matches the flat SHA256SUMS', async ({ page }) => {
   const sums = await (await page.request.get(`${BUNDLE_BASE}SHA256SUMS`)).text();
   const entries = sums
     .trim()
     .split('\n')
     .map((line) => {
-      const match = /^([0-9a-f]{64}) {2}(.+)$/.exec(line);
-      if (match === null) throw new Error(`SHA256SUMS line is not "<sha256>  <path>": ${line}`);
+      const match = /^([0-9a-f]{64}) {2}([^/\s]+)$/.exec(line);
+      if (match === null) throw new Error(`SHA256SUMS line is not "<sha256>  <flat name>": ${line}`);
       return { sha256: match[1], path: match[2] };
     });
 

@@ -1,13 +1,15 @@
 /**
- * Postbuild (§11.5). Turns Vite's output in dist/agraharam/<version>/ into the installable bundle, in order:
+ * Postbuild (§11.5, §17.2). Turns Vite's output in dist/agraharam/<version>/ into the flat release directory that
+ * both channels install (HACS release assets and install.sh), in order:
  *
- *   1. move source maps to dist/sourcemaps/<version>/ (never installed: /local is unauthenticated);
- *   2. copy the two OFL font licenses into LICENSES/ and require THIRD_PARTY_LICENSES.md;
- *   3. allowlist: exactly agraharam.js, the two fonts and the three license files, nothing else;
- *   4. privacy and browser-floor scan of agraharam.js, plus the private forbidden set over every file when the
- *      private directory exists;
+ *   1. move source maps to dist/sourcemaps/<version>/ (never shipped: /local and /hacsfiles are unauthenticated);
+ *   2. copy the two OFL font licenses next to the bundle and require THIRD_PARTY_LICENSES.md, listing both fonts;
+ *   3. allowlist: exactly agraharam.js and the three license files, flat, nothing else;
+ *   4. scan agraharam.js: the legal banner leads it, the privacy and browser-floor rules, and the positive
+ *      public-literal check over its string literals (§17.7); plus the private forbidden set over every file when
+ *      the private directory exists;
  *   5. write manifest.json, then SHA256SUMS;
- *   6. log one size line for agraharam.js (raw and gzip bytes against the §11.5 target), warning above it.
+ *   6. log one size line for agraharam.js (raw and gzip bytes against the §17.2 target), warning above it.
  *
  * Any failure exits non-zero and prints `path:line:column rule` lines, never the matched value.
  */
@@ -16,8 +18,17 @@ import { gzipSync } from 'node:zlib';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { APP_VERSION, COMMIT_TIME, GIT_DIRTY, GIT_SHA } from '../build-env.ts';
-import { buildForbiddenSet, decodeForScan, formatHit, lineLocator, scanForForbidden } from './lib/public-scan.mjs';
+import { APP_VERSION, BUNDLE_SIZE_TARGET_BYTES, COMMIT_TIME, GIT_DIRTY, GIT_SHA } from '../build-env.ts';
+import { CATALOG_LITERALS } from './lib/catalog-literals.mjs';
+import { FONT_LICENSES, fontFilePath, fontLicensePath, legalBanner } from './lib/font-licenses.mjs';
+import {
+  buildForbiddenSet,
+  checkPublicLiterals,
+  decodeForScan,
+  formatHit,
+  lineLocator,
+  scanForForbidden,
+} from './lib/public-scan.mjs';
 import {
   findRepoRoot,
   GitError,
@@ -32,39 +43,22 @@ import {
 export const BUNDLE_ENTRY = 'agraharam.js';
 export const MANIFEST_FILE = 'manifest.json';
 export const CHECKSUMS_FILE = 'SHA256SUMS';
-export const THIRD_PARTY_LICENSES = 'LICENSES/THIRD_PARTY_LICENSES.md';
-/**
- * §11.5 size target, 480 KiB (491,520 B) raw, raised from 220 KB at integration for the complete card: all nine
- * sections, the action catalog and validation, and the fictional demo fixtures. Each build's own measurement is its
- * size line (raw and gzip) and its manifest (raw bytes per file). Exceeding the target warns: HA shows "custom element
- * doesn't exist" until a slow module loads, and even 480 KiB loads well under HA's 2 s define window on a LAN or the
- * tunnel. Features are not cut to meet it.
- */
-export const BUNDLE_SIZE_TARGET_BYTES = 480 * 1024;
+export const THIRD_PARTY_LICENSES = 'THIRD_PARTY_LICENSES.md';
 /**
  * The release version shape, identical to install.sh's VERSION_RE. The version names dist/sourcemaps/<version>/,
  * which postbuild deletes recursively, so a malformed value must never reach a path.
  */
 export const VERSION_PATTERN = /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/;
 
-/** Each bundled font family: the file Vite emits and the OFL text copied from its package. */
-export const FONT_FAMILIES = Object.freeze([
-  {
-    label: 'fonts/newsreader-latin-opsz-normal-<hash>.woff2',
-    file: /^fonts\/newsreader-latin-opsz-normal-[\w-]+\.woff2$/,
-    licensePackage: '@fontsource-variable/newsreader',
-    license: 'LICENSES/OFL-1.1-Newsreader.txt',
-  },
-  {
-    label: 'fonts/hanken-grotesk-latin-wght-normal-<hash>.woff2',
-    file: /^fonts\/hanken-grotesk-latin-wght-normal-[\w-]+\.woff2$/,
-    licensePackage: '@fontsource-variable/hanken-grotesk',
-    license: 'LICENSES/OFL-1.1-Hanken-Grotesk.txt',
-  },
-]);
-
-/** The only files that may exist before the manifest and checksums are written (§11.5 step 3). */
-const ALLOWLIST = [/^agraharam\.js$/, /^fonts\/[^/]+\.woff2$/, /^LICENSES\/[^/]+\.(?:md|txt)$/];
+/**
+ * Exactly the files that must exist, flat, before the manifest and checksums are written (§17.2 step 3). The fonts
+ * are inside agraharam.js; their full license texts ship beside it.
+ */
+export const BUILT_FILES = Object.freeze(
+  [BUNDLE_ENTRY, THIRD_PARTY_LICENSES, ...FONT_LICENSES.map((font) => font.licenseFile)].sort(),
+);
+/** The finished release directory: the built files plus the manifest and checksums, exactly (§17.2). */
+export const RELEASE_FILES = Object.freeze([...BUILT_FILES, MANIFEST_FILE, CHECKSUMS_FILE].sort());
 
 /**
  * Bundle scan rules (§11.5 step 4). Lookbehind is a parse-time SyntaxError for the whole module before Safari
@@ -76,9 +70,22 @@ const BUNDLE_PATTERNS = Object.freeze([
   { rule: 'regex-lookbehind', pattern: /\(\?<[=!]/g },
   { rule: 'es2023-array-copy', pattern: /\.(?:toSorted|toReversed|toSpliced)\(/g },
 ]);
-/** The only URL prefix allowed in the bundle: the SVG namespace. */
+/**
+ * Embedded data (§17.2). The bundle may embed exactly the two package font files and nothing else: every base64
+ * `data:` URL must be a `data:font/woff2;base64,` string whose decoded bytes equal one of them, and no other
+ * MIME-typed `data:` URL (base64 or not, such as a `data:text/javascript,…` import) may appear. Only those verified
+ * payloads are blanked for the text rules, which a three-letter rule such as `eyJ` would otherwise hit in random
+ * base64 by chance.
+ */
+const BASE64_DATA_URL_RE = /data:[^,"'`]*;base64,/g;
+const MIME_DATA_URL_RE = /data:[a-z]+\/[\w.+-]+/gi;
+const FONT_DATA_URL_HEADER = 'data:font/woff2;base64,';
+const BASE64_RUN_RE = /[A-Za-z0-9+/]*={0,2}/y;
+/** A verified payload must end its string literal. */
+const STRING_QUOTES = new Set(['"', "'", '`']);
+/** The only URL prefix allowed in the bundle after its legal banner: the SVG namespace. */
 const ALLOWED_URL_PREFIX = 'http://www.w3.org/';
-/** Credentials, private paths and dev-only names that must never reach /local. */
+/** Credentials, private paths and dev-only names that must never reach /local or /hacsfiles. */
 const FORBIDDEN_LITERALS = Object.freeze([
   'authSig',
   'access_token=',
@@ -108,20 +115,29 @@ export class PostbuildError extends Error {
 }
 
 /**
- * Scans the bundle text for the §11.5 step 4 patterns.
- * @param {string} text
+ * Scans the bundle text for the §11.5 step 4 patterns. When `banner` is given, the bundle must start with exactly it
+ * (rule `legal-banner`), and the URLs of its font notices are allowed there and nowhere else. `fonts` are the only
+ * files the bundle may embed (rule `embedded-data`); without them, any embedded data fails.
+ * @param {string} bundleText
+ * @param {{ banner?: string, fonts?: readonly Buffer[] }} [expected]
  * @returns {{ line: number, column: number, rule: string }[]}
  */
-export function scanBundleText(text) {
-  const locate = lineLocator(text);
+export function scanBundleText(bundleText, { banner, fonts = [] } = {}) {
+  const locate = lineLocator(bundleText);
+  const embedded = verifyEmbeddedFonts(bundleText, fonts);
+  const text = embedded.maskedText;
   /** @type {{ line: number, column: number, rule: string }[]} */
-  const hits = [];
+  const hits = embedded.offsets.map((offset) => ({ ...locate(offset), rule: 'embedded-data' }));
+  const bannerEnd = banner !== undefined && text.startsWith(banner) ? banner.length : 0;
+  if (banner !== undefined && bannerEnd === 0) hits.push({ line: 1, column: 1, rule: 'legal-banner' });
   for (const { rule, pattern } of BUNDLE_PATTERNS) {
     for (const match of text.matchAll(pattern)) hits.push({ ...locate(match.index ?? 0), rule });
   }
   for (const match of text.matchAll(/https?:\/\//g)) {
     const index = match.index ?? 0;
-    if (!text.startsWith(ALLOWED_URL_PREFIX, index)) hits.push({ ...locate(index), rule: 'external-url' });
+    if (index >= bannerEnd && !text.startsWith(ALLOWED_URL_PREFIX, index)) {
+      hits.push({ ...locate(index), rule: 'external-url' });
+    }
   }
   for (const literal of FORBIDDEN_LITERALS) {
     for (let index = text.indexOf(literal); index !== -1; index = text.indexOf(literal, index + 1)) {
@@ -129,6 +145,49 @@ export function scanBundleText(text) {
     }
   }
   return hits.sort((a, b) => a.line - b.line || a.column - b.column);
+}
+
+/**
+ * Checks every embedded `data:` URL against the expected font files, each of which must appear exactly once, and
+ * blanks only the verified payloads with spaces of the same length, so hit positions still match the file.
+ * @param {string} text
+ * @param {readonly Buffer[]} fonts
+ * @returns {{ maskedText: string, offsets: number[] }} the masked text and the offsets of every rejected data URL
+ */
+function verifyEmbeddedFonts(text, fonts) {
+  const expected = fonts.map(sha256);
+  const headers = [...text.matchAll(BASE64_DATA_URL_RE)];
+  /** @type {number[]} */
+  const offsets = [];
+  /** @type {[number, number][]} */
+  const verified = [];
+  for (const header of headers) {
+    const start = (header.index ?? 0) + header[0].length;
+    BASE64_RUN_RE.lastIndex = start;
+    const end = start + (BASE64_RUN_RE.exec(text)?.[0].length ?? 0);
+    const font = expected.indexOf(sha256(Buffer.from(text.slice(start, end), 'base64')));
+    if (header[0] !== FONT_DATA_URL_HEADER || !STRING_QUOTES.has(text[end] ?? '') || font === -1) {
+      offsets.push(header.index ?? 0);
+      continue;
+    }
+    expected.splice(font, 1); // each font once
+    verified.push([start, end]);
+  }
+  if (headers.length !== fonts.length) offsets.push(headers[fonts.length]?.index ?? 0);
+  const base64Headers = new Set(headers.map((header) => header.index));
+  for (const match of text.matchAll(MIME_DATA_URL_RE)) {
+    if (!base64Headers.has(match.index)) offsets.push(match.index ?? 0);
+  }
+  let maskedText = text;
+  for (const [start, end] of verified) {
+    maskedText = maskedText.slice(0, start) + ' '.repeat(end - start) + maskedText.slice(end);
+  }
+  return { maskedText, offsets: [...new Set(offsets)] };
+}
+
+/** @param {Uint8Array} bytes */
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
 }
 
 /**
@@ -143,7 +202,8 @@ export function scanBundleText(text) {
 export function postbuild({ packageDir, version, build, nodeVersion, forbidden, log = () => {} }) {
   if (!VERSION_PATTERN.test(version)) {
     throw new PostbuildError(
-      'The package.json version must look like X.Y.Z (optionally -prerelease). Fix it and rebuild; nothing was changed.',
+      'The build version must look like X.Y.Z (optionally -prerelease). Fix package.json or AGR_PATCH and rebuild; ' +
+        'nothing was changed.',
     );
   }
   const bundleDir = join(packageDir, 'dist', 'agraharam', version);
@@ -158,7 +218,7 @@ export function postbuild({ packageDir, version, build, nodeVersion, forbidden, 
   log(`postbuild: moved ${movedMaps} source map(s) to dist/sourcemaps/${version}/`);
   copyFontLicenses(packageDir, bundleDir);
   const files = assertAllowlist(bundleDir);
-  scanBundle(bundleDir, files, forbidden);
+  scanBundle(packageDir, bundleDir, files, forbidden);
 
   const manifestFiles = files.map((path) => describeFile(bundleDir, path));
   const manifest = {
@@ -169,7 +229,6 @@ export function postbuild({ packageDir, version, build, nodeVersion, forbidden, 
     commit_time: build.commitTime,
     node: nodeVersion,
     entry: BUNDLE_ENTRY,
-    resource_url: `/local/agraharam/${version}/${BUNDLE_ENTRY}`,
     files: manifestFiles,
   };
   writeFileSync(join(bundleDir, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`);
@@ -181,8 +240,10 @@ export function postbuild({ packageDir, version, build, nodeVersion, forbidden, 
 }
 
 /**
- * The build log's size line (§11.5): raw and gzip bytes of the bundle and the raw target, as a warning above it.
- * The exact figures of a build also live in its manifest.json.
+ * The build log's size line (§11.5, §17.2): raw and gzip bytes of the bundle and the raw target
+ * (`BUNDLE_SIZE_TARGET_BYTES` in build-env.ts), as a warning above it. HA shows "custom element doesn't exist" until
+ * a slow module loads, and 720 KiB still loads well under HA's 2 s define window on a LAN or the tunnel, so the
+ * target warns and never fails. The exact figures of a build also live in its manifest.json.
  * @param {Buffer} bundle
  * @returns {string}
  */
@@ -210,19 +271,29 @@ function moveSourceMaps(bundleDir, sourcemapDir) {
 }
 
 /**
+ * Copies each font's OFL text next to the bundle and checks Vite's third-party notice file names both font packages
+ * (§17.8: the fonts are inside agraharam.js now, so this file is their only package-level notice).
  * @param {string} packageDir
  * @param {string} bundleDir
  */
 function copyFontLicenses(packageDir, bundleDir) {
-  if (!existsSync(join(bundleDir, THIRD_PARTY_LICENSES))) {
+  const noticesPath = join(bundleDir, THIRD_PARTY_LICENSES);
+  if (!existsSync(noticesPath)) {
     throw new PostbuildError(`${THIRD_PARTY_LICENSES} is missing. Check build.license in vite.config.ts.`);
   }
-  for (const { licensePackage, license } of FONT_FAMILIES) {
-    const source = join(packageDir, 'node_modules', licensePackage, 'LICENSE');
+  const notices = readFileSync(noticesPath, 'utf8');
+  for (const font of FONT_LICENSES) {
+    const source = fontLicensePath(packageDir, font);
     if (!existsSync(source)) {
-      throw new PostbuildError(`${licensePackage}/LICENSE is missing. Run "npm ci" and rebuild.`);
+      throw new PostbuildError(`${font.licensePackage}/LICENSE is missing. Run "npm ci" and rebuild.`);
     }
-    copyFileSync(source, join(bundleDir, license));
+    if (!notices.includes(`## ${font.licensePackage} `)) {
+      throw new PostbuildError(
+        `${THIRD_PARTY_LICENSES} does not list ${font.licensePackage}. Check that src/styles/fonts.ts still imports ` +
+          'it and that build.license is set in vite.config.ts.',
+      );
+    }
+    copyFileSync(source, join(bundleDir, font.licenseFile));
   }
 }
 
@@ -236,41 +307,71 @@ function assertAllowlist(bundleDir) {
   const issues = [
     ...others.map((path) => ({ path, line: 1, column: 1, rule: 'not-a-regular-file' })),
     ...files
-      .filter((path) => !ALLOWLIST.some((pattern) => pattern.test(path)))
+      .filter((path) => !BUILT_FILES.includes(path))
       .map((path) => ({ path, line: 1, column: 1, rule: 'not-allowlisted' })),
+    ...BUILT_FILES.filter((path) => !files.includes(path)).map((path) => ({
+      path,
+      line: 1,
+      column: 1,
+      rule: 'missing',
+    })),
   ];
-  for (const { label, file, license } of FONT_FAMILIES) {
-    if (files.filter((path) => file.test(path)).length !== 1) {
-      issues.push({ path: label, line: 1, column: 1, rule: 'expected-exactly-one' });
-    }
-    if (!files.includes(license)) issues.push({ path: license, line: 1, column: 1, rule: 'missing' });
-  }
-  const fontCount = files.filter((path) => path.startsWith('fonts/')).length;
-  if (fontCount !== FONT_FAMILIES.length) {
-    issues.push({ path: 'fonts/', line: 1, column: 1, rule: 'unexpected-font-count' });
-  }
-  if (issues.length > 0) throw new PostbuildError('The bundle does not match the §11.5 file allowlist.', issues);
+  if (issues.length > 0) throw new PostbuildError('The bundle does not match the §17.2 file allowlist.', issues);
   return files;
 }
 
 /**
+ * @param {string} packageDir
  * @param {string} bundleDir
  * @param {readonly string[]} files
  * @param {import('./lib/public-scan.mjs').ForbiddenSet | null} forbidden
  */
-function scanBundle(bundleDir, files, forbidden) {
+function scanBundle(packageDir, bundleDir, files, forbidden) {
   /** @type {Issue[]} */
   const issues = [];
   const entryText = readFileSync(join(bundleDir, BUNDLE_ENTRY), 'utf8');
-  for (const hit of scanBundleText(entryText)) issues.push({ path: BUNDLE_ENTRY, ...hit });
+  const fonts = readEmbeddableFonts(packageDir);
+  for (const hit of scanBundleText(entryText, { banner: legalBanner(packageDir), fonts })) {
+    issues.push({ path: BUNDLE_ENTRY, ...hit });
+  }
+  // §17.7: CI cannot run the private scan, so every entity-ID-shaped string in the shipped module must be fictional,
+  // a reviewed exemption or a catalog identifier, whatever source file it came from.
+  issues.push(
+    ...checkPublicLiterals({
+      files: [{ path: BUNDLE_ENTRY, text: entryText }],
+      exemptions: loadExemptions(),
+      catalogLiterals: CATALOG_LITERALS,
+    }),
+  );
   if (forbidden) {
     for (const path of files) {
       for (const hit of scanForForbidden(decodeForScan(readFileSync(join(bundleDir, path))), forbidden)) {
         issues.push({ path, ...hit });
       }
     }
+    // The embedded fonts were separate files scanned as latin1 before §17.2; the bundle holds exactly these bytes.
+    fonts.forEach((bytes, index) => {
+      for (const hit of scanForForbidden(decodeForScan(bytes), forbidden)) {
+        issues.push({ path: `${BUNDLE_ENTRY} [embedded font ${index + 1}]`, ...hit });
+      }
+    });
   }
   if (issues.length > 0) throw new PostbuildError('The bundle failed the privacy and safety scan.', issues);
+}
+
+/**
+ * The package font files the bundle must embed, byte for byte (§17.2).
+ * @param {string} packageDir
+ * @returns {Buffer[]}
+ */
+function readEmbeddableFonts(packageDir) {
+  return FONT_LICENSES.map((font) => {
+    const path = fontFilePath(packageDir, font);
+    if (!existsSync(path)) {
+      throw new PostbuildError(`${font.licensePackage}/${font.fontFile} is missing. Run "npm ci" and rebuild.`);
+    }
+    return readFileSync(path);
+  });
 }
 
 /**
@@ -280,7 +381,7 @@ function scanBundle(bundleDir, files, forbidden) {
  */
 function describeFile(bundleDir, path) {
   const content = readFileSync(join(bundleDir, path));
-  return { path, bytes: content.length, sha256: createHash('sha256').update(content).digest('hex') };
+  return { path, bytes: content.length, sha256: sha256(content) };
 }
 
 /**

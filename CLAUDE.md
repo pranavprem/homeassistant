@@ -20,8 +20,11 @@ and device automations. See `docs/dashboard/README.md` for the complete boundary
   layout changes. WebKit has shown layout differences that Chromium hides (container queries on slotted content).
 - Follow the commit procedure in `frontend/agraharam/README.md`. Before pushing, run
   `npm run check:public -- --range <upstream>..HEAD` so every outgoing commit is scanned.
-- A push deploys nothing. Deployment is `install/install.sh` over an authorized file channel to the NAS, followed
-  by the read-only check in `frontend/agraharam/docs/ARCHITECTURE.md` §13.5. Ask before deploying.
+- Releases (ARCHITECTURE.md §17): a merge to `main` that changes the bundle auto-releases `vMAJOR.MINOR.<run>`
+  through `.github/workflows/agraharam.yml` (required check `agraharam-ci`); HA updates only when an admin presses
+  Settings → Updates → Agraharam → Update in HACS. Never publish other GitHub releases in this repo: HACS installs
+  the first non-draft one. `install/install.sh` (`/local`) is the fallback channel, never used alongside HACS. Run
+  the read-only check in §13.5 before `controls: true`. Ask before deploying.
 - Controls ship with `controls: false`. Only the household enables them, after the §13.5 check. Tooling never
   exercises physical controls.
 - FakeHass must match home-assistant-js-websocket: `ready` fires before the state snapshot, the store is never

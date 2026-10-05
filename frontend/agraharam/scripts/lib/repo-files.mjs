@@ -312,16 +312,3 @@ export function listTree(dir) {
   walk(dir);
   return { files: files.sort(), others: others.sort() };
 }
-
-/**
- * @param {string} packageDir
- * @returns {string | undefined} the version from the package's package.json, if readable
- */
-export function readPackageVersion(packageDir) {
-  try {
-    const { version } = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
-    return typeof version === 'string' ? version : undefined;
-  } catch {
-    return undefined;
-  }
-}
