@@ -1,7 +1,8 @@
 # Agraharam dashboard: architecture (v1)
 
 Status: revision 4, approved for implementation by the round-4 confirmation review (both lenses, no blocking
-issues). §16.10 lists the lead's implementation addenda from that review. Date: 2026-10-03.
+issues). §16.10 lists the lead's implementation addenda from that review; §16.11 to §16.16 record integration,
+design and review refinements since, and the body is kept in sync with them. Date: 2026-10-03, synced 2026-10-04.
 Baseline: HA core 2026.9.2, frontend 20260826.7 (lit 3.3.3, home-assistant-js-websocket 9.6.0).
 Spot-checked against frontend 20260930.0 (2026.10 beta); the host contract files are unchanged.
 Inputs: `docs/dashboard/{PROMPT,README,DESIGN,IMPLEMENTATION,ACCEPTANCE}.md`, the team lead's decisions and three
@@ -194,11 +195,13 @@ never become an unsafe remote control for security, the garage or cameras.
 
 Additions beyond the lead list, each small and justified:
 
-- `title`, `demo_scenario` and `controls` config keys, and per-camera `thumbnails` and `snapshot_interval` (§4.1).
+- `title`, `demo_scenario` and `controls` config keys, and per-camera `thumbnails`, `snapshot_interval` and `live`
+  (§4.1). `live: false` is a per-camera privacy option: the tile offers no live view and the dialog refuses to start
+  one (§9.3, §9.4); the private generator writes it for cameras whose role or name suggests an indoor space (§13.4).
   `controls` defaults to `false`: staged enablement, so pasting the generated config shows real state before
   any button can act (§13.5).
-- A `confirmed: true` flag that only `agr-confirm-dialog` sets. The gateway refuses confirm-required actions without
-  it, which is defense in depth for acceptance item 7. Confirm copy comes from one catalog keyed by the action, so
+- A confirmation token that only `agr-confirm-dialog` mints (it replaced a plain `confirmed: true` flag, §16.15).
+  The gateway refuses confirm-required actions without one, which is defense in depth for acceptance item 7. Confirm copy comes from one catalog keyed by the action, so
   the text shown cannot differ from the action executed (§5.2). `evaluate()` reports `confirm: true` on an enabled
   `Availability` instead of disabling the control; only `request()` can return `confirmation-required` (§4.7).
 - The Garage panel's Open confirmation warns when the alarm is armed or arming (§8.5). The actions stay separate
@@ -226,6 +229,7 @@ package-lock.json              committed
 tsconfig.json                  strict TS config (§11.2)
 build-env.ts                   version and git SHA read once; shared by the Vite, Vitest and harness configs
 vite.config.ts                 card bundle build + dev server (127.0.0.1:5173)
+vite-lit-css.ts                build-only plugin: strips comments and indentation inside Lit `css` templates (§11.3)
 vite.harness.config.ts         builds harness.html into dist/preview; preview server 127.0.0.1:4173
 vitest.config.ts               two projects: `dom` (happy-dom + tests/setup.ts; every test except the next two
                                folders) and `node` (tests/scripts/**, tests/install/**: they spawn git, bash
@@ -247,11 +251,15 @@ scripts/
                                and dist (§11.1)
   lib/public-scan.mjs          pure forbidden-set builder, matcher and public-literal checker, shared by
                                check-public, postbuild and tests/scripts/public-literals.test.ts
+  lib/repo-files.mjs           file-system and git access for the checks: repository discovery, the private
+                               directory, the exemptions file, the files and blobs to scan (execFileSync argv only)
   public-exemptions.json       reviewed generic IDs allowed in public files (for example sun.sun)
 src/
   agraharam.ts                 bundle entry: imports all elements, pushes window.customCards entry
   agraharam-dashboard.ts       root card: setConfig, hass setter, runtime, layout, overlay routing, lifecycle
   version.ts                   APP_VERSION / GIT_SHA from define
+  timing.ts                    import-free timing shared by the card, the dev shell and e2e (live-view fallback
+                               cadence, the shell's reconnect snapshot delay, the simulated call latency)
   env.d.ts                     declares __APP_VERSION__, __GIT_SHA__, window.loadCardHelpers, customCards
   config/
     schema.ts                  input and resolved config types, roles, domains-by-role
@@ -272,62 +280,84 @@ src/
     status-board.ts            StatusBoard: controller status lines read by diagnostics (§5.1)
     forecast-controller.ts     forecast lifecycle (§9.2)
     snapshot-controller.ts     camera thumbnail lifecycle (§9.3)
+    live-view-controller.ts    camera live-view lifecycle (§9.4); agr-camera-dialog only renders it
     calendar-controller.ts     calendar refresh lifecycle (§9.5)
     camera-gate.ts             pure privacy/availability gate
     normalize.ts               EntityStatus normalization + Display builders
     derive.ts                  derived bindings (vacuum battery via registry)
-    features.ts                core feature-bit values as `as const` objects (no TS enums) + hasFeatures()
+    features.ts                core feature-bit values as `as const` objects (no TS enums), hasFeatures() and
+                               supportsBrightness(): the one capability check the gateway and selectors share
     format.ts                  Formatter implementations (hass-backed + Intl fallback)
     errors.ts                  HostError mapping (HTTP status, WS codes)
     actions/
-      types.ts                 ActionKind, ActionRequest, ActionStatus, ActionError, Availability, ActionGateway
+      types.ts                 ActionKind, ActionRequest, ActionStatus, ActionError, Availability, ActionGateway,
+                               the shared ENABLED availability, isTicketInFlight(), newerStatus() and
+                               frozenActionRequest() (the read-once request copy)
       catalog.ts               static action specs (§7)
-      validate-args.ts         range/step/allowed-list checks + strict request shape check
+      validate-args.ts         range/step/allowed-list checks + strict request shape check on a read-once copy
       error-map.ts             HA rejection → ActionError
-      messages.ts              user-facing copy per ActionErrorCode
-      gateway.ts               createGateway(); seeded by WP0 returning the null gateway, implemented by WP1
+      messages.ts              user-facing copy per ActionErrorCode, with the garage's and the security
+                               controller's own timeout and reversal lines
+      gateway.ts               createGateway()
       inflight.ts              module-level in-flight registry keyed by target entity (survives card instances)
       action-controller.ts     ReactiveController: ticket status + debounced drafts (§4.7, §7.2)
-      null-gateway.ts          always-disabled stub (the WP0 seed of createGateway, and the config-error state)
+      null-gateway.ts          always-disabled stub an ActionController answers with while no services exist
+  domain/                      pure rules both src/ha and src/model use; imports nothing from src/model or
+                               src/components (fitness-tested)
+    steps.ts                   stepValue() and temperatureGrid(): the step grid shared by agr-stepper, the Comfort
+                               selector and the gateway
+    alarm.ts                   alarm state → label and tone (alarmDisplayFor), isAlarmSounding() and the other
+                               alarm predicates (header, security drawer, confirm dialog, gateway)
+    live-view.ts               liveAvailability() and LIVE_REASONS: whether a camera's live view may open (§9.4)
   model/
     types.ts                   all view-model types (§4.8)
     display.ts                 Display/Tone helpers shared by selectors
-    alarm-labels.ts            alarm state → label + tone (shared by header and security)
+    alarm-labels.ts            alarm state → icon (the header pill and the security drawer)
     perimeter.ts               perimeter entity → open/closed/unknown (shared by health and security)
-    action-copy.ts             security button labels, consequences, confirm and ticket copy; garage confirm copy
+    action-copy.ts             ticket copy for every section (ticketPhaseCopy, ticketShortText); security button
+                               labels, consequences and confirm copy; garage confirm copy
     budget.ts                  per-panel content limits (§6.2.1)
-    steps.ts                   stepValue(): step-grid snapping and clamping shared by agr-stepper and the gateway
-    air.ts                     selectAirTile(): fan/purifier VM shared by Comfort and Home (seeded WP0, owned WP4)
-    header.ts today.ts comfort.ts home.ts cameras.ts garage.ts media.ts upcoming.ts security.ts health.ts
+    air.ts                     selectAirTile(): fan/purifier VM shared by Comfort and Home
+    header.ts today.ts comfort.ts cameras.ts garage.ts media.ts upcoming.ts security.ts health.ts
     diagnostics.ts             pure selectors per section
+    home.ts                    Home entry point over home/rooms.ts, home/vacuums.ts and home/appliances.ts
   components/
     services.ts                DashboardServices type + memoizeServices() (§5.1)
-    primitives/                agr-panel, agr-button, agr-icon-button, agr-status-pill, agr-dialog, agr-drawer,
-                               agr-confirm-dialog, agr-slider, agr-stepper, agr-choice-group, agr-value, agr-icon,
-                               agr-empty-state (one file each, kebab-case filenames = tag names; public API §5.5)
-    shared/                    agr-fan-controls.ts (power, speed, presets; used by the climate and room drawers;
-                               seeded WP0, owned WP4)
+    primitives/                agr-panel, agr-button, agr-icon-button, agr-dialog, agr-drawer, agr-confirm-dialog,
+                               agr-slider, agr-stepper, agr-choice-group, agr-value, agr-empty-state (one file
+                               each, kebab-case filenames = tag names; public API §5.5), and control-helpers.ts
+                               (suppressKeyRepeat, textClass, draftBase, draftStatusText, stepper value text: a
+                               module that registers no element)
+    shared/                    agr-fan-controls.ts (power, speed, presets; used by the climate and room drawers),
+                               agr-control-notes.ts (the one section live region, §7.2), control-notes.ts (what it
+                               says), paused.ts, selector-input.ts
     shell/                     agr-overlay-host.ts, overlay-types.ts (DrawerRequest, DrawerElement, DRAWER_TAGS,
                                event details), agr-config-error.ts, agr-demo-ribbon.ts, agr-alert-banner.ts
     header/                    agr-header.ts, agr-presence.ts, agr-security-pill.ts, agr-connection-indicator.ts,
-                               agr-clock.ts, agr-kolam-mark.ts, agr-household-drawer.ts
-    today/                     agr-today.ts, agr-forecast-strip.ts, weather-icons.ts
+                               agr-clock.ts, agr-kolam-mark.ts, agr-household-drawer.ts, drawer-content.ts (body
+                               styles shared by the household, house health and diagnostics drawers)
+    today/                     agr-today.ts, agr-forecast-strip.ts (condition map: model/weather-conditions.ts, WP14)
     comfort/                   agr-comfort.ts, agr-comfort-tile.ts, agr-climate-drawer.ts
     home/                      agr-home.ts, agr-room-chip.ts, agr-vacuum-row.ts, agr-appliance-row.ts,
-                               agr-room-drawer.ts, agr-home-drawer.ts ("All rooms and devices")
+                               agr-light-row.ts, agr-curtain-row.ts, agr-room-drawer.ts, agr-home-drawer.ts ("All
+                               rooms and devices"), home-actions.ts (intent events, requests, ImmediateTickets),
+                               home-styles.ts (shared Home styles)
     cameras/                   agr-cameras.ts, agr-camera-tile.ts, agr-camera-dialog.ts, agr-cameras-drawer.ts
     garage/                    agr-garage.ts, agr-vehicle.ts, vehicle-art.ts
-    media/                     agr-media.ts, agr-media-drawer.ts
+    media/                     agr-media.ts, agr-media-drawer.ts, agr-media-player.ts (one player's block, shared
+                               by both)
     upcoming/                  agr-upcoming.ts
-    security/                  agr-security-drawer.ts, security-copy.ts
+    security/                  agr-security-drawer.ts, security-copy.ts, security-tickets.ts (which button a
+                               shared 'security' ticket belongs to)
     health/                    agr-health.ts, agr-health-drawer.ts
     diagnostics/               agr-diagnostics-drawer.ts
   styles/
-    tokens.ts                  light + dark custom properties (§6.5)
+    tokens.ts                  light + dark custom properties and the type scale tokens (§6.5)
     typography.ts              type scale classes
     breakpoints.ts             BREAKPOINTS, layoutFor(width, previous)
     layout.ts                  frame/column CSS per layout mode
-    shared.ts                  focus ring, visually-hidden, num (tabular) utilities
+    shared.ts                  focus ring, visually-hidden (and its declarations fragment), num (tabular), the
+                               shared disabled look and pending sweep
     fonts.ts                   ensureFonts(): FontFace registration (idempotent)
   icons/
     icons.ts                   the full curated set of named imports from 'lucide' (§6.5), landed in M0.1
@@ -353,6 +383,8 @@ src/
     log.ts                     the only console access; codes only, never objects/URLs
     focus.ts                   composed-tree focusable walker, deep activeElement
     define.ts                  defineOnce(tag, ctor) with version-conflict detection
+    defined.ts                 isDefined(): the one guard for dropping undefined from a list
+    modal.ts                   native <dialog> rules shared by agr-drawer and agr-dialog (§5.4 rules 11, 12)
     time.ts                    minute-aligned ticker (realigns on visibilitychange), visibility helpers
 tests/                         Vitest (§12); tests/scripts/fixtures/candidates.fictional.json is a fictional
                                candidates file shaped like the private one
@@ -363,7 +395,8 @@ install/
   resource.yaml                single module resource
   dashboard.example.yaml       panel view with fictional bindings and controls: false
   dashboard.demo.yaml          panel view with demo: true (first render)
-  overrides.example.json       shape of the private generator overrides (fictional; includes camera_thumbnails)
+  overrides.example.json       shape of the private generator overrides (fictional; includes camera_thumbnails
+                               and camera_live)
 ```
 
 No module names shadow Node built-ins: scripts import `node:*` explicitly. No Python is added.
@@ -416,6 +449,7 @@ export interface CardConfigInput {
     privacy_on_value?: 'on' | 'off';             // default 'on'; exactly these two strings (lowercase)
     thumbnails?: boolean;                         // default true; false = live view on request only
     snapshot_interval?: number;                   // seconds, integer 5..600, default 10
+    live?: boolean;                               // default true; false = no live view from this dashboard (§9.4)
   }[];
   garage?: { cover: string; name?: string };
   vehicle?: {
@@ -477,7 +511,8 @@ export interface ResolvedConfig {
   readonly media: readonly Ref[];
   readonly cameras: readonly { readonly entity: EntityId; readonly name: string;
                                readonly privacy?: { readonly entity: EntityId; readonly onValue: 'on' | 'off' };
-                               readonly thumbnails: boolean; readonly snapshotIntervalMs: number }[];
+                               readonly thumbnails: boolean; readonly snapshotIntervalMs: number;
+                               readonly live: boolean }[];
   readonly garage?: { readonly cover: EntityId; readonly name: string };       // name default 'Garage'
   readonly vehicle?: { readonly name: string; readonly battery: EntityId; readonly range: EntityId;
                        readonly chargerStatus?: EntityId; readonly chargerPower?: EntityId;
@@ -512,7 +547,7 @@ export function isValidEntityId(s: string): boolean {
 export type ConfigIssueCode =
   | 'not-object' | 'unknown-key' | 'wrong-type' | 'required' | 'invalid-entity-id' | 'wrong-domain'
   | 'invalid-value' | 'too-many' | 'too-long' | 'out-of-range' | 'duplicate-actionable'
-  | 'duplicate-security-script' | 'ignored-in-demo'
+  | 'duplicate-security-script' | 'curtain-conflict' | 'ignored-in-demo'
   | 'demo-config-invalid';                    // produced by the root only (rule 9), never by validateConfig
 export interface ConfigIssue { readonly path: string; readonly code: ConfigIssueCode; readonly message: string }
 export type ValidationResult =
@@ -539,6 +574,10 @@ Rules:
    garage cover cannot also be a curtain. Read-only roles may overlap: the garage cover may also be a perimeter
    entry. A garage, gate or door cover listed **only** as a curtain cannot be caught here (the device class is
    unknown at `setConfig`), so the gateway refuses `curtain.*` on such covers at request time (§4.7 step 5a).
+   4a. **A curtain is never an entry point** (`curtain-conflict`, §16.15): a `rooms[].curtains` entry that is
+   also listed in `security.perimeter` or is `garage.cover` is rejected at the curtain's path. Curtain controls
+   move without confirmation; the garage case is also `duplicate-actionable`, the perimeter case (a read-only
+   role) only this. The device_class refusal of step 5a stays as the runtime backstop.
 5. `security.actions.*` and `studio_monitors_script` must be `script.*`. Raw alarm or helper entities there are
    `wrong-domain`, so there is no way to configure a raw arm or disarm.
 6. **One script per security role** (`duplicate-security-script`): a script ID may appear in at most one
@@ -652,6 +691,8 @@ export interface Formatter {
   temperature(value: number, unit: string | undefined): string;   // "69°" or "21.5 °C" per locale
   time(value: Date): string;
   hour(value: Date): string;                              // "7 PM" / "19": forecast cells (locale, 12/24 h, zone)
+  hourOfDay(value: Date): number;                         // 0–23 in the same zone: the greeting (§16.11)
+  dayKey(value: Date): string;                            // 'YYYY-MM-DD' (Latin digits) in the same zone (§16.15)
   clock(value: Date): ClockParts;
   date(value: Date, style: 'long' | 'weekday-short' | 'month-day'): string;
   duration(ms: number): string;                           // "35 min", "1 h 10 min"
@@ -765,35 +806,63 @@ objects while both connection flags read true. A privacy switch turned on during
 /** Module scope: one tracker per hass.connection object (WeakMap), shared by every HassHost in the page, so a
  *  runtime rebuilt during an outage (§9.1 orphan disposal) still knows a snapshot is outstanding. It is the ONLY
  *  code that calls connection.addEventListener, once per connection object; its listeners retain only the
- *  tracker's own small state (generation, flags, base), never a HassHost, store or card. */
+ *  tracker's own small state (generation, flags, states references), never a HassHost, store or card. */
 export type StatesMap = Readonly<Record<string, HassEntityLike>>;
+export const RESYNC_GRACE_MS = 2_000;    // an ambiguous first post-reconnect map holds at most this long
 export interface ResyncTracker {
   generation(): number;                  // the socket generation exposed by HostReader.connectionGeneration()
   armed(): boolean;                      // a reconnect was signalled and no fresh snapshot has been observed yet
-  /** hass.states reference current when the barrier last armed; kept until the next arm (one superseded states
-   *  map stays in memory, an accepted cost). undefined if it never armed. */
+  /** freshBase: the pre-snapshot states map the barrier last armed with, for per-entity freshness ONLY; kept until
+   *  the next arm (one superseded states map stays in memory, an accepted cost). undefined if it never armed or
+   *  nothing had been observed on the connection before it armed. */
   base(): StatesMap | undefined;
+  /** The most recent states map any host observed on this connection (seeds a replacement connection's tracker). */
+  lastObserved(): StatesMap | undefined;
   /** HassHost.update calls this BEFORE ingest, with the same states reference it ingests (never a copy). */
   observe(states: StatesMap, connected: boolean): void;
   subscribe(listener: (e: 'ready' | 'disconnected' | 'armed' | 'cleared') => void): Unsubscribe;
+  dispose(): void;                       // superseded by a new connection object: grace timer and listeners go
 }
 export function resyncTrackerFor(conn: ConnectionLike, previous?: ResyncTracker): ResyncTracker;
 ```
 
-- **Arms** on: hajs `ready` (base = the last observed states reference); an observed `connected` false → true
-  (base = the states reference observed before that update, then the current update is evaluated); a new
-  `hass.connection` identity (`resyncTrackerFor(newConn, oldTracker)` starts armed with base = the old tracker's
-  last observed reference). Arming also increments the generation.
-- **Clears** on the first `observe()` whose states reference differs from `base()`. In 20260826.7 the
-  `connected: true` push, config re-fetch, registry refresh and brands-token updates all keep the states
-  reference, so the next new reference is the snapshot. A barrier with no state change holds (fails closed).
+- **Records** `lastObserved` on every `observe()`. On hajs `disconnected` (or an observed `connected` true →
+  false) an outage opens with outage base = `lastObserved`; maps observed while the outage is open (the socket
+  is down, so `hass.states` cannot change until the snapshot) move the outage base and are known to be the
+  **final** pre-snapshot map. A tracker created while the socket is down starts with the outage open.
+- **Arms** on: hajs `ready`; an observed `connected` false → true (armed with the map observed before that
+  update, then the current update is evaluated); a new `hass.connection` identity (`resyncTrackerFor(newConn,
+  oldTracker)` starts armed, seeded with the old tracker's `lastObserved`, and disposes the old tracker). Arming
+  takes two references to the same pre-snapshot map (the outage base, else the last observed map): `freshBase`
+  (`base()`, used only for per-entity freshness) and `knownStale` (used only for clearing). The first post-ready
+  map **never** becomes a freshness base: it may already be the snapshot, and hajs keeps the object of every
+  unchanged entity, so a snapshot base would leave every unchanged entity "not fresh" forever (§16.15). Arming
+  also increments the generation, stops any grace timer and resets the clearing state.
+- **Clears** (observations while armed and connected only):
+  - a map identical to `knownStale` is definitely pre-snapshot: it holds, and marks `knownStale` as final
+    (`hass.states` still being it means no unobserved change came after it);
+  - once `knownStale` is final (observed during the outage, or observed again after arming), the first
+    different map clears at once;
+  - otherwise the first different map is **ambiguous** (the snapshot, or a pre-snapshot map that changed while
+    no host observed it): it is remembered, and the barrier clears on the next map different from it **or**
+    `RESYNC_GRACE_MS` after it was observed, whichever comes first. The grace timer clears only while the last
+    observation was connected and the live socket getter is true; a disconnect, a re-arm or `dispose()` stops it.
+    Every clear emits `cleared`, so hosts re-ingest at once.
+  In 20260826.7 the `connected: true` push, config re-fetch, registry refresh and brands-token updates all keep
+  the states reference. A barrier whose known pre-snapshot map never changes holds (fails closed). Accepted
+  residual risks: §15 #25 and #26.
 - `HassHost` passes `{armed, base}` into every `StoreSnapshot` (§4.5) and re-ingests its last `hass` on every
   tracker event, so phase changes notify the `connection` meta at once. A brand-new tracker (first page load)
   is not armed: HA renders panels only after the first states arrive.
-- Per-entity defense in depth: `StoreView.freshSinceResync(id)` is true when `base()` is undefined or the
-  entity's current object differs from `base()[id]`. The snapshot replaces every entity object, so an entity
-  deleted during the outage keeps its old object and is never fresh. The camera gate requires a fresh privacy
-  entity (§9.3).
+- Per-entity defense in depth: `StoreView.freshSinceResync(id)` is true when the entity's current object differs
+  from `freshBase[id]`, which is always a pre-snapshot map. With no `freshBase` (the tracker had observed nothing)
+  every present entity counts as fresh once the barrier clears. The snapshot replaces every entity object, so an
+  entity deleted during the outage keeps its old object and is never fresh. The camera gate requires a fresh
+  privacy entity (§9.3).
+- A host whose own last map is older than the tracker's (a detached panel's retained `hass`, while an attached
+  card's observation cleared the barrier) must not re-ingest that map as current: `freshBase` is newer than it, so
+  an entity that changed in between would read as fresh. On `cleared`, a host whose `hass.states` is not
+  `tracker.lastObserved()` stays armed (phase `resyncing`) until its own next `update()` (§16.17).
 
 Implementation rules:
 
@@ -862,7 +931,7 @@ export interface StoreView {
   isReady(): boolean;                               // at least one ingest
   isConnected(): boolean;                           // connected AND resync barrier clear (states are current)
   isResyncing(): boolean;                           // connected but barrier armed (labels only; §4.4)
-  freshSinceResync(id: EntityId): boolean;          // entity object replaced since the last barrier arm (§4.4)
+  freshSinceResync(id: EntityId): boolean;          // entity object differs from the pre-snapshot base (§4.4)
   haState(): ConfigLike['state'];                   // undefined treated as 'RUNNING'
   subscribe(ids: readonly EntityId[], meta: readonly MetaKind[],
             listener: (change: HostChange) => void): Unsubscribe;
@@ -1021,8 +1090,17 @@ export interface ActionStatus {
   readonly startedAt: number; readonly settledAt?: number;
 }
 
+/** src/ha/actions/confirmation.ts (§16.15): opaque, unforgeable, single use, bound to one exact request. */
+export interface ConfirmationToken { readonly kind: 'confirmation-token'; readonly scope: string | undefined }
+export function mintConfirmationToken(req: ActionRequest): ConfirmationToken;     // agr-confirm-dialog only
+export function redeemConfirmationToken(value: unknown, req: unknown): boolean;  // the gateway only; spends it
+/** src/ha/actions/types.ts: the caller's object read ONCE (prototype, keys, each descriptor) into a plain copy that
+ *  step 1 then validates; frozen, or undefined; never throws. request() takes one copy first and hands that same
+ *  copy to the token redemption, the pipeline, the ticket and the call (§16.17). */
+export function frozenActionRequest(value: unknown): ActionRequest | undefined;
+
 export interface RequestOptions {
-  readonly confirmed?: boolean;            // set only by agr-confirm-dialog
+  readonly confirmation?: ConfirmationToken; // minted by agr-confirm-dialog for exactly this request
   /** Gesture epoch captured when the user started the gesture (drafts, confirm dialogs). A mismatch with
    *  epoch() at request time → failed('not-sent'), invoke never called. */
   readonly epoch?: number;
@@ -1083,7 +1161,10 @@ Pipeline for `request` (first failure wins; `evaluate` runs the same checks exce
 
 0. `disposed`, or `opts.epoch` given and `!== epoch()` → `not-sent`. Nothing is stored and `invoke` is not called.
 1. **Runtime shape check** (`validate-args.ts`): `req` must be a plain object with exactly the keys of its `kind`
-   variant. Extra keys such as `domain`, `service`, `data` or `entity_id` give `not-allowed`.
+   variant. Extra keys such as `domain`, `service`, `data` or `entity_id` give `not-allowed`. The check runs on
+   `frozenActionRequest(req)`: the caller's object is read once (prototype, key list, each descriptor; never
+   through a getter) into a plain copy, and `request()` takes that copy once, before the token step, and passes the
+   same frozen copy to the token redemption, the pipeline, the ticket and the call (§16.17).
 2. `isPreview()` → `preview`.
    2a. `config.controls !== true` → `controls-off` (staged enablement, §4.1, §13.5). Nothing is stored.
 3. `reader.connection().phase !== 'connected'` (disconnected, loading or **resyncing**) → `disconnected`.
@@ -1101,13 +1182,18 @@ Pipeline for `request` (first failure wins; `evaluate` runs the same checks exce
    moved from the Garage panel."
 6. Entity normalization: missing → `missing-entity`, unavailable → `unavailable`. `unknown` is allowed only where
    the §7.1 "Unknown state" column says `allow`; every `deny` row returns `state-unknown`. Garage always denies.
+   A target whose object is still the resync base's while the store is connected (not yet refreshed by the
+   snapshot, §4.4) → `disconnected` with the resyncing copy, never `missing-entity` (§7.3, §15 #25).
 7. Spec precondition (state-based, §7.1) → `not-applicable` (for example "Already open" or "Already running").
 8. Capability: `hasFeatures(supported_features, spec.requires)` (all bits of any listed mask), or
    brightness-capable color modes for brightness → `unsupported`.
 9. `reader.hasService(domain, service)` → `service-missing`.
 10. Arguments (§7.1 validation column) → `invalid-argument`.
 11. Confirmation required by the spec (for `silence_sound`, only when the alarm is not `triggered` or `pending`)
-    and `opts.confirmed !== true` → `confirmation-required`. **`request()` only.** In `evaluate()` this step sets
+    and no valid confirmation token → `confirmation-required`. **`request()` only.** A token is valid when it was
+    minted by `agr-confirm-dialog` (membership in a module-private WeakSet), is unspent, and is bound to exactly
+    this request (action key, kind and arguments). `request()` spends any token it is given before step 0,
+    whatever the outcome, so a refused attempt can never be replayed with it. In `evaluate()` this step sets
     `confirm` on the enabled result and never disables the control.
 12. Sticky denial for (family, target) recorded after an earlier `Unauthorized` → `permission-denied`. This resets
     when the `user` meta changes.
@@ -1128,13 +1214,17 @@ while the ticket is `pending` or `sent`:
 - Promise rejects with `PortNotSent` → `failed('disconnected')`; the copy says nothing was sent, which is true
   because the port refused before calling.
 - Promise rejects otherwise → `error-map.ts`. A connection loss (bare `3` or `{error: {code: 3}}`) → `uncertain`
-  (`connection-lost`). Everything else → `failed`.
-- Timeout → `uncertain` (`timeout`). **No automatic retry, ever.** A later tap is a new deliberate request.
+  (`connection-lost`), unless the outcome was already observed while pending (`observedEarly`) → `confirmed`.
+  Everything else → `failed`.
+- Timeout → `uncertain` (`timeout`), or `confirmed` when the outcome was observed while pending. **No automatic
+  retry, ever.** A later tap is a new deliberate request.
 - On `confirmed`, `failed` or `reversed`: `inflight.clear(targets)`. On `uncertain`: the registry entry stays until
   it expires at the family timeout, because the call may still be executing.
 
 HA rejection mapping (`error-map.ts`): `not_found` → `service-missing`; `invalid_format` → `bad-request` (our
-bug, logged); `service_validation_error` → `rejected`, with HA's message escaped and capped at 160 characters;
+bug, logged); `service_validation_error` → `rejected`, with HA's message as plain text, every entity-ID-shaped
+token (`domain.object_id`, including `domain.service`) removed, and capped at 160 characters (a message with
+nothing readable left falls back to the generic copy, §16.15);
 `home_assistant_error` with message `Unauthorized` or code `unauthorized` → `permission-denied` (sticky); other
 `home_assistant_error` → `device-error`; `3` or `{error: {code: 3}}` → `connection-lost`; anything else → `unknown`.
 On the bare `3`: in hajs 9.6.0 it means `sendMessage` threw because the socket was closed, so the message was
@@ -1241,7 +1331,7 @@ export interface StepperVM { readonly value: number; readonly min: number; reado
 /** Rendered only by agr-choice-group (§5.5, §7.2). `pressed` follows the OBSERVED state, never an optimistic one;
  *  the current option's availability is disabled('not-applicable', "Current mode"), so activating it sends nothing. */
 export interface ChoiceOptionVM { readonly value: string; readonly label: string; readonly pressed: boolean;
-  readonly availability: Availability }
+  readonly availability: Availability; readonly detail?: string }   // detail: a quieter second line (player picker)
 export interface ChoiceVM { readonly label: string; readonly current?: string;
   readonly options: readonly ChoiceOptionVM[]; readonly pending?: ActionStatus }
 export interface ClimateTileVM { readonly key: EntityId; readonly name: string; readonly status: EntityStatus;
@@ -1283,14 +1373,19 @@ export interface HomeVM { readonly rooms: readonly RoomVM[]; readonly roomsOverf
   readonly idleCount: number;
   readonly studioMonitors?: { readonly availability: Availability; readonly pending?: ActionStatus } }
 
+// CameraGate is declared in ha/camera-gate.ts with the gate that returns it (§16.17); model/types.ts imports it.
 export type CameraGate =
   | { readonly kind: 'allowed' } | { readonly kind: 'loading' }
   | { readonly kind: 'privacy'; readonly certainty: 'on' | 'unknown'; readonly label: string }
   | { readonly kind: 'offline' | 'missing' | 'disconnected' | 'denied'; readonly label: string };
-export interface CameraTileVM { readonly key: EntityId; readonly name: string; readonly gate: CameraGate;
-  readonly thumbnails: boolean; readonly intervalMs: number; readonly live: Availability }
+export interface CameraTileVM { readonly key: EntityId; readonly name: string; readonly binding: string;
+  readonly gate: CameraGate; readonly thumbnails: boolean; readonly intervalMs: number;
+  readonly live?: Availability }                            // absent when the camera's config sets live: false
 export interface CamerasVM { readonly tiles: readonly CameraTileVM[];   // first 4
-  readonly overflow: number; readonly privateCount: number }
+  readonly overflow: number;
+  /** Cameras whose privacy is KNOWN to be on (gate privacy, certainty 'on'), over every configured camera: the
+   *  "1 private" pill. An unknown privacy state keeps its camera closed but is never counted as private. */
+  readonly privateCount: number }
 
 export interface GarageDoorVM { readonly name: string; readonly status: EntityStatus;
   readonly position: 'open' | 'closed' | 'opening' | 'closing' | 'unknown'; readonly label: string;
@@ -1323,8 +1418,8 @@ export interface PerimeterItemVM { readonly key: EntityId; readonly name: string
 export interface SecurityActionVM { readonly role: SecurityActionRole;
   readonly group: 'sound' | 'disarm' | 'hold' | 'auto' | 'departure';
   readonly label: string; readonly consequence: string;   // both from model/action-copy.ts, keyed by role
-  readonly availability: Availability;                     // enabled → `confirm` decides the confirm route;
-  readonly status?: ActionStatus }                         // copy is looked up by the dialog, never passed
+  readonly availability: Availability }                    // enabled → `confirm` decides the confirm route; the
+                                                           // shared ticket is attributed by SecurityTickets (§8.2)
 export interface SecurityVM { readonly alarm: AlarmDisplay; readonly policy?: Display; readonly suggested?: Display;
   readonly commissioning?: { readonly status: EntityStatus; readonly on: boolean | null; readonly label: string };
   readonly health?: Display; readonly perimeter: readonly PerimeterItemVM[];
@@ -1492,10 +1587,20 @@ export interface OpenDrawerDetail { readonly request: DrawerRequest; readonly tr
 export interface ConfirmDetail { readonly action: ActionRequest; readonly trigger: HTMLElement }
 // new CustomEvent<OpenDrawerDetail>('agr-open-drawer', { bubbles: true, composed: true, detail })
 // new CustomEvent<ConfirmDetail>('agr-request-confirm', { bubbles: true, composed: true, detail })
+export function requestDrawer(host: HTMLElement, request: DrawerRequest, trigger: HTMLElement): void;
+export function requestConfirm(host: HTMLElement, action: ActionRequest, trigger: HTMLElement): void;
 ```
 
-The root stops propagation of both events. `agr-confirm-dialog` is the **only** caller of
-`gateway.request(action, { confirmed: true, epoch })`, and an architecture test enforces it. A section dispatches
+Sections and drawers dispatch both events only through `requestDrawer()` and `requestConfirm()`.
+
+The root stops propagation of both events. `agr-confirm-dialog` is the **only** minter of confirmation tokens:
+Confirm calls `gateway.request(action, { confirmation: mintConfirmationToken(action), epoch })`, and an
+architecture test pins the minter (and the gateway as the only redeemer). The overlay host validates and freezes a
+copy of the requested action (`frozenActionRequest`) before mounting the dialog; a malformed one is refused,
+logged and announced ("Not sent. This action isn't available."), and nothing is mounted. The dialog freezes its own
+copy too, and an action it cannot confirm (malformed, or a copy lookup that fails) never throws from a lifecycle
+method: it fails closed and visibly with "This action isn't available", "Nothing was sent." and only a Close
+button. A section dispatches
 `agr-request-confirm` exactly when the control's `Availability` is `{enabled: true, confirm: true}` (§4.7).
 
 **Drawer element contract** (M0.1, `src/components/shell/overlay-types.ts`, WP0):
@@ -1556,9 +1661,9 @@ Confirm dialog integrity (`agr-confirm-dialog`, copy from `model/action-copy.ts`
 | `agr-home-drawer` | "All rooms and devices" | every room (opens its room drawer), every vacuum row, every appliance row | side/bottom sheet |
 | `agr-climate-drawer` | climate or air tile, "+N more" | climate: current, stepper (target), HVAC mode choice group; fan: `agr-fan-controls` (power, speed slider, preset choice group); without an entity: every comfort tile | side/bottom sheet |
 | `agr-security-drawer` | header security pill, alert banner | §8 | side/bottom sheet |
-| `agr-camera-dialog` | camera tile, cameras drawer | live view (embedded card with `aspect_ratio: '16:9'`, `fit_mode: 'contain'`) or snapshot fallback; name; privacy/offline states | centered, min(960px, 94vw), 16:9 |
+| `agr-camera-dialog` | camera tile, cameras drawer | live view (embedded card with `aspect_ratio: '16:9'`, `fit_mode: 'contain'`) or snapshot fallback; name; privacy/offline states | centered, min(960px, 94vw) narrowed to the frame's aspect at the viewport height; 16:9, or a snapshot's own aspect (§9.4) |
 | `agr-cameras-drawer` | "All cameras (n)" | all configured camera tiles (visible ones fetch) | side/bottom sheet |
-| `agr-media-drawer` | media source chip | player picker (configured players; local view state, buttons), source list (`source_list`) as a vertical choice group, mute | side/bottom sheet |
+| `agr-media-drawer` | media source chip | player picker (configured players with their playback; local view state in the same `agr-choice-group` as the sources, every option enabled, choosing sends nothing), source list (`source_list`) as a vertical choice group, mute | side/bottom sheet |
 | `agr-health-drawer` | health "Details" | perimeter list, devices not reporting, then reporting (names + status) | side/bottom sheet |
 | `agr-household-drawer` | compact header menu | presence list, date, connection, Diagnostics link (admin + enabled) | bottom sheet |
 | `agr-diagnostics-drawer` | header icon button (full and medium header) or household drawer | DiagnosticsVM; entity IDs appear only here | side/bottom sheet, admin only |
@@ -1567,7 +1672,9 @@ Confirm dialog integrity (`agr-confirm-dialog`, copy from `model/action-copy.ts`
 ### 5.4 Focus and dialog rules (`agr-dialog` base, `util/focus.ts`)
 
 1. Every overlay is a native `<dialog>` opened with `showModal()`, which puts it in the top layer and makes the
-   rest of the document inert. Each has `aria-labelledby` pointing to its heading.
+   rest of the document inert. Each has `aria-labelledby` pointing to its heading. `agr-dialog` also offers a
+   `describedBy()` hook for `aria-describedby`; the confirm dialog points it at a wrapper around its whole body
+   (safety lines and disabled reason included), so the consequence is read along with the focused Cancel.
 2. On open, the overlay records the `trigger` from the event detail. If the trigger is gone, it falls back to the
    deep `activeElement` (walking `shadowRoot.activeElement`).
 3. Initial focus: drawers focus their heading (`tabindex="-1"`) so screen readers announce context. The confirm
@@ -1608,7 +1715,7 @@ Confirm dialog integrity (`agr-confirm-dialog`, copy from `model/action-copy.ts`
     `color-scheme` from the same attribute, so native controls inside it match the theme.
 14. Test split: happy-dom has `showModal()` but no inertness, no `:modal`, no Escape → `cancel`, and no
     `:focus-visible`. Unit tests therefore cover the state logic only (restore-target choice, Cancel focused by
-    default, the `confirmed` flag, `closeAll()` on disconnect, rule 12). Inertness, Escape closing only the topmost
+    default, the confirmation token, `closeAll()` on disconnect, rule 12). Inertness, Escape closing only the topmost
     dialog, backdrop clicks, Tab wrapping, the focus-visible ring and rule 11 are verified in
     `e2e/keyboard.spec.ts` in Chromium and WebKit.
 
@@ -1631,8 +1738,9 @@ interface AgrPanel {           // <section aria-labelledby=headingId><header>[ic
 interface AgrButton {          // native <button>; emits 'agr-activate' (no detail) once per click/Enter/Space
   label: string; icon?: IconName; focusKey: string;
   availability: Availability;  // disabled → aria-disabled="true" + click guard (§7.2); reason via aria-describedby
-  status?: ActionStatus;       // "Sending", "Done", … rendered in its own polite text
+  status?: ActionStatus;       // ticketShortText(): "Sending", "Done", … as static text (§7.2)
   variant: 'quiet' | 'primary' | 'confirm';
+  opensDialog: boolean;        // `opens-dialog`: aria-haspopup="dialog" for a button that opens a drawer
 }
 interface AgrChoiceGroup {     // role="group" aria-label=label; one native <button aria-pressed> per option
   label: string; focusKeyPrefix: string;
@@ -1651,7 +1759,10 @@ interface AgrStepper {         // two buttons; emits 'agr-draft' { value } per t
 
 Every button-like primitive (including each `agr-choice-group` option) calls `preventDefault()` on a `keydown`
 with `event.repeat`, because held Enter would otherwise click repeatedly. That is the only key handling in
-`agr-choice-group`: it never handles navigation keys (rule in §7.2).
+`agr-choice-group`: it never handles navigation keys (rule in §7.2). Hand-rolled buttons follow the same rule, and
+every button that opens a drawer or dialog (room chips, camera tiles, "All cameras", "+N more", the media chip, the
+security pill, Details, "All rooms and devices", the header menu and diagnostics buttons) carries
+`aria-haspopup="dialog"`.
 
 ---
 
@@ -1660,12 +1771,12 @@ with `event.repeat`, because held Enter would otherwise click repeatedly. That i
 ### 6.1 Breakpoints (`src/styles/breakpoints.ts`)
 
 ```ts
-export const BREAKPOINTS = { wide: 1080, medium: 640 } as const;   // card HOST inline-size, CSS px (D2)
+export const BREAKPOINTS = { wide: 1080, medium: 700 } as const;   // card HOST inline-size, CSS px (D2)
 export const HYSTERESIS_PX = 16;      // step down only below (bp - 16): no flapping when a scrollbar toggles
 export type LayoutMode = 'wide' | 'medium' | 'narrow';
 export function layoutFor(width: number, previous?: LayoutMode): LayoutMode;
 /** Header variant thresholds on agr-header's own content box (`container: header / inline-size`), §6.4.
- *  Independent of LayoutMode, so the header compacts before it overflows (for example medium at 640–799). */
+ *  Independent of LayoutMode, so the header compacts before it overflows (for example medium at 700–799). */
 export const HEADER_CQ = { full: 1040, medium: 760, kolam: 380 } as const;  // below medium: compact; below
                                                                            // kolam: compact without the mark
 /** Thresholds on the PANEL CONTENT BOX (container size queries measure the container's content box, i.e. after
@@ -1673,11 +1784,31 @@ export const HEADER_CQ = { full: 1040, medium: 760, kolam: 380 } as const;  // b
 export const PANEL_CQ = {
   hero96: 360,      // Today hero number 96 px
   hero80: 300,      // 80 px; below this 68 px
-  forecast8: 320,   // 8 forecast cells of ≥ 40 px (cells are not interactive, so the 44 px target rule doesn't apply)
+  forecast8: 360,   // 8 forecast cells of ≥ 45 px; the 328–334 px boxes show 6 roomier cells instead of 8 cramped ones
   forecast6: 240,   // 6 cells; below this 4
-  cameraGrid: 280,  // 2×2 tiles; below this 1 column
+  cameraGrid: 240,  // 2×2 tiles; below this 1 column (a 240 px box still gives 114 px wide 4:3 tiles)
+  twoUp: 288,       // room chips and comfort tiles two to a row; below this one per row, so names never split
+  comfortPairStacked: 428,  // two comfort tiles side by side stack their values below this
+  metricsShortLabels: 320,  // below this Today's metrics use short labels ("Feels")
+  healthFactsStacked: 388,  // below this each House health label sits under its count
+  vehicleArtCompact: 321,   // below this the car art shrinks
+  garageDoorStacked: 301,   // below this the door buttons move under the state
+  comfortTileStacked: 208,  // inside a comfort tile's own box: below this the value moves under the name
+  comfortTileIcon: 173,     // inside a comfort tile's own box: below this the round icon gives the text its room
+  mediaPlayerArt: 301,      // inside the media player's own box: below this the art tile gives the title its room
 } as const;
 ```
+
+Every threshold lives in `PANEL_CQ` (§16.17 moved the last local ones in) and reads "from N up" or "below N". The
+values 321, 301, 173 and 301 keep the earlier `(width <= N - 1)` behaviour for every integer width now that every
+query is written `(width < N)`. Numbers are interpolated into Lit `css` as plain `${n}`; `unsafeCSS` is kept for
+the one string interpolation (a custom-property name). Today's hero sizes (68, 80, 96 px) are defined once in
+`typography.ts`, and its loading placeholder carries `.t-hero` and measures in em, so it always matches the hero.
+
+Medium starts at 700, not 640: two columns at a 640 px card left a 256 px panel content box, where room chips split
+words and the panels turned into tall, thin columns. Every container and media query uses range syntax with only
+`(width < N)` and `(width >= N)` (a fitness test rejects `<=` and `>`), so no fractional width can fall between a
+`max-width: N-1` and a `min-width: N` pair.
 
 Panel content widths at the reference viewports (frame padding and gaps from §6.5; panel padding 20 wide, 18
 medium, 16 narrow):
@@ -1685,17 +1816,18 @@ medium, 16 narrow):
 | Card width | Mode | Column width | Panel content box | Hero | Forecast cells | Header box → variant |
 |---|---|---|---|---|---|---|
 | 1384 (1440, sidebar collapsed) | wide | (1384 − 48 − 32) / 3 ≈ 435 | ≈ 395 | 96 | 8 | 1336 → full |
-| 1184 (1440, sidebar expanded) | wide | (1184 − 48 − 32) / 3 ≈ 368 | ≈ 328 | 80 | 8 | 1136 → full |
+| 1184 (1440, sidebar expanded) | wide | (1184 − 48 − 32) / 3 ≈ 368 | ≈ 328 | 80 | 6 | 1136 → full |
 | 1138 (1194, sidebar collapsed) | wide | (1138 − 48 − 32) / 3 ≈ 353 | ≈ 313 | 80 | 6 | 1090 → full |
 | 1080 (wide threshold; 1136, collapsed) | wide | ≈ 333 | ≈ 293 | 68 | 6 | 1032 → medium |
 | 938 (1194, sidebar expanded) | medium | (938 − 40 − 16) / 2 ≈ 441 | ≈ 405 | 96 | 8 | 898 → medium |
 | 720 (720 viewport, HA narrow) | medium | (720 − 40 − 16) / 2 = 332 | ≈ 296 | 68 | 6 | 680 → compact |
-| 640 (medium threshold; 640 viewport) | medium | ≈ 292 | ≈ 256 | 68 | 6 | 600 → compact |
-| 390 (phone) | narrow | 390 − 24 = 366 | ≈ 334 | 80 | 8 | 366 → compact |
+| 640 (640 viewport, below the medium threshold) | narrow | 640 − 24 = 616 | ≈ 584 | 96 | 8 | 616 → compact |
+| 390 (phone) | narrow | 390 − 24 = 366 | ≈ 334 | 80 | 6 | 366 → compact, no mark |
 
-At the primary 1440×900 viewport the strip therefore shows 8 hours in both sidebar states, as in the wide
-wireframe and the reference; the 96 px hero appears with the sidebar collapsed. The 1080, 720 and 640 rows are
-the tightest content boxes at each mode's edge; `e2e/layout.spec.ts` asserts every row of this table.
+At the primary 1440×900 viewport the strip shows 8 hours with the sidebar collapsed and 6 roomier ones with it
+expanded (a 328 px box); the 96 px hero appears with the sidebar collapsed. The 1080 and 720 rows are the tightest
+content boxes at each mode's edge, and 640 is one calm column; `e2e/layout.spec.ts` asserts every row of this
+table.
 
 Expected modes, using HA's 256 px expanded and 56 px collapsed sidebar (to be verified live, §15):
 
@@ -1707,7 +1839,7 @@ Expected modes, using HA's 256 px expanded and 56 px collapsed sidebar (to be ve
 | 1194×834 | collapsed | ~1138 | wide |
 | 1136×800 | collapsed | ~1080 | wide |
 | 720×900 | hidden (HA narrow) | 720 | medium |
-| 640×900 | hidden (HA narrow) | 640 | medium |
+| 640×900 | hidden (HA narrow) | 640 | narrow |
 | 390×844 | hidden (HA narrow) | 390 | narrow |
 
 The root sets `data-layout` on `.frame`. Frame-level CSS keys off `[data-layout=…]`. Each panel declares
@@ -1724,10 +1856,14 @@ when wider.
 | narrow | `1fr` | Today, Climate, Home, Cameras, Garage & car, Media, House health, Upcoming? | | |
 
 Medium reads column 1 then column 2 in exactly the narrow priority order, and balances at the 938 px card
-(about 1,000 px against 950 px of content). Each column is a flex stack (`gap: var(--agr-gap)`). The **last
-raised panel in each column** (hero or raised surface, never a quiet one) gets `flex: 1 1 auto`, so column
-bottoms align as in the reference without stretching a transparent bordered box into empty space; quiet panels
-below it keep their content height. A hidden optional panel (no cameras, no calendars, no vehicle and no
+(about 1,000 px against 950 px of content). Each column is a flex stack (`gap: var(--agr-gap)`). One panel per
+column takes the column's slack: Today if the column has it, else Garage, else the last raised panel (never a quiet
+one, never a panel showing its empty state). It grows by at most 64 px (`MAX_ABSORBED_SLACK_PX`) beyond its content,
+unless the column is within 64 + 32 px of the tallest, when it takes the rest and aligns; short columns whose
+bottoms are within 32 px (`ALIGN_SNAP_PX`) of each other end together. Columns therefore align or end clearly apart,
+never by a near miss, and a stretched panel never opens a large void inside itself (§16.14). Spare height also
+becomes content where that is simple: when more comfort devices are configured than one row shows and Climate's
+column is at least a tile row shorter than its tallest neighbour, Climate shows a second row (budget 4, §6.2.1). A hidden optional panel (no cameras, no calendars, no vehicle and no
 garage) is simply omitted and its column rebalances. If an entire column would be empty in wide mode (for
 example the empty scenario has no cameras or garage), the root falls back to the medium template. The alert
 banner is not a column item: it renders full-width above the columns in every mode.
@@ -1739,7 +1875,7 @@ larger than the `normal` demo, so each panel has a fixed budget, applied by its 
 
 | Panel | Overview shows | Overflow goes to |
 |---|---|---|
-| Climate | at most 2 tiles (one row, as in the reference): climate first, then air, then bed | "+N more" → climate drawer (all tiles) |
+| Climate | at most 2 tiles (one row, as in the reference): climate first, then air, then bed; 4 (two rows) while its column has a tile row of spare height | "+N more" → climate drawer (all tiles) |
 | Home: rooms | at most 6 room chips (rooms with lights on first, then config order) | "All rooms and devices" → home drawer |
 | Home: vacuums | at most 2 rows (error, then cleaning or returning, then the rest) | home drawer |
 | Home: appliances | active appliances (at most 3); idle ones collapse into one "N idle" row | home drawer |
@@ -1764,10 +1900,17 @@ demo mode, where the same layout may scroll by the ribbon's height, which is rep
 - **Hard gate:** the `normal` scenario at 1440×900 with the sidebar collapsed fits the viewport height with no
   page scroll, and wide-mode column bottoms align within 2 px. Each panel's measured height and its target are
   also written to `test-results/metrics/layout.json`, so a miss names the owning package.
-- **`dense` at 1440×900 (both sidebar states):** no horizontal overflow anywhere and column bottoms aligned
-  within 2 px. Vertical overflow is allowed and is **reported, not failed** in the same metrics file, and WP14
-  tracks it. More rooms, vacuums, appliances and health problems make a hard dense fit unreachable without
-  shrinking type, which is not allowed.
+- **`normal` at 1440×900 with the sidebar expanded:** column bottoms aligned within 2 px as well.
+- **`dense` at 1440×900 (both sidebar states):** no horizontal overflow anywhere, and column bottoms either aligned
+  (within 2 px) or at least 31 px apart, never more than 120 px apart (the 64 px slack cap with its 32 px snap).
+  Vertical overflow is allowed and is **reported, not failed** in the same metrics file. More rooms, vacuums,
+  appliances and health problems make a hard dense fit unreachable without shrinking type, which is not allowed.
+- **No void inside a panel:** `normal` at every §6.1 row, and `dense`, `degraded`, `restricted` and `starting` at
+  1440×900 (plus `degraded` at 1194×834 collapsed): no gap between a panel's children exceeds 40 px.
+- **The 640 gate (one calm column):** `normal`, `dense`, `degraded` and `restricted` at 640×900 split no word
+  across lines and leave no gap inside a panel taller than 48 px.
+- **1194×834 with the sidebar collapsed does not fit without scrolling** and is not a gate: column 1 needs about
+  735 px of the 649 px available, which only a budget change could buy.
 - If `normal` does not fit, the budget constants are tightened in one file (for example a rooms budget of 4,
   or metrics placed inline beside the hero); panels never shrink type or targets to fit.
 
@@ -1798,7 +1941,7 @@ Wide (card at or above 1080 px):
 └──────────────────────────────┴────────────────────────────────┴──────────────────────────────┘
 ```
 
-Medium (640 to 1079 px; the header is shown in its medium variant, and card widths below 800 use the compact
+Medium (700 to 1079 px; the header is shown in its medium variant, and card widths below 800 use the compact
 header, §6.4):
 
 ```text
@@ -1813,7 +1956,7 @@ header, §6.4):
 └───────────────────────────────────┴───────────────────────────────────┘
 ```
 
-Narrow (under 640 px):
+Narrow (under 700 px; room chips and comfort tiles go one per row below a 288 px panel box):
 
 ```text
 ┌──────────────────────────────────┐
@@ -1872,7 +2015,10 @@ dark text pair 5.1 or above). Plain `--agr-olive` (3.98:1 on canvas, 4.16:1 on i
 (2.6–3.0:1) are for fills, hairlines, decoration and icons that reach 3:1 against their background, never for
 text and never as the only indicator of state. Tone `ok` therefore renders text in olive-ink and tone
 `attention` in brass-ink. A fitness test greps component styles for `color: var(--agr-olive)` and
-`color: var(--agr-brass)` and fails on either.
+`color: var(--agr-brass)` and fails on either, and `tests/styles/contrast.test.ts` computes every text and
+background pair (text tokens on canvas, surface, inset, hero and the composited quiet surface, plus the filled
+controls and tinted pills) from the values in `tokens.ts` for both themes and requires 4.5:1. The tightest is the
+powered-device toggle's surface glyph on olive at 4.53:1.
 
 ```css
 :host {                                     /* light: primary acceptance reference */
@@ -1912,6 +2058,11 @@ text and never as the only indicator of state. Tone `ok` therefore renders text 
 :host {
   --agr-font-display: 'Agraharam Serif', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --agr-font-ui: 'Agraharam Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* the type scale as font shorthands; a rule needing tabular digits declares them after the shorthand */
+  --agr-type-label: 650 12px/16px var(--agr-font-ui);  --agr-type-meta: 500 13px/18px var(--agr-font-ui);
+  --agr-type-meta-strong: 600 13px/18px var(--agr-font-ui); --agr-type-control: 600 14px/20px var(--agr-font-ui);
+  --agr-type-body: 450 15px/22px var(--agr-font-ui);   --agr-type-strong: 620 15px/22px var(--agr-font-ui);
+  --agr-type-value: 450 22px/26px var(--agr-font-display); --agr-type-title: 450 24px/30px var(--agr-font-display);
   --agr-radius-panel: 24px; --agr-radius-inner: 15px; --agr-radius-control: 999px;
   --agr-space-1: 4px; --agr-space-2: 8px; --agr-space-3: 12px; --agr-space-4: 16px;
   --agr-space-5: 20px; --agr-space-6: 24px; --agr-space-8: 32px;
@@ -1922,7 +2073,7 @@ text and never as the only indicator of state. Tone `ok` therefore renders text 
 }
 @media (prefers-reduced-motion: reduce) { :host { --agr-dur-1: 0ms; --agr-dur-2: 0ms; --agr-dur-3: 0ms; } }
 :host {                                     /* reset what HA's body and hui-card would otherwise leak in */
-  font: 450 15px/22px var(--agr-font-ui); color: var(--agr-ink);
+  font: var(--agr-type-body); color: var(--agr-ink);
   letter-spacing: normal; text-transform: none; text-align: start; font-style: normal;
   -webkit-font-smoothing: antialiased;
 }
@@ -1946,24 +2097,30 @@ Typefaces, registered by `ensureFonts()` (§11.4):
 | `Agraharam Serif` | `@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2` | wght 200–800, opsz 6–72 | 132,000 B | weather hero, clock, tile values, forecast temperatures, percentages, wordmark, condition text |
 | `Agraharam Sans` | `@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2` | wght 100–900 | 34,704 B | labels, controls, names, meta and body text |
 
-Type scale (`typography.ts` classes; `font-optical-sizing: auto` on serif):
+Type scale (`typography.ts` classes, which apply the `--agr-type-*` tokens; components set `font:` only through
+these tokens; `font-optical-sizing: auto` on serif):
 
 | Token / class | Font | Size / line | Weight | Notes |
 |---|---|---|---|---|
 | `.t-hero` | serif | 96/0.9 (content ≥ `hero96`), 80 (≥ `hero80`), 68 | 380 | weather temperature; degree sign at 0.45em, raised |
-| `.t-clock` | serif | 40/44 wide, 34 medium, 30 narrow | 420 | `tabular-nums lining-nums` |
-| `.t-title` | serif | 24/30 | 450 | condition text, wordmark (26), vehicle percentage |
-| `.t-value` | serif | 22/26 | 450 | tile values (72°, 82%), forecast temperatures, percentages; `font-optical-sizing: auto`, tabular lining digits |
-| `.t-body` | sans | 15/22 | 450 | names, rows |
-| `.t-strong` | sans | 15/22 | 620 | primary row labels |
-| `.t-meta` | sans | 13/18 | 500 | secondary text (minimum size for non-label text) |
-| `.t-label` | sans | 12/16 | 650 | uppercase section labels, `letter-spacing: .08em`, `--agr-muted` |
+| clock (`agr-clock`) | serif | 40/44 full header, 34 medium, 30 compact | 420 | `tabular-nums lining-nums`; the clock styles itself |
+| `--agr-type-title`, `.t-title` | serif | 24/30 | 450 | condition text, the config-error heading, the wordmark (26 px, the one step above) |
+| `--agr-type-value`, `.t-value` | serif | 22/26 | 450 | tile values (72°, 82%), forecast temperatures, percentages, dialog headings, drawer leads; tabular lining digits |
+| `--agr-type-strong`, `.t-strong` | sans | 15/22 | 620 | primary row labels, tile names |
+| `--agr-type-body`, `.t-body` | sans | 15/22 | 450 | names, rows, banner text, the host reset |
+| `--agr-type-control` | sans | 14/20 | 600 | button and choice labels, the security pill label, camera tile names |
+| `--agr-type-meta-strong` | sans | 13/18 | 600 | small text buttons ("+1 more", "All cameras"), emphasised meta, presence initials |
+| `--agr-type-meta`, `.t-meta` | sans | 13/18 | 500 | secondary text (minimum size for non-label text) |
+| `--agr-type-label`, `.t-label` | sans | 12/16 | 650 | uppercase section labels (`letter-spacing: .08em`, `--agr-muted`); status pills (not uppercase) |
+
+The only `font:` outside these tokens is the presence badge's 9 px glyph, an icon-sized "?" in a 16 px badge.
 
 All changing numbers carry `.num { font-variant-numeric: tabular-nums lining-nums; }`.
 
 Surfaces and hierarchy, to avoid identical cards everywhere:
 
-- **hero** (Today): `--agr-surface-hero`, padding 24, panel shadow.
+- **hero** (Today): `--agr-surface-hero`, panel shadow; 24 px padding in wide (`--agr-hero-pad`, top included), the
+  normal panel padding in medium and narrow.
 - **raised** (Home, Climate, Media, Cameras, Garage): `--agr-surface`, panel shadow.
 - **quiet** (House health, Upcoming): transparent on canvas, 1 px `--agr-line` border, no shadow.
 - Insets (tiles, rows): `--agr-surface-inset`, radius 15, no shadow and no border.
@@ -1973,7 +2130,8 @@ Surfaces and hierarchy, to avoid identical cards everywhere:
 - Icons: Lucide IconNodes, `stroke-width: 1.75`, 20 px default (18 dense, 24 hero), `currentColor`. The full
   curated set is listed below and lands in M0.1.
 - Motion: drawers slide 24 px and fade over `--agr-dur-2` (`@starting-style`; without support they simply
-  appear). Pending feedback is a 2 px brass underline sweep on the button plus the text "Sending". With reduced
+  appear). Pending feedback is a 2 px brass underline sweep on the button plus the text "Sending" (one shared
+  `pendingSweepStyles` rule for `agr-button` and the room chip's round toggle). With reduced
   motion, durations are 0, there is no sweep, the `agr-demo-stream` animation is stopped on a static frame, and
   the text alone remains. No spinners, gradients or glow.
 - Camera tiles: `aspect-ratio: 4 / 3`, image `object-fit: cover`, in every state (privacy, offline and loading
@@ -1982,6 +2140,12 @@ Surfaces and hierarchy, to avoid identical cards everywhere:
   The name sits in an opaque `--agr-surface` pill (`.t-meta`, ink) inset 8 px from the bottom-left of the image,
   so its contrast never depends on the picture. No gradient scrim. Privacy, offline and "No access" tiles use the
   inset surface with an eye-off or unplug line icon, the name and the reason.
+- Comfort tiles stack their value under the name below a 208 px tile (`PANEL_CQ.comfortTileStacked`), and give the
+  round icon's room to the text below 173 px (`PANEL_CQ.comfortTileIcon`). Forecast hour labels set the period ("PM") at 0.85 em, so "10 PM" fits
+  a 40 px cell.
+- `--agr-ghost-quiet` fills loading placeholders on quiet panels (the inset tone is 1.01:1 against them in the light
+  theme). `--agr-media-filter` dims real camera pictures in the dark theme; the demo stills bring their own night
+  palette instead (`simulate.ts`).
 - Identity: one kolam mark beside the wordmark (a 3×3 dot lattice with one continuous looped stroke, brass, 28
   px, `aria-hidden`). It appears nowhere else.
 - Avoid: middle-dot meta strings, arrow-suffixed buttons ("See all →"), monospace data labels, gradient washes,
@@ -2014,7 +2178,7 @@ asks the lead to route a one-line addition to the WP14 owner; it never edits `ic
 ### 7.1 Catalog (`src/ha/actions/catalog.ts`)
 
 Feature masks are core 2026.9.2 values (`features.ts`). "Confirm" means the UI routes through
-`agr-confirm-dialog` and the gateway requires `confirmed: true`. "Observed" is the predicate on the target
+`agr-confirm-dialog` and the gateway requires the confirmation token it mints (§4.7 step 11). "Observed" is the predicate on the target
 entity's state. A † marks a progress predicate.
 
 | Kind | Allowed roles | Service | Data built by gateway | Capability | Precondition (else `not-applicable`) | Unknown state | Arg validation | Confirm | Observed | Timeout |
@@ -2047,7 +2211,7 @@ entity's state. A † marks a progress predicate.
 | security.run | security_action | script.turn_on, target = `config.security.actions[role]` | `{}` (never `variables`) | domain = script | script state ≠ on ("Already running") | deny | role ∈ configured roles; script bound to exactly one role | **yes**; `silence_sound` skips it only while the alarm state is `triggered` or `pending` | last_triggered ≠ before, or state on observed, or entity `context.id` = call context | 10 s |
 | studio_monitors.run | studio_monitors | script.turn_on, target = `config.studioMonitors` | `{}` | domain = script | script state ≠ on | deny | — | no | same as security.run | 10 s |
 
-Step grid (`src/model/steps.ts`, WP0): `stepValue(base, direction, { min, max, step })` returns the next grid
+Step grid (`src/domain/steps.ts`; `src/model/steps.ts` until §16.17): `stepValue(base, direction, { min, max, step })` returns the next grid
 value strictly above (`+1`) or below (`-1`) `base`, then clamps to `[min, max]`, rounded to 6 decimals. An
 off-grid observed target therefore snaps first (22.3 with step 0.5 → `+` 22.5, `−` 22.0), and a converted,
 off-grid `min_temp` (7.2) stays reachable as the clamp result. `agr-stepper` produces values only through it,
@@ -2101,17 +2265,38 @@ a read, not an action.
      permitted alternative, a listbox whose arrows move a local selection plus a separate explicit Apply button,
      is not used in v1. A fitness test rejects these patterns in `src/components/**`.
   Long lists (media sources) use `orientation: 'vertical'` inside the drawer's scroll area. The media drawer's
-  player picker is local view state, not an action, and uses plain buttons.
+  player picker is local view state, not an action: it uses the same group with every option enabled, and
+  choosing a player sends nothing.
+- A device's power is one **"Power" toggle** (`agr-button` with `pressed`): `aria-pressed` reports the observed
+  state and activation asks for the other one, rather than a solid "Turn off" button that read like a state of its
+  own. An unknown state becomes the explicit "On" and "Off" pair (first rule above).
 - Draft lifecycle (rules in §4.7): `drafting` shows "Setting 72°". While this key's ticket is in flight, more
   gestures update the draft (`held`). The held draft is sent once more **only** if that ticket settles
   `confirmed`, the connection is still up, nothing was invalidated and the value still differs from the observed
   target. After `uncertain` or `failed`, and on disconnect, preview, config change or unmount, the draft is
   discarded: the control shows the **observed** value with "Not sent" and waits for a new gesture.
 - Range inputs carry `aria-valuetext` with units ("72 degrees", "40 percent", "Volume 35 percent").
-- Status presentation: `pending` → "Sending". `sent` → "Waiting for <name>". `confirmed` → a check icon and "Done"
-  for 4 s ("Requested" for scripts). `uncertain` → brass-ink text plus the message and a Dismiss button.
-  `failed` → danger text plus the message and Dismiss. Every status is announced through one polite live region
-  per section.
+- Status presentation, worded in one place (`ticketPhaseCopy()` and `ticketShortText()` in `model/action-copy.ts`):
+  `pending` → "Sending". `sent` → "Waiting for <subject>". `confirmed` → a check icon and "Done" for 4 s
+  ("Requested" for scripts). `uncertain` → brass-ink text with the gateway's §7.3 message and a Dismiss button.
+  `failed` → danger text with the message and Dismiss. A control showing its own progress uses the short word
+  ("Sending", "Waiting for a response", "Done" or "Requested", "No response yet", "Not done"). The garage's and the
+  security controller's own timeout and reversal lines are worded by the gateway's messages, so no section
+  overrides them.
+- **One live region per section or drawer**, `agr-control-notes`, fed by `controlNotes()`. Every section announces
+  the same things: one note per subject (device, room or action) with a current ticket, in the section's subject
+  order, so a newer ticket never hides an older outcome that still needs acknowledging; a note for each discarded
+  draft ("Not sent …", with Dismiss); and, for a stepper, a neutral note while its draft is pending ("Target 73°F",
+  with the scale the stepper itself reads; announced only, never dismissible), because a stepper's value change is
+  otherwise silent (a range input announces its own value). Uncertain and failed outcomes and discarded drafts are
+  always visible with Dismiss. Progress notes are visible where the controls show none (Climate, Media, Garage)
+  and announced only where each control shows its own progress in place (Home rows and chips, the security
+  drawer's buttons). A security ticket no button here carries (it predates the drawer) shows its progress
+  visibly in the region, since it is what explains every action's `busy` state (§16.17). Button status text is
+  static; the region is always rendered and takes no space while nothing in it is visible. The region is
+  `role="status"` with `aria-atomic="false"` and `aria-relevant="additions text"`, so a change re-reads only the
+  note that changed, never every note. Every Dismiss goes through `ActionController.dismiss(key, {draft,
+  ticket})`, which clears what the note stands for and re-renders.
 - A disabled control always exposes its reason as visible meta text when space allows, and always as an
   `aria-describedby` association.
 
@@ -2119,11 +2304,11 @@ a read, not an action.
 
 | Code | Message |
 |---|---|
-| disconnected | Paused while Home Assistant is disconnected. While resyncing: "Paused until Home Assistant sends current states." (After a request: "Not sent: Home Assistant was disconnected. Nothing was changed.") |
+| disconnected | Paused while Home Assistant is disconnected. While resyncing, and for a target whose object is still the resync base's after the barrier cleared (not yet refreshed by the snapshot, §16.17): "Paused until Home Assistant sends current states." (After a request: "Not sent: Home Assistant was disconnected. Nothing was changed.", or for the resync cases "Not sent: paused until Home Assistant sends current states. Nothing was changed.") |
 | preview | Controls are off while you edit the dashboard. |
 | controls-off | Controls are turned off in the dashboard configuration. |
 | not-allowed / domain-mismatch | This control isn't set up for {name} in the dashboard configuration. |
-| missing-entity | {name} wasn't found in Home Assistant. Check the dashboard configuration. |
+| missing-entity | {name} wasn't found in Home Assistant. (Which binding to fix is a Diagnostics matter, §16.13.) |
 | unavailable | {name} is unavailable right now. |
 | state-unknown | {name} hasn't reported its state, so this control is paused until it does. (Garage: "The garage door hasn't reported its position, so it can't be moved from here.") |
 | not-applicable | (contextual, e.g. "Already open", "Already running") |
@@ -2142,6 +2327,10 @@ a read, not an action.
 | timeout | {name} didn't confirm within {seconds} seconds. It may still respond. Check it before trying again. |
 | unknown | Something went wrong sending the request. Nothing will be retried automatically. |
 
+`{haMessage}` is HA's own text with every entity-ID-shaped token removed (HA words errors as "Entity cover.x does
+not support action …"), so no entity ID reaches normal UI; when nothing readable remains the fallback without
+`: {haMessage}` is used (§4.7, §16.15).
+
 ---
 
 ## 8. Security drawer: content and copy (`agr-security-drawer`, `security-copy.ts`)
@@ -2153,45 +2342,56 @@ as text (escaped). Status rows are separate elements, and the UI never combines 
 
 | Row label | Source | Value rendering | Helper text (always shown, meta) |
 |---|---|---|---|
-| Alarm | `security.alarm` state | `alarm-labels.ts` (below) | Actual protection reported by the alarm panel. |
-| Policy | `security.policy` | `formatEntityState` (option text verbatim) | Chooses how the house arms. It is not the alarm state. |
-| Suggested mode | `security.suggested_mode` | `formatEntityState` | What the controller would choose right now. |
-| Commissioning | `security.commissioning` | on → "Interlock on"; off → "Off"; other → status label | Managed outside this dashboard. |
-| Health | `security.health_text` | text, capped at 200 chars | Reported by the security controller. Not a coverage test. |
+| Alarm | `security.alarm` state | `domain/alarm.ts` (below) | What the alarm panel reports right now. |
+| Arming policy | `security.policy` | `formatEntityState` (option text verbatim) | How the house decides when to arm. It is not the alarm state. |
+| Would choose | `security.suggested_mode` | `formatEntityState` | The mode the security controller would pick right now. |
+| Commissioning | `security.commissioning` | on → "Setup mode on"; off → "Off"; other → status label | Setup mode for the security system. Changed outside this dashboard. |
+| Health | `security.health_text` | text, capped at 200 chars | A status message from the security controller, not a sensor test. |
 
-Alarm labels and tones (`src/model/alarm-labels.ts`, shared with the header pill): disarmed "Disarmed" (neutral);
+Alarm labels and tones (`src/domain/alarm.ts`, shared with the header pill, the confirm dialog and the gateway; the
+icon is `model/alarm-labels.ts`; state keys are matched with `Object.hasOwn`, so "toString" is never a known state): disarmed "Disarmed" (neutral);
 armed_home "Armed home", armed_away "Armed away", armed_night "Armed night", armed_vacation "Armed vacation",
 armed_custom_bypass "Armed custom" (ok: olive-ink text); arming "Arming", pending "Entry delay", disarming
 "Disarming" (attention: brass-ink text); triggered "Alarm triggered" (danger); unavailable "Alarm unavailable",
 unknown "Alarm state unknown", missing-binding "Alarm not found" (muted); disconnected → the last known label with
 `stale: true` (muted), always accompanied by a separate "Last known" text element (header pill line two, drawer
-row meta). A policy value of "Auto" never changes the alarm label or tone.
+row meta). A policy value of "Auto" never changes the alarm label or tone. The icon comes from the same module
+(`alarmIcon`), so the pill and the drawer draw it alike: shield-off disarmed, shield-check armed, shield-alert for a
+triggered alarm and every transition (arming, entry delay, disarming), and a plain shield for anything not known
+live (stale, unknown, unavailable, not found).
 
 ### 8.2 Actions (only configured roles render; each button has its consequence line beneath)
 
 All copy in this table, and the ticket copy below, lives in `src/model/action-copy.ts` (WP0) keyed by role.
 The drawer reads button labels and consequence lines from it, and `agr-confirm-dialog` reads the confirm copy from
-it by the action it will execute.
+it by the action it will execute. Button labels are in sentence case like every other button (§16.13); Night, Away
+and Vacation (the controller's protection modes) and Auto (its policy) keep their capitals, as in the consequence
+lines.
 
 | Group heading | Button label | Consequence line | Confirm title | Confirm body | Confirm button |
 |---|---|---|---|---|---|
-| Sound | Silence Sound | Stops the alarm sound. Protection and the current policy stay the same. | none while the alarm is `triggered` or `pending`; otherwise "Silence Sound?" | (otherwise) Stops the alarm sound. Protection and the current policy stay the same. | Silence Sound |
-| Disarm | Disarm & Hold | Turns protection off and keeps it off until you resume Auto arming or choose another hold. | Disarm and hold? | Protection turns off and stays off until you resume Auto arming or choose another hold. This is not the same as silencing the sound. | Disarm & Hold |
+| Sound | Silence sound | Stops the alarm sound only. Protection and the current policy stay the same. | none while the alarm is `triggered` or `pending`; otherwise "Silence sound?" | (otherwise) Stops the alarm sound only. Protection and the current policy stay the same. | Silence sound |
+| Disarm | Disarm & hold | Turns protection off and keeps it off until you resume Auto arming or choose another hold. | Disarm and hold? | Protection turns off and stays off until you resume Auto arming or choose another hold. This is not the same as silencing the sound. | Disarm & hold |
 | Holds | Hold Night | Requests Night protection and keeps it until you resume Auto arming. | Hold Night? | The security controller will arm Night and keep it until you resume Auto arming. | Hold Night |
 | Holds | Hold Away | Requests Away protection and keeps it until you resume Auto arming. | Hold Away? | The security controller will arm Away and keep it until you resume Auto arming. | Hold Away |
 | Holds | Hold Vacation | Requests Vacation protection and keeps it until you resume Auto arming. | Hold Vacation? | The security controller will arm Vacation and keep it until you resume Auto arming. | Hold Vacation |
-| Auto | Resume Auto Arming | Ends the current hold so the Auto policy chooses the mode again. Commissioning is not changed. | Resume Auto arming? | The Auto policy will choose the mode, which may arm or disarm the house right away. Commissioning is not changed. | Resume Auto Arming |
+| Auto | Resume Auto arming | Ends the current hold so the Auto policy chooses the mode again. Commissioning is not changed. | Resume Auto arming? | The Auto policy will choose the mode, which may arm or disarm the house right away. Commissioning is not changed. | Resume Auto arming |
 | Departure | Prepare garage departure | Disarms for a trusted departure through the garage. It does not open the garage door. | Prepare garage departure? | This disarms the house so you can leave through the garage. The garage door does not move. Open it separately from the Garage panel. | Prepare garage departure |
 
 Every confirm dialog has **Cancel** as its default-focused secondary button, and Cancel sends nothing. Ticket copy
-for security actions:
+for security actions follows §7.2, with the security controller as the subject:
 
-- pending: "Sending request"
-- sent: "Request sent. Waiting for the security controller."
-- confirmed: "Requested. The alarm state above updates when the controller responds."
-- uncertain: "No response from the security controller after 10 seconds. Check the alarm state before trying
-  again."
+- pending: "Sending"; sent: "Waiting for the security controller"; confirmed: "Requested" (a script, never "Done");
+- uncertain: the gateway's timeout line, "No response from the security controller after 10 seconds. Check the
+  alarm state before trying again." (`SECURITY_TICKET_COPY`);
 - failed: the §7.3 message.
+
+All roles share the `security` ticket key, so `SecurityTickets` (`security-tickets.ts`) remembers the button the
+user activated and the newest ticket id at that moment: only a newer ticket is that button's. The button shows the
+short progress in place ("Sending", "Waiting for a response", "Requested", "No response yet", "Not done"); the
+drawer's live region, at the top of Actions, announces each phase named by the action ("Hold Night Waiting for the
+security controller") and keeps an uncertain or failed outcome visible with Dismiss, which returns focus to the
+button. A ticket started before the drawer opened is announced under "Security" and claims no button.
 
 The UI never claims an arm or disarm happened. Only the live Alarm row reports it.
 
@@ -2206,14 +2406,18 @@ A list of `security.perimeter` entries, each with name and Closed/Open/Unavailab
 - "Prepare garage departure" appears **only** in this drawer. The Garage panel's Open/Close buttons are
   separate, each with its own confirmation, and departure never chains a door action.
 - No commissioning, walk-test, siren-test or camera-detection controls exist anywhere.
-- Studio monitors (in the Home panel) shows label "Studio monitors", button "Toggle monitors", consequence
-  "Switches both monitors together.", and after the tap "Requested". It never claims an outlet state.
+- Studio monitors (in the Home panel) shows label "Studio monitors", button "Switch monitors", consequence
+  "Switches both monitors together." (visually hidden while the row is at rest), and after the tap "Requested". It
+  never claims an outlet state.
 
 ### 8.5 Garage panel copy (`agr-garage`)
 
 - Door states: Closed, Open, Opening, Closing, Position unknown, Unavailable, Not found.
 - Buttons: "Open garage" when the door is closed; "Close garage" when it is open. Both are disabled while the
-  door is moving or its position is unknown, with the reason shown.
+  door is moving, with the reason shown. A door whose position is unknown offers no buttons at all (two disabled
+  buttons still read as an offer), only the line "Position unknown. Check the garage before using it from here."
+- The door's ticket appears in the panel's live region (§7.2) under the door, named by it ("Garage Sending",
+  "Waiting for Garage"), with Dismiss for an uncertain or failed outcome; the buttons show no progress of their own.
 - Open confirm: title "Open the garage door?", body "The door starts moving when you confirm. Make sure the
   doorway is clear.", button "Open garage".
 - Open confirm, alarm-aware line (`confirmCopyFor(garage.open, context)`, recomputed live while the dialog is
@@ -2236,7 +2440,7 @@ A list of `security.perimeter` entries, each with name and Closed/Open/Unavailab
   Reversed (open request): "The door stopped opening and is closing again. Check the garage before trying again."
   Both show at once when the reversal is observed, in danger text.
 - Confirm copy above lives in `model/action-copy.ts`, keyed by `garage.open` and `garage.close`, with the alarm
-  line built from `model/alarm-labels.ts`.
+  line built from `domain/alarm.ts`.
 
 ---
 
@@ -2267,6 +2471,14 @@ a code (§4.9), so one bad update can never escape to HA's logging mixin or make
 An accepted `setConfig` that is deep-equal to the current input is a no-op (HA re-sends identical configs after
 `lovelace_updated`), so an unrelated dashboard save does not close an open drawer.
 
+**A runtime starts only from a hass HA just delivered (`#hassSinceDetach`).** HA assigns `hass` to a card before it
+attaches it, so a `hass` received after the latest detach is current. A `hass` retained from before a detach may
+predate a reconnect, and the resync tracker must only ever observe states HA just delivered (§4.4). The root
+therefore keeps a `#hassSinceDetach` flag: set by every `hass` it receives, cleared by `disconnectedCallback` and
+by the orphan disposal. `ensureRuntime()` builds a `HassHost` only while the flag is set; otherwise the next `hass`
+builds it. A runtime that survived a detach keeps its last `hass` for tracker re-ingests only, and HassHost holds
+it as resyncing if another host cleared the barrier meanwhile (§4.4, §16.17), until its own next `update()`.
+
 Runtime key = `hostKind + '|' + demoScenario + '|' + sorted bound IDs`. A `setConfig` that flips `demo` with
 identical bindings therefore always replaces the host, so a `HassHost` can never stay alive under the demo label,
 nor a `DemoHost` under a live one. The gateway is rebuilt on **every** accepted config, even with the same key,
@@ -2292,7 +2504,8 @@ Connection phase (store meta 'connection', the live socket getter and the resync
   connected    ──connected=false──────────────────────────────────► disconnected
   connected    ──'ready' or new connection object, no disconnect seen► resyncing
   disconnected ──connected=true or 'ready'────────────────────────► resyncing
-  resyncing    ──ingest with a hass.states reference ≠ base()─────► connected
+  resyncing    ──the barrier clears (§4.4: the snapshot after the known pre-snapshot map, the map after an
+                 ambiguous first map, or RESYNC_GRACE_MS after an ambiguous first map)──► connected
   resyncing    ──connected=false──────────────────────────────────► disconnected
   on → disconnected or resyncing (leaving connected): gateway epoch increments (drafts and confirm dialogs
          discarded as "Not sent"); reader.connectionGeneration() increments (old subscriptions are never
@@ -2308,6 +2521,8 @@ Connection phase (store meta 'connection', the live socket getter and the resync
          (privacy entity fresh, §9.3); calendars refresh once. Zero service calls; no replay; no draft revived.
   config.state = STARTING: connection indicator "Starting", banner "Home Assistant is starting. Some devices may
          show as unavailable."
+  live alarm triggered: banner "Alarm triggered." (role="alert") with an "Open Security" button, and nothing more:
+         the button already says where to go; a stale triggered state is never claimed.
 ```
 
 ### 9.2 Weather forecast (`forecast-controller.ts`, `ha/hass/forecast.ts`)
@@ -2326,7 +2541,9 @@ States per type: idle → subscribing → live(payload) | unsupported | error
   forecast:null → live with an empty list
   errors: 'forecast_not_supported' → unsupported; 'invalid_entity_id' → error('entity'); other → error
   retry: error('entity') (likely while HA is starting) gets ONE new attempt when haState becomes RUNNING and
-       one on each 'registry' meta change; no timers, no other automatic retry
+       one on each 'registry' meta change; the signal is latched until an error('entity') slot consumes it, so
+       an invalid_entity_id that arrives after RUNNING (the subscribe was still in flight) still retries
+       (§16.15); no timers, no other automatic retry
   teardown details (subscribeForecast in ha/hass/forecast.ts returns a synchronous Unsubscribe):
     - the stop path NEVER awaits subscribeMessage: a subscribe started while the socket is closing with
       resubscribe:false may never settle in hajs
@@ -2348,7 +2565,7 @@ VM mapping: hourly live → 'hourly' (next 8 from now);
               note "Hourly forecast isn't provided by this weather source.";
             neither → 'unavailable' + "This weather source doesn't provide a forecast.";
             error → 'unavailable' + "Forecast couldn't be loaded. Current conditions are still live.";
-            disconnected → 'unavailable' + "Forecast paused while disconnected."
+            disconnected → 'unavailable' + "Forecast resumes when Home Assistant reconnects."
 High/low: first daily item (temperature, templow); twice_daily → first daytime temperature / first night
           temperature (or templow); absent otherwise. Never inferred from hourly data. Some integrations return
           tomorrow as the first daily item in the evening: the item's local date (in the formatter's time zone)
@@ -2395,16 +2612,23 @@ States: idle ─fetchAllowed─► fetching ─ok─► showing ─interval─�
 camera's access_token attribute rotates every 5 minutes, which creates a new entity object each time.
 denied resets on a bound-ID change, reconnect or 'user' meta change. URLs and Blobs are never logged or stored.
 Privacy tiles: inset surface, eye-off line icon, name, "Privacy on"/"Privacy status unavailable", no live button.
+live: false tiles: no live affordance at all (no button, nothing focusable): the still with its name pill, or with
+thumbnails: false too, the camera line icon, name and "Live view off". The binding key (camera, privacy entity, on
+value) travels in CameraTileVM.binding.
 thumbnails: false tiles: inset surface, camera line icon, name, "Live view on request", live button (gated the
 same way). Cameras without a privacy binding use this mode by default in the generated private config (§13.4);
 the operator opts a camera in explicitly. install/README.md explains why.
 Every tile, in every state, is a 4:3 box (§6.5).
 ```
 
-### 9.4 Camera live view (`agr-camera-dialog`, `ha/hass/camera.ts`)
+### 9.4 Camera live view (`agr-camera-dialog`, `ha/live-view-controller.ts`, `ha/hass/camera.ts`)
+
+`LiveViewController` holds the whole lifecycle below (state, run numbering, release, reconcile before every render,
+hidden-tab handling and the snapshot fallback); `agr-camera-dialog` renders its state and the notices.
 
 ```text
-open(entity): require gate=allowed ∧ !preview, else the dialog shows the gate reason and never starts
+open(entity): require camera.live ∧ gate=allowed ∧ !preview, else the dialog shows the reason and never starts
+  (a camera configured live: false shows "Live view is off" and offers no "Resume live view")
   handle = await reader.openLiveStream(entity)
     HassHost → openLiveStream(ctx, entity) in ha/hass/camera.ts:
               window.loadCardHelpers (3 s timeout) → createCardElement({type:'picture-entity', entity,
@@ -2428,6 +2652,9 @@ open(entity): require gate=allowed ∧ !preview, else the dialog shows the gate 
     DemoHost: {kind:'demo', element: <agr-demo-stream>}
   native|demo → mount handle.element in a 16:9 box (--ha-card-border-radius / box-shadow overridden);
                 aspect_ratio + fit_mode make the embedded card fill that box instead of sizing to the stream
+  the dialog's width follows the frame's aspect: min(960px, 94vw, (92dvh − 200px) × aspect + 48px), so the frame
+                fills the content width without exceeding the viewport height; a snapshot still takes its own aspect
+                (1 to 2.4, else 16:9 with themed bars)
   unsupported → snapshot fallback: fetchCameraSnapshot every 2 s while open+visible; label
                 "Snapshot view. Refreshes every 2 seconds."
   writes services.status 'live-view' = native | fallback | fallback (helpers-failed) | demo
@@ -2450,7 +2677,10 @@ DOM.
 
 The calendar is active only when `calendars[]` is configured. It fetches on connect, then every 15 minutes while
 `phase = connected ∧ document visible`, and once when the phase returns to `connected` after a reconnect (that
-is, after the resync barrier clears, never during it). The window is now → end of tomorrow. Each refresh uses a
+is, after the resync barrier clears, never during it). The window is now → end of tomorrow, and the selector's
+today/tomorrow grouping uses the same days: calendar days in the formatter's time zone (`Formatter.dayKey` with
+the `sameDay`/`dayStart`/`dateStart` helpers in `format.ts`), so a profile showing server time in another zone
+groups by the server's day; all-day dates are read as dates in that zone (§16.15). Each refresh uses a
 new AbortController, and earlier results are discarded. Teardown aborts and clears the timer. Errors show
 "Calendar couldn't be loaded." and keep the previous events, marked stale. The request path and query are built
 with `encodeURIComponent` and `URLSearchParams` (§4.4). Today/tomorrow grouping re-runs on the `'clock'` meta, so
@@ -2584,8 +2814,10 @@ and `uncertain('connection-lost')` (degraded), uncertain security ticket (alert,
   sets the socket getter true, fires `ready` synchronously, pushes `hass` with `connected: true` and the **same**
   `states` reference (as the frontend's `ready` handler does), and only after `snapshotDelayMs` (tests: one
   macrotask; shell: 400 ms) pushes the snapshot: a new states map in which every entity is a new object, queued
-  outage changes are applied, and entities "deleted during the outage" keep their old objects. It exercises the
-  **real** `HassHost`, resync barrier and gateway in the browser with no network.
+  outage changes are applied, and entities "deleted during the outage" keep their old objects. Nothing else reaches
+  `states` between `ready` and the snapshot. Entity identity follows hajs: a live change replaces only the changed
+  entity's object (`{ ...delivered, [id]: changed }`), so per-entity freshness after a reconnect is testable
+  (§16.15). It exercises the **real** `HassHost`, resync barrier and gateway in the browser with no network.
   `loadCardHelpers` is absent, so the live view uses the snapshot fallback; tests that need the native path stub
   it.
 - Import boundary: `main-dev.ts` is the only dev file that imports element source (`../agraharam.ts`).
@@ -2628,6 +2860,14 @@ and `uncertain('connection-lost')` (degraded), uncertain security ticket (alert,
   "verify": "npm run format:check && npm run typecheck && npm test && npm run build && npm run check:public"
 }
 ```
+
+`npm test` includes the architecture fitness rules and the unused-export guard
+(`tests/architecture/exports.test.ts`, parsed with the TypeScript compiler API), so `verify` enforces both. Every
+name a module under `src/` (or the build plugin `vite-lit-css.ts`) exports must be imported by another
+**production** file (`src/`, `scripts/` or a root build config); tests do not count as users. An export only
+tests use must be listed in the guard's `TEST_SEAMS` with a one-line reason, or deleted; an element class named
+in its own module's `HTMLElementTagNameMap` counts as used (it is the type behind its tag). The guard asserts a
+minimum number of scanned exports, so it can never pass vacuously, and rejects stale `TEST_SEAMS` entries.
 
 Playwright 1.63 does not reuse the cached 1.62 browser builds. Because `e2e/keyboard.spec.ts` always runs in
 WebKit (§12.2), the README documents `npx playwright install chromium webkit` as the **default** setup step, so
@@ -2693,9 +2933,10 @@ therefore cover files **before** they are staged, and it must know every real ID
   that the private files happen not to contain. Planted IDs in scanner tests therefore use `demo_` object IDs.
 - **Output**: each hit prints `path:line:column` and the rule (`entity-id`, `object-id` or `denylist`), never the
   matched value or its surrounding line, and the script exits 1. `--dist <dir>` limits the scan to one built
-  directory (used by `install.sh`). Without any private JSON file it prints "skipped: no private files" and
-  exits 0. The postbuild dist scan (§11.5) uses the same `public-scan.mjs` forbidden set, matcher and
-  exemptions.
+  directory (used by `install.sh`). A missing private directory exits 2 unless `--allow-missing-private` is
+  given (then it prints "skipped" and exits 0), so on a clone without `.dashboard-local/` both `check:public` and
+  `verify` exit 2; a private directory without JSON files prints "skipped: no private files" and exits 0. The
+  postbuild dist scan (§11.5) uses the same `public-scan.mjs` forbidden set, matcher and exemptions.
 - **Commit procedure** (README, and WP14's handoff): `npm run verify` (which runs `check:public`, now covering
   untracked files), then `git add …`, then run `npm run check:public` **again** so the staged blobs are scanned,
   then commit. The lead's commit step in the pipeline runs the same sequence. No git hook is installed
@@ -2705,7 +2946,9 @@ therefore cover files **before** they are staged, and it must know every real ID
 
 `target ES2022`, `module ESNext`, `moduleResolution bundler`, `lib [ES2022, DOM, DOM.Iterable]` (ES2022, not
 ES2023: the ES2023 array-copy methods are below the browser floor, §1.2 item 11), `strict`,
-`noUncheckedIndexedAccess`, `noImplicitOverride`, `noFallthroughCasesInSwitch`, `noEmit`,
+`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` (an optional property is absent, never `undefined`, which
+is why objects spread `...(x !== undefined && { x })`), `noUnusedLocals`, `noImplicitOverride`,
+`noFallthroughCasesInSwitch`, `noEmit`,
 `allowImportingTsExtensions`, `experimentalDecorators: true`, `useDefineForClassFields: false`,
 `verbatimModuleSyntax: true`, `erasableSyntaxOnly: true`, `skipLibCheck`, `allowJs` (for `scripts/*.mjs` imports
 in tests),
@@ -2745,6 +2988,13 @@ export default defineConfig({
   },
 });
 ```
+
+The config also registers `litCssMinify()` (`vite-lit-css.ts`, build only): it finds every `css` tagged template
+in `src/` with the TypeScript parser and removes comments and the whitespace CSS ignores from their static text,
+keeping quoted strings, unquoted `url(…)` bodies, every `${…}` interpolation with the space beside it, and every
+line break (so the source map passes through unchanged). A comment that was the only separator between two tokens
+leaves an empty `/**/`, and a run holding an empty custom property (`--x: ;`) is left as written (§16.17). The e2e screenshots with and without it differ only within the noise of two runs of
+one build (a few anti-aliased pixels in under 0.005 % of a frame).
 
 `build-env.ts` reads `package.json` (`with { type: 'json' }`), runs `execFileSync('git', ['rev-parse',
 '--short=12', 'HEAD'])` (no shell; `'unknown'` on failure), and gets `commitTime` from
@@ -2802,6 +3052,17 @@ manifest.json                        {name, version, git_sha, git_dirty, commit_
 SHA256SUMS                           "<sha256>  <path>" for every file above, sorted; `shasum -a 256 -c`
 ```
 
+**Size target (integration decision, supersedes the 220 KB figure above and in §15 #19).** `postbuild.mjs` prints one
+size line (raw and gzip bytes against the target) and warns above **480 KB raw**, where KB means KiB (480 × 1024 =
+491,520 B, `BUNDLE_SIZE_TARGET_BYTES`); each build's exact raw size per file is in its `manifest.json`, and the
+gzip size only in the size line. After the maintainability pass (§16.16) the bundle measured 437,486 B raw and 125,015 B gzip,
+down from 482,999 B and 134,426 B (the Lit `css` minification alone saves about 37.6 KB raw): nine sections, the full §7.1 catalog with
+request validation, config validation, the DemoHost with fictional fixtures for nine scenarios, Lit and the curated
+Lucide nodes. The largest contributors are the action gateway, Home, the demo fixtures and the primitives; none is
+optional. 480 KB loads in well under HA's 2 s define window on the LAN or through the tunnel (§15 #19), the fonts
+load separately with `display: swap`, and features are not cut for size. The figure stays a warning, not a failure,
+so a real regression is visible in the build log.
+
 `scripts/postbuild.mjs`, in order; any failure exits non-zero:
 
 1. Move `*.map` to `dist/sourcemaps/<version>/`. That directory is never installed. Fixtures are fictional, but
@@ -2822,6 +3083,7 @@ SHA256SUMS                           "<sha256>  <path>" for every file above, so
      object IDs, denylist literals) may appear in any dist file, except the reviewed exemptions shared with
      `check-public.mjs` (§11.1).
 5. Write `manifest.json`, then `SHA256SUMS`.
+6. Log the size line for `agraharam.js`.
 
 Excluded from the bundle by construction: `src/dev/**`, `tests/**`, `e2e/**`, `.dashboard-local/**`, screenshots,
 sourcemaps, `index.html` and `harness.html`.
@@ -2843,16 +3105,16 @@ ACCEPTANCE.md "Meaningful adapter/control checks" mapped to files and cases:
 | # | Requirement | Test files → cases |
 |---|---|---|
 | 1 | No mutation on mount, render, route change, reconnect, demo | `tests/acceptance/a01-zero-mutation.test.ts`: (a) mount + 50 state pushes → `callService` 0; (b) remove + re-append (route change), the edit-mode toggle sequence and the hidden-5-min sequence (§10.3) → 0; (c) reconnect in HA's two-step order (`connected: true` with the old states reference, then the snapshot one macrotask later) → 0, and the same with both in one push → 0; (d) `preview` true/false toggle and `setConfig` change → 0; (e) `demo: true` with spy hass: click every enabled button in every section and drawer, confirm every confirm dialog → **all** FakeHass spies 0 (`callService`, `callApi`, `fetchWithAuth`, `callWS`, `connection.subscribeMessage`, `sendMessage`, `sendMessagePromise`). Live-mode cases (a)–(d) use the same runtime spies: `callService`, `callWS`, `sendMessage` and `sendMessagePromise` 0, and every `subscribeMessage` call has type `weather/subscribe_forecast` (a read); the static call-site rules of row 11 cannot see indirect paths. `tests/ha/hass-host.test.ts`: host lifecycle alone never calls `callService`. Every case also asserts that no unhandled error or rejection occurred (Vitest's default failure, §4.9), because HA's logging mixin would turn one into `system_log.write`. `e2e/fake-hass.spec.ts`: the same with the built bundle, plus `window.__agrPageErrors` and `pageerror` both 0 |
-| 2 | Configured updates propagate; unrelated changes don't rebuild streams | `tests/ha/entity-store.test.ts`: bound change → one notify; unbound → none; identity-only hass → none; reconnect snapshot → one per subscriber. `tests/ha/entity-controller.test.ts`: `requestUpdate` counts. `tests/cameras/camera-dialog.test.ts`: `createCardElement` called once; 50 unrelated updates → same element, never removed or disposed; `el.hass` forwarded. `tests/acceptance/a02-propagation.test.ts`: weather temp change re-renders `agr-today`; a light change does not re-render `agr-cameras` (render spy) |
+| 2 | Configured updates propagate; unrelated changes don't rebuild streams | `tests/ha/entity-store.test.ts`: bound change → one notify; unbound → none; identity-only hass → none; reconnect snapshot → one per subscriber. `tests/ha/entity-controller.test.ts`: `requestUpdate` counts; a change made while detached is rendered on re-attach. `tests/cameras/camera-dialog.test.ts`: `createCardElement` called once; 50 unrelated updates → same element, never removed or disposed; `el.hass` forwarded. `tests/acceptance/a02-propagation.test.ts`: weather temp change re-renders `agr-today`; a light change does not re-render `agr-cameras` (render spy) |
 | 3 | Missing, unknown, unavailable and offline stay distinct; null ≠ 0 | `tests/ha/normalize.test.ts`: precedence table; `numericDisplay` for `null`, `undefined`, `''`, `'unknown'`, `NaN`, `Infinity` → absent "No data", never "0". `tests/cameras/camera-gate.test.ts`: privacy(on), privacy(unknown), offline, missing, disconnected. `tests/acceptance/a03-states.test.ts`: degraded scenario renders "Unavailable", "Not found", "Privacy on", "Privacy status unavailable", "Offline"; vehicle range shows absent; no "0%"/"0 mi" anywhere for null inputs |
 | 4 | Offline/unauthorized disabled; no replay | `tests/actions/gateway.test.ts`: evaluate → disabled('disconnected'); `evaluate()` never returns `confirmation-required` (a confirm-required action evaluates to `{enabled: true, confirm: true}`; Silence Sound flips to `confirm: false` while `triggered`); request while disconnected → failed, `invoke` 0; reconnect → still 0; `request()` after `dispose()` → failed('not-sent'), `invoke` 0; stale `epoch` → failed('not-sent'), `invoke` 0. `Unauthorized` rejection → permission-denied and sticky disabled for that target; reset on user change. `tests/ha/hass-host.test.ts`: stale `hass.connected = true` with `connection.connected = false` → `port.invoke` rejects `PortNotSent`, `callService` 0, gateway shows failed('disconnected'); phase `resyncing` (both flags true, barrier armed) → `port.invoke` rejects `PortNotSent`, `callService` 0. `tests/actions/gateway.test.ts`: `controls: false` → every kind evaluates disabled('controls-off'), `request` → failed, `invoke` 0. `tests/acceptance/a04-offline.test.ts`: every action button `aria-disabled="true"`, still focusable, click and Enter guarded (0 calls), with its `aria-describedby` reason while disconnected; **during the resync barrier** (two-step reconnect, before the snapshot) every action button is still `aria-disabled` with the `disconnected` reason and the alarm pill still shows "Last known"; re-enabled only after the snapshot, with 0 calls; **a pending slider commit (draft timer running) across disconnect then reconnect → 0 calls**, control shows "Not sent" |
 | 5 | One tap = one scoped call; repeats, rejection, delayed ack, timeout | `tests/actions/gateway.test.ts`: exact `ServiceCall` per kind (table-driven from §7.1); second request while pending → busy, `invoke` stays 1; in-flight registry: a second gateway (new instance, same target) → busy until the first ticket settles or expires; `service_validation_error` → failed('rejected') with escaped message; state confirmed before resolve → confirmed at resolve; confirmed after resolve → confirmed; no change → uncertain at the timeout (fake timers), `invoke` still 1 (no retry); `{error: {code: 3}}` → uncertain('connection-lost'); garage close observes `closing` then `opening` → failed('reversed') immediately. `tests/actions/action-controller.test.ts` (WP0, fake gateway): 3 taps → 1 call; **draft held behind a pending ticket + timeout → `invoke` stays 1**, draft `not-sent`; **draft + `{error: {code: 3}}` + reconnect → `invoke` stays 1**; draft held + ticket `confirmed` + value differs → exactly one follow-up; draft equal to observed after confirm → none; **tap then unmount within 800 ms → 0 calls**; preview on, config change and epoch change each cancel the timer → 0 calls. `tests/components/agr-button.test.ts`: double click while pending → one request; held Enter (`repeat: true` keydowns) → one `agr-activate`. `tests/components/agr-choice-group.test.ts`: renders only native `<button aria-pressed>` inside `role="group"` (no radio, `role="radio"`, `select` or `role="listbox"`); ArrowLeft/Right/Up/Down, Home, End, PageUp and PageDown on any option → 0 `agr-choose`; Enter, Space or click on an enabled option → exactly 1; held Enter → 1; activating the pressed (current) option → 0; every `aria-describedby` id resolves inside the same shadow root. `tests/comfort/climate-drawer.test.ts` and `tests/media/media-drawer.test.ts`: arrows across HVAC modes or sources → `invoke` 0; Enter on a non-current option → exactly one `climate.set_hvac_mode` / `media_player.select_source`; while that ticket is pending every option is disabled. `tests/components/agr-stepper.test.ts`: emits `agr-draft` per tap, owns no timers (`vi.getTimerCount() === 0`), renders "Not sent" with the observed value |
 | 6 | Security routing; sound vs persistent disarm; state vs policy | `tests/security/security-drawer.test.ts`: table of label → role → `script.turn_on` target = configured script; "Disarm & Hold" text never equals or contains only "Silence"; Silence Sound → `silence_sound` script, no confirm while `triggered`/`pending`, confirm otherwise; all others require confirm; confirm dialog label equals the drawer button label for every role (including "Prepare garage departure"); alarm `armed_away` + policy "Auto" shows both rows independently; alarm `disarmed` + policy "Auto" never renders "Armed". `tests/config/validate.test.ts`: security action bound to an `alarm_control_panel`/`input_select` entity → wrong-domain; **the same script in `silence_sound` and `disarm_hold` → `duplicate-security-script`**. `tests/actions/gateway.test.ts`: a hand-built config with a duplicated script (bypassing validation) → `security.run` not-allowed, `invoke` 0. `tests/actions/catalog.test.ts`: no alarm/input/select/switch/automation domains; scripts only `turn_on`; no `variables`. `tests/architecture/fitness.test.ts`: `src` contains no `alarm_arm`, `alarm_disarm`, `select_option`, `input_boolean.turn`, `automation.` service strings |
-| 7 | Garage confirmation; cancel; departure is not door movement | `tests/garage/garage.test.ts`: "Open garage" dispatches `agr-request-confirm` with 0 invokes; Cancel/Escape → 0; confirm → exactly one `cover.open_cover` on the configured cover; `request({kind: 'garage.open'})` without `confirmed` → failed('confirmation-required'); unknown position → disabled('state-unknown'); **alarm-aware Open copy**: alarm `armed_away` → the body contains "The alarm is Armed away. Opening the garage may set it off." and, with `prepare_departure` configured, the Prepare garage departure sentence (absent when not configured); `arming` → same line; `unknown`/`unavailable`/stale → the "isn't available" line; `disarmed`/`pending`/`triggered` → no extra line; the alarm changing while the dialog is open updates the copy; Close copy never has the line; confirming still produces exactly one `cover.open_cover` and no script call. `tests/components/agr-confirm-dialog.test.ts`: copy comes from the action (a `ConfirmDetail` has no copy fields); disconnect while open → closed, 0 calls; 60 s with no answer → cancelled, 0 calls; precondition stops holding → confirm button disabled. `tests/actions/gateway.test.ts`: **a cover with `device_class: garage` in the curtain role → `curtain.open` not-allowed, 0 invokes**. `tests/security/departure.test.ts`: "Prepare garage departure" → only the departure script, never `cover.*`; no follow-up door call. `tests/architecture/fitness.test.ts`: `confirmed: true` appears only in `agr-confirm-dialog.ts` |
-| 8 | Features and units respected; no injection | `tests/actions/validate-args.test.ts`: out-of-range temperature, off-step value, mode/preset/source not in list, volume > 1, brightness on onoff-only light → unsupported, missing feature bit → unsupported, missing service → service-missing, unconfigured entity → not-allowed, fan ID with light kind → not-allowed/domain-mismatch, extra keys (`domain`, `service`, `data`, `entity_id`) → not-allowed. `tests/comfort/comfort.test.ts`: step = `target_temp_step`, else 1 °F / 0.5 °C; unit from `unit_system`. `tests/model/steps.test.ts`: observed 22.3, step 0.5 → `+` 22.5 and `−` 22.0; an off-grid converted `min_temp` (7.2) is reachable and accepted by `validate-args`; clamping at max; every `stepValue` output passes the gateway's argument check (property test over random grids); fan percentages are integers. `tests/media/media.test.ts`: transport buttons render only with their bits. `tests/ha/format.test.ts`: weather unit from attributes, no hardcoded °F |
+| 7 | Garage confirmation; cancel; departure is not door movement | `tests/garage/garage.test.ts`: "Open garage" dispatches `agr-request-confirm` with 0 invokes; Cancel/Escape → 0; confirm → exactly one `cover.open_cover` on the configured cover; `request({kind: 'garage.open'})` without a confirmation token (or with a plain flag, a look-alike, a spent token or one bound to another request) → failed('confirmation-required'); unknown position → disabled('state-unknown'); **alarm-aware Open copy**: alarm `armed_away` → the body contains "The alarm is Armed away. Opening the garage may set it off." and, with `prepare_departure` configured, the Prepare garage departure sentence (absent when not configured); `arming` → same line; `unknown`/`unavailable`/stale → the "isn't available" line; `disarmed`/`pending`/`triggered` → no extra line; the alarm changing while the dialog is open updates the copy; Close copy never has the line; confirming still produces exactly one `cover.open_cover` and no script call. `tests/components/agr-confirm-dialog.test.ts`: copy comes from the action (a `ConfirmDetail` has no copy fields); disconnect while open → closed, 0 calls; 60 s with no answer → cancelled, 0 calls; precondition stops holding → confirm button disabled. `tests/actions/gateway.test.ts`: **a cover with `device_class: garage` in the curtain role → `curtain.open` not-allowed, 0 invokes**. `tests/security/departure.test.ts`: "Prepare garage departure" → only the departure script, never `cover.*`; no follow-up door call. `tests/architecture/fitness.test.ts`: only `agr-confirm-dialog.ts` mints confirmation tokens, only the gateway redeems them, and no `confirmed: true` flag exists in `src` |
+| 8 | Features and units respected; no injection | `tests/actions/validate-args.test.ts`: out-of-range temperature, off-step value, mode/preset/source not in list, volume > 1, brightness on onoff-only light → unsupported, missing feature bit → unsupported, missing service → service-missing, unconfigured entity → not-allowed, fan ID with light kind → not-allowed/domain-mismatch, extra keys (`domain`, `service`, `data`, `entity_id`) → not-allowed. `tests/comfort/comfort.test.ts`: step = `target_temp_step`, else 1 °F / 0.5 °C; unit from `unit_system`. `tests/domain/steps.test.ts`: observed 22.3, step 0.5 → `+` 22.5 and `−` 22.0; an off-grid converted `min_temp` (7.2) is reachable and accepted by `validate-args`; clamping at max; every `stepValue` output passes the gateway's argument check (property test over random grids); fan percentages are integers. `tests/media/media.test.ts`: transport buttons render only with their bits. `tests/ha/format.test.ts`: weather unit from attributes, no hardcoded °F |
 | 9 | Camera privacy blocks fetch/stream; release on dismiss/unmount | `tests/cameras/camera-gate.test.ts`: privacy state `on` → privacy(on); `off` → continues; `unknown`, `unavailable`, `''`, `"On"`, `"true"`, `"enabled"` → privacy(unknown); `privacy_on_value: 'off'` inverts; missing privacy entity → privacy(unknown). `tests/config/validate.test.ts`: `privacy_on_value: "On"` → invalid-value. `tests/cameras/camera-tile.test.ts`: privacy on/unknown/unavailable/missing-entity **and an unexpected state string** → `fetchCameraSnapshot` never called and live not offered; privacy flips on mid-fetch → result discarded + object URL revoked; offscreen/hidden → no fetch; `thumbnails: false` → no fetch ever; `snapshot_interval` honored; a new state object with only a rotated `access_token` → no refetch or reset; disconnect → image revoked at once (with and without a privacy binding) and the disconnected tile shown; **resync barrier**: privacy switch off → on during an outage, then a two-step reconnect → `fetchWithAuth` count stays 0 and no live start before the snapshot; after the snapshot the gate is privacy(on) and the count is still 0; a privacy entity absent from the snapshot (old object kept) → privacy(unknown), 0 fetches; privacy still off in the snapshot → exactly one fetch after it; unmount → abort + revoke + observers disconnected; 401 → denied, no further fetches; **401 is session-level**: with two visible tiles, the first tile's 401 → the second tile and the live-view fallback reject without calling `fetchWithAuth` (spy count stays 1); reconnect or a `user` change → one new attempt allowed; 403 → only that tile denied. `tests/cameras/camera-tile.test.ts` also asserts every tile state renders a 4:3 box. `tests/cameras/camera-dialog.test.ts`: live not started under privacy (including an unexpected state string); privacy flips on while open → `dispose` called; close, Escape, unmount, card detach, hidden → `dispose` (the dialog's `close` event alone is enough); reopen → new handle; fallback stops fetching after close; **resume after hidden re-runs the full gate**: privacy turned on (or the connection dropped, or preview turned on) while hidden → on visible, `openLiveStream` is not called and the reason shows; the embedded card config includes `aspect_ratio: '16:9'` and `fit_mode: 'contain'`; during the resync barrier `openLiveStream` is not called; a contained `ll-rebuild` → `onFail('helpers-failed')`, handle disposed, snapshot fallback started after a fresh gate check, status "fallback (helpers-failed)"; the wrapper sets the letterbox background variables. `tests/cameras/live-containment.test.ts` (stubbed `loadCardHelpers`): `ll-upgrade`, `ll-rebuild`, `ll-custom`, `card-visibility-changed`, `hass-more-info` and `hass-action` dispatched from the embedded card never reach the card host; `ll-upgrade` re-assigns `hass`; config has every action `none`; **a `context-request` event dispatched from inside the embedded card propagates past the wrapper** to a listener on the card host (and an unrelated custom event does too). `tests/scripts/private-config.test.ts` (generator camera mapping, §13.4) on `tests/scripts/fixtures/candidates.fictional.json`: `privacy_entity`/`privacy_enabled_value` map exactly to `cameras[].privacy_entity`/`privacy_on_value`; a value other than exactly `on`/`off` (`"On"`, `"true"`, `true`), a privacy entity outside `DOMAINS_BY_ROLE.camera_privacy`, or only one of the two fields set → exit 1 with nothing written; excluding a privacy entity while keeping its camera → exit 1; a camera without a privacy binding → `thumbnails: false`, and `true` only when `camera_thumbnails` opts it in; an unknown `camera_thumbnails` key → exit 1; the generated config, validated and fed to `cameraGate` with the privacy entity `on`, yields `privacy(on)` (the gate actually runs on generated output) |
-| 10 | Forecast unsupported/error/unsubscribe; teardown leaks nothing | `tests/today/forecast-controller.test.ts`: daily+hourly → 2 subscriptions with `{resubscribe: false}` and exact message shape; daily-only → 1 + 'daily-fallback'; none → 0 + 'unavailable'; `forecast_not_supported` → unavailable; teardown/disconnect/entity change → each unsub called exactly once; **stop before `subscribeMessage` resolves → unsub called as soon as it resolves**; **stale generation**: subscribe, then a socket close and reconnect without stop (simulated: FakeHass fires `disconnected` and `ready`, generation moves on), then stop → the old hajs unsub is **not** called, and a late-resolving subscribe from the old generation is dropped, not unsubscribed; a rejecting unsub is logged, never thrown (no unhandled rejection); a never-settling subscribe does not block teardown; late events ignored; first daily item dated tomorrow → "Tomorrow" label; **no subscribe while resyncing**, exactly one per type once the barrier clears; `invalid_entity_id` → error('entity'), then exactly one new attempt on `haState` → `RUNNING` and one on a `registry` meta change, none otherwise; `vi.getTimerCount() === 0` after teardown. `tests/upcoming/calendar-controller.test.ts`: abort + timer cleared on teardown; no calls without `calendars[]`; query built with `URLSearchParams` (an offset containing `+` survives); no refresh during the resync barrier, one after it |
-| 11 | Runtime content escaped | `tests/acceptance/a11-escaping.test.ts`: payloads like `<img src=x onerror=…>` and `<script>` in friendly_name, room name, media_title, calendar summary, health_text and HA error message render as literal text; a recursive shadow-root query finds no `img[onerror]`/`script`. `tests/architecture/fitness.test.ts`: no `unsafeHTML`, `unsafeSVG`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `eval(`, `new Function` in `src`; no dispatch of `hass-more-info`, `hass-action` or `ll-custom` from `src` (HA's raw security more-info stays unreachable); `console.` only in `util/log.ts`; `callService` only in `hass-host.ts`; `components/` and `model/` never import `hass-host.ts`, `actions/gateway.ts` internals or `ServicePort`; no `color: var(--agr-olive)` or `color: var(--agr-brass)`; no regex lookbehind in `src`; the dev/harness import boundary of §10.3. Call-site rules, applied to `src/**` excluding `src/dev/**` (the fake implements these methods): `subscribeMessage` only in `src/ha/hass/forecast.ts` and only with the literal `'weather/subscribe_forecast'`; `callApi` only in `src/ha/hass/calendar.ts`; `fetchWithAuth` only in `src/ha/hass/camera.ts`; no `callWS`, `sendMessage`, `sendMessagePromise` anywhere; no `querySelector('home-assistant')` anywhere in `src` including `src/dev`; the root's only `hass` reads are `user.is_admin` and `themes.darkMode` (§4.4); no `toSorted`, `toReversed`, `toSpliced` or `.with(` on arrays; no `void` call without a `.catch` (§4.9); no `circle-help` or other Lucide alias names in `icons.ts`; no `localStorage`, `sessionStorage`, `indexedDB`, `caches.` or `document.cookie` anywhere in `src/**` including `src/dev/**` (the shell uses URL query state only); no native CSS nesting (`&`), `:has(`, `color-mix(`, `light-dark(` or `subgrid` in `src/**` `css` templates (§1.2 item 11); no `type="radio"`, `role="radio"`, `role="radiogroup"`, `role="listbox"` or `<select` in `src/components/**` (§7.2); `addEventListener` on a connection only in `src/ha/resync.ts` |
+| 10 | Forecast unsupported/error/unsubscribe; teardown leaks nothing | `tests/today/forecast-controller.test.ts`: daily+hourly → 2 subscriptions with `{resubscribe: false}` and exact message shape; daily-only → 1 + 'daily-fallback'; none → 0 + 'unavailable'; `forecast_not_supported` → unavailable; teardown/disconnect/entity change → each unsub called exactly once; **stop before `subscribeMessage` resolves → unsub called as soon as it resolves**; **stale generation**: subscribe, then a socket close and reconnect without stop (simulated: FakeHass fires `disconnected` and `ready`, generation moves on), then stop → the old hajs unsub is **not** called, and a late-resolving subscribe from the old generation is dropped, not unsubscribed; a rejecting unsub is logged, never thrown (no unhandled rejection); a never-settling subscribe does not block teardown; late events ignored; first daily item dated tomorrow → "Tomorrow" label; **no subscribe while resyncing**, exactly one per type once the barrier clears; `invalid_entity_id` → error('entity'), then exactly one new attempt on `haState` → `RUNNING` and one on a `registry` meta change, none otherwise, including an `invalid_entity_id` that arrives after RUNNING (`tests/ha/forecast-retry.test.ts`, latched signal); `vi.getTimerCount() === 0` after teardown. `tests/upcoming/calendar-controller.test.ts`: abort + timer cleared on teardown; no calls without `calendars[]`; query built with `URLSearchParams` (an offset containing `+` survives); no refresh during the resync barrier, one after it |
+| 11 | Runtime content escaped | `tests/acceptance/a11-escaping.test.ts`: payloads like `<img src=x onerror=…>` and `<script>` in friendly_name, room name, media_title, calendar summary, health_text and HA error message render as literal text; a recursive shadow-root query finds no `img[onerror]`/`script`. `tests/architecture/fitness.test.ts`: no `unsafeHTML`, `unsafeSVG`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `eval(`, `new Function` in `src`; no dispatch of `hass-more-info`, `hass-action` or `ll-custom` from `src` (HA's raw security more-info stays unreachable); `console.` only in `util/log.ts`; `callService` only in `hass-host.ts`; `components/` and `model/` never import `hass-host.ts`, `actions/gateway.ts` internals or `ServicePort`, import from `src/ha` only an allowlist with a reason per module (action types, action controller, confirmation, messages, catalog; entity controller and store; host, normalize, features, types, format, derive, status board; camera gate; the snapshot, forecast, calendar and live-view controllers), take only `StoreView` from the entity store and `HassEntityLike` from the host types, never name `HassLike`, `EntityStore` or a `.hass` object, and never import `src/demo` or `src/dev`; no `color: var(--agr-olive)` or `color: var(--agr-brass)`; no regex lookbehind in `src`; the dev/harness import boundary of §10.3. Call-site rules, applied to `src/**` excluding `src/dev/**` (the fake implements these methods): `subscribeMessage` only in `src/ha/hass/forecast.ts` and only with the literal `'weather/subscribe_forecast'`; `callApi` only in `src/ha/hass/calendar.ts`; `fetchWithAuth` only in `src/ha/hass/camera.ts`; no `callWS`, `sendMessage`, `sendMessagePromise` anywhere; no `querySelector('home-assistant')` anywhere in `src` including `src/dev`; the root's only `hass` reads are `user.is_admin` and `themes.darkMode` (§4.4); no `toSorted`, `toReversed`, `toSpliced` or `.with(` on arrays; no `void` call without a `.catch` (§4.9); no `circle-help` or other Lucide alias names in `icons.ts`; no `localStorage`, `sessionStorage`, `indexedDB`, `caches.` or `document.cookie` anywhere in `src/**` including `src/dev/**` (the shell uses URL query state only); no native CSS nesting (`&`), `:has(`, `color-mix(`, `light-dark(` or `subgrid` in `src/**` `css` templates (§1.2 item 11); no `type="radio"`, `role="radio"`, `role="radiogroup"`, `role="listbox"` or `<select` in `src/components/**` (§7.2); `addEventListener` on a connection only in `src/ha/resync.ts` |
 
 Lifecycle tests (`tests/root/lifecycle.test.ts`, WP0 with the null gateway, extended by WP14 with the real one):
 
@@ -2886,11 +3148,17 @@ Lifecycle tests (`tests/root/lifecycle.test.ts`, WP0 with the null gateway, exte
 - Diagnostics: `services.warnings` carries `ignored-in-demo` warnings; `gateway.recent()` keeps the last 20
   tickets and the drawer opened afterwards shows them.
 
-`tests/ha/resync.test.ts` (WP0): the barrier arms on hajs `ready`, on an observed `connected` false → true
-and on a new connection object; a `connected: true` push with the same states reference, and registry,
-config-only or identity-only updates, do not clear it; the first new states reference clears it; a runtime
-created while the tracker is armed starts in `resyncing`; one tracker per connection registers each listener
-once; `freshSinceResync` is false for an entity whose object the snapshot did not replace.
+`tests/ha/resync.test.ts` (WP0, §16.15): the barrier arms on hajs `ready`, on an observed `connected` false →
+true and on a new connection object (seeded from the old tracker, which is disposed); a `connected: true` push
+with the same states reference, and registry, config-only or identity-only updates, do not clear it; after the
+known pre-snapshot map the next map clears it exactly, with no grace timer; an ambiguous first map clears on the
+next map or after `RESYNC_GRACE_MS`, never while the socket is down, and a disconnect or re-arm stops the grace;
+the first post-ready map never becomes the base; one tracker per connection registers each listener once.
+`tests/ha/hass-host.test.ts`: a host disposed before the outage, then `disconnected`, `ready` and a new host that
+first observes the snapshot → `resyncing` during the grace, then `connected`, Silence sound enabled while the
+alarm is triggered, the camera gate allowed for an unchanged privacy-off camera, an entity deleted during the
+outage still stale, and all of it unchanged after an unrelated change; the pre-snapshot map observed first →
+clears exactly at the snapshot; an ambiguous first map → clears at the snapshot before the grace.
 
 Further unit tests: `tests/config/validate.test.ts` (each issue code; demo warnings; `controls` defaults to
 `false` and is `ignored-in-demo` in demo mode; frozen output; `demo: true`
@@ -2946,14 +3214,18 @@ swap changes hero and clock metrics and with them the hard gate. `screenshots.sp
 `webServer` runs `vite preview --config vite.harness.config.ts`. A context-level route
 **aborts and fails the test** on any request to an origin other than `127.0.0.1:4173`. The clock is pinned with
 `page.clock.setFixedTime('2026-09-30T17:51:00-07:00')` (explicit offset, so the machine's own zone cannot shift
-it) and `timezoneId: 'America/Los_Angeles'`. Do not use the Playwright MCP tool in this repo: it writes
+it) and `timezoneId: 'America/Los_Angeles'`. Pinning installs Playwright's clock, so a spec proving that nothing
+more happens (no further service call, no further snapshot fetch) runs the page's timers on with
+`page.clock.runFor()` (`runPageTimers`) instead of sleeping in real time: every debounce, refresh and reconnect
+snapshot due in that window fires deterministically. The windows come from `src/timing.ts` and the action
+constants (`QUIET_MS` is twice the longest commit debounce). Do not use the Playwright MCP tool in this repo: it writes
 `.playwright-mcp/` into the worktree.
 
 | Spec | Checks |
 |---|---|
 | `e2e/bundle.spec.ts` | module served from `/local/agraharam/<v>/agraharam.js`; `customElements.get('agraharam-dashboard').version` equals `manifest.json.version` (the element came from the built bundle, not source); both fonts reach status `loaded` and `document.fonts.check` passes; served bytes match `SHA256SUMS`; no console errors |
 | `e2e/layout.spec.ts` | matrix: 1440×900 and 1194×834 × sidebar expanded/collapsed, 1136×800 collapsed (card 1080), 720×900 and 640×900 (HA narrow, card 720 and 640), and 390×844, i.e. every row of both §6.1 tables, including the tightest content boxes at 1080, 720 and 640 and the 1138 collapsed case: `data-layout`, header variant, forecast cell count and hero size equal the §6.1 tables; `scrollWidth ≤ clientWidth` for document, frame and `agr-header` (no horizontal scroll, no header overflow) with `dense` (`armed_vacation`) and `offline` (stale pill); no panel overflows the frame; every open drawer's bounding box is inside the viewport at 390×844; columns in wide mode have aligned bottoms (±2 px). §6.2.1 gates, with `host=fake-hass`: `normal` at 1440×900 collapsed fits the viewport height (hard) and each panel's height versus its §6.2.1 target is written to `test-results/metrics/layout.json`; `dense` at 1440×900 has no horizontal overflow and aligned bottoms (hard) and its vertical overflow is written to the same file (reported); the compact header at 390 with "Alarm state unknown" wraps the pill instead of overflowing; quiet panels never stretch |
-| `e2e/a11y.spec.ts` | axe (`wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`) on normal, degraded, offline, alert, restricted and dense × light/dark at 1440 and 390, and with the security drawer and a confirm dialog open: zero violations; custom check that every enabled `button`, `[role=button]` and `input` has a box ≥ 44×44; no nested interactive elements |
+| `e2e/a11y.spec.ts` | axe (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`) on normal, degraded, offline, alert, restricted and dense × light/dark at 1440 and 390, and with every drawer and dialog open: zero violations of any impact; custom check that every visible focusable `button`, `[role=button]` and `input`, aria-disabled ones included (offline asserts some were checked), has a box ≥ 44×44; no nested interactive elements |
 | `e2e/keyboard.spec.ts` (Chromium + WebKit) | All Tab presses via `tabKey(browserName)`. Tab to the security pill → Enter opens the drawer and focuses its heading; the rest of the page is inert; Tab and Shift+Tab wrap inside; the focus-visible ring is drawn; Escape closes and focus returns to the pill. Drawer + confirm stacked: Escape closes only the confirm dialog. Backdrop click closes a drawer but not a confirm dialog. Confirm dialog: initial focus on Cancel; Enter → closed with no action (fake-hass `__agrCalls` empty). Room drawer slider via arrow keys → one call after debounce. Climate drawer HVAC modes: Tab into the group, press ArrowLeft/Right/Up/Down, Home and End → `__agrCalls` has no `callService`; Enter on a non-current mode → exactly one `climate.set_hvac_mode`; the same for the media drawer's source list. An `aria-disabled` action button is reachable by Tab, announces its reason, and Enter does nothing. Open drawer, then "Edit-mode toggle" remount → no dialog left open; reopening is modal again. Camera dialog (fake-hass fallback): opens, then Escape → no further snapshot fetches |
 | `e2e/motion.spec.ts` | `reducedMotion: 'reduce'` → drawer `transition-duration` computes to `0s`; no pending sweep animation; demo stream not animating |
 | `e2e/fake-hass.spec.ts` | built bundle with FakeHass: mount, "Route change", "Edit-mode toggle" and "Hidden 5 min" remounts and reconnect → 0 `callService`; after each remount one click on a light toggle → exactly one call with the expected domain/service/target; garage Open → Cancel → 0; Open → Confirm → 1 `cover.open_cover`; Open → Confirm → "Edit-mode toggle" → Open is still busy; stepper tap → disconnect → reconnect → 0 calls; "Hidden 5 min" with the forecast subscribed → FakeHass records no `unsubscribe_events` for an old command ID after the reconnect (§9.2); "Outage change" turns a visible camera's privacy on during "Hidden 5 min" → no `fetchWithAuth` for that camera at any point (the reconnect uses the two-step order with a 400 ms snapshot delay), its tile shows "Privacy on" after the snapshot, and controls are `aria-disabled` until the snapshot lands |
@@ -2980,7 +3252,9 @@ it) and `timezoneId: 'America/Los_Angeles'`. Do not use the Playwright MCP tool 
 
 ```text
 usage: install/install.sh --dest <HA config>/www/agraharam [--version X.Y.Z] [--src DIR] [--apply] [--allow-dirty]
+                          [--allow-missing-private]
   default: dry run (no writes). --src defaults to ../dist/agraharam/<version from package.json>.
+  --allow-missing-private  let the privacy re-scan skip on a machine without the private files (the plan says so)
 ```
 
 Checks, run in both modes and in this order. Exit codes: 2 usage, 3 verification, 4 destination conflict.
@@ -3039,15 +3313,23 @@ restarts HA, and never edits other versions.
   that controls stay off until the §13.5 read-only verification is done, that each security role needs its own
   script, that `privacy_on_value` is exactly `on` or `off`, and that
   cameras without a privacy binding default to `thumbnails: false` in the generated config and should stay that
-  way for indoor cameras; cloud or battery cameras may raise `snapshot_interval`.
-- `README.md` also states the browser floor (§1.2 item 11) and explains the camera thumbnail default: a camera
-  with a privacy switch is gated by it (fail closed); a camera without one has nothing to gate on, so it shows
-  "Live view on request" until the operator opts it in through `camera_thumbnails`.
-- `overrides.example.json` (all keys optional; every map is keyed by entity ID):
+  way for indoor cameras; that `live: false` removes a camera's live view from the dashboard, shown as a commented
+  `live: false` on the fictional nursery camera (the generator writes it for every camera without positive
+  outdoor evidence, §13.4); cloud or battery cameras may raise `snapshot_interval`.
+  `tests/install/install-docs.test.ts` asserts the commented `live: false` example.
+- `README.md` also states the browser floor (§1.2 item 11) and explains the camera defaults: a camera with a
+  privacy switch is gated by it (fail closed); a camera without one has nothing to gate on, so it shows "Live view
+  on request" until the operator opts it in through `camera_thumbnails`; and live view is off unless the §13.4
+  outdoor rule keeps it, with `camera_live` as the explicit override. Its read-only verification (§13.5) includes
+  checking each camera's `live` flag against what the camera shows before `controls: true`.
+- `overrides.example.json` (all keys optional; every map is keyed by entity ID; unknown keys are errors):
   `{ "exclude": [], "names": {"camera.demo_front_gate": "Front gate"}, "camera_thumbnails":
-  {"camera.demo_side_path": true}, "rooms": [{"name": "Courtyard", "lights": ["light.demo_courtyard"],
-  "curtains": [], "purifier": "fan.demo_courtyard_purifier"}], "vehicle_name": "Demo sedan",
-  "charge_limit_pct": 80 }`.
+  {"camera.demo_side_path": true}, "camera_live": {"camera.demo_front_gate": true}, "rooms": [{"name": "Lounge",
+  "lights": ["light.demo_lounge_lamp"], "curtains": ["cover.demo_lounge_curtain"]}, {"name": "Study", "lights":
+  [], "curtains": ["cover.demo_study_blind"], "purifier": "fan.demo_study_purifier"}], "vacuum_battery_sensors":
+  {"vacuum.demo_upstairs": "sensor.demo_upstairs_battery"}, "vehicle_name": "Demo sedan", "charge_limit_pct": 80 }`.
+  `vacuum_battery_sensors` gives a vacuum its battery sensor when the derived one does not exist; a key that is not
+  an emitted vacuum exits 1. `camera_live` is described in §13.4 rule 7.
 
 ### 13.4 Private runtime config generator (`scripts/generate-private-config.mjs`)
 
@@ -3072,7 +3354,9 @@ restarts HA, and never edits other versions.
     suffix and count; zero matches omit an optional field, and zero for battery or range omit the vehicle with a
     header note.
   - Vacuum candidates may be renamed or replaced devices, so the header lists every emitted vacuum under
-    "verify before enabling".
+    "verify before enabling". `overrides.vacuum_battery_sensors[vacuum]` sets that vacuum's `battery_sensor` (for a
+    vacuum whose battery the registry cannot derive); a key that is not an emitted vacuum, or a value that is not a
+    valid entity ID, exits 1.
   - Appliances pair `<p>_current_status` with `<p>_remaining_time`.
   - Security helpers: the alarm is the `security_read_only` entry in the `alarm_control_panel` domain, and the
     helpers are matched by allowed domain (§4.1) plus object-ID token: `policy`, `suggested`,
@@ -3103,10 +3387,23 @@ restarts HA, and never edits other versions.
        `overrides.camera_thumbnails[entity_id] === true` opts it in. `camera_thumbnails[id] === false` turns
        thumbnails off for any camera. A `camera_thumbnails` key that is not a candidate camera, or a value that
        is not a boolean, exits 1 (a typo must be loud, not silently ignored).
-    5. `thumbnails` is always written explicitly, so the generated file shows the decision for every camera. The
-       header comment lists the cameras emitted with `thumbnails: false` because they have no privacy binding.
+    5. `thumbnails` and `live` are always written explicitly, so the generated file shows both decisions for every
+       camera. The header comment lists the cameras emitted with `thumbnails: false` because they have no privacy
+       binding, and every camera emitted with `live: false` with its reason.
     6. Post-condition, asserted before writing: every candidate camera that is not excluded and has a privacy
        binding appears in `cameras[]` with exactly that `privacy_entity` and `privacy_on_value`.
+    7. **Live view fails closed.** The generator cannot see the picture, so `live` is `true` only with positive
+       outdoor evidence. First match wins: (a) `overrides.camera_live[entity_id]` (`true` or `false`) decides; (b)
+       a camera with a privacy binding is treated as indoor (`live: false`: someone wanted a switch for it); (c)
+       any indoor word in the candidate `role`, the emitted name or the entity object ID (living, bedroom, kitchen,
+       loft, hall, entry, entryway, fireplace, nursery, office, studio, stairs, basement, indoor and so on, plus any
+       word ending in "room") gives `live: false`; (d) without an outdoor word in any of them (front door, back
+       door, doorbell, porch, garage, driveway, backyard, yard, deck, patio, garden, gate, path, outdoor, exterior
+       and so on) the camera gets `live: false`; otherwise `live: true`. Words are the lowercase letter runs of each
+       text, so an object ID such as `living_room_cam` counts. A `camera_live` key that is not a candidate camera,
+       or a value that is not a boolean, exits 1. The header lists every `live: false` camera with its reason;
+       the terminal shows only the count. (§16.17: the earlier indoor-word-only rule, reading role and name only,
+       left every indoor camera of the household live.)
   - Calendars are emitted only if `upcoming_optional` is non-empty. The todo list is ignored.
 - **Validation**: imports `../src/config/validate.ts`, `entity-id.ts` and `schema.ts` (Node 24 type stripping)
   and refuses to write if `validateConfig` reports issues. Each issue is printed with its path.
@@ -3295,7 +3592,8 @@ section package (root card, `src/components/primitives/*`, `src/components/shell
   after M0.1 require architect sign-off.
 - **M0.2 (foundation)**, after which WP2–WP11 start: the primitives (`agr-panel`, `agr-button` with
   `aria-disabled` handling, `agr-choice-group`, `agr-drawer`, `agr-dialog`, `agr-confirm-dialog`, sliders,
-  steppers, `agr-icon`), the overlay host with `DRAWER_TAGS` mounting, `EntityStore` with the resync barrier,
+  steppers, and an `agr-icon` element that §16.16 later deleted as dead code: icons render through
+  `icons/render-icon.ts`), the overlay host with `DRAWER_TAGS` mounting, `EntityStore` with the resync barrier,
   `EntityController`/`ActionController`, the null gateway behind the seeded `createGateway`,
   tokens and typography, `assembleScenario` with `DemoHost`, the root rendering placeholder panels in all three
   layouts, and the demo shell with scenario and theme switchers. The remaining WP0 work (the remount modes,
@@ -3388,7 +3686,9 @@ entities, scenario variants and device behaviors only through its own `SectionFi
 | 21 | Misleading script names | A script's name may not describe what it does (a persistent disarm can carry a legacy name) | One script per role (validation + gateway), Silence Sound confirms unless the alarm is sounding, and the private generator's exact label map; the operator verifies each role against live script config before enabling real bindings (#7) |
 | 22 | Camera thumbnail default | Cameras without a privacy binding start as "Live view on request" in the generated config, which is less glanceable than the reference | Deliberate fail-closed default (§13.4). The operator opts outdoor cameras in through `camera_thumbnails` after checking each one; indoor cameras stay off |
 | 23 | hajs event API | `connection.addEventListener('ready' / 'disconnected')` is hajs public API in 9.6.0, but HA could swap the connection object | Feature-detected; the generation and the resync barrier also move on observed `connected` transitions and on a new `hass.connection` identity (§4.4) |
-| 24 | Resync barrier signal | The barrier clears on the first new `hass.states` reference after a reconnect. This relies on 20260826.7 keeping the states reference for every non-state update; a future frontend that rebuilt `states` on a config push would clear it early | The per-entity `freshSinceResync` check still keeps cameras closed until their privacy entity object is replaced; re-check `connection-mixin.ts` on each HA upgrade (#1). A barrier with no state change holds (fail closed), which a live house never shows for long |
+| 24 | Resync barrier signal | The barrier clears on the first new `hass.states` reference after the known pre-snapshot map (§4.4). This relies on 20260826.7 keeping the states reference for every non-state update; a future frontend that rebuilt `states` on a config push would clear it early | The per-entity `freshSinceResync` check still keeps cameras closed until their privacy entity object is replaced; re-check `connection-mixin.ts` on each HA upgrade (#1). A barrier whose known pre-snapshot map never changes holds (fail closed), which a live house never shows for long |
+| 25 | Resync grace before a slow snapshot (accepted) | When the first map a host observes after `ready` is not the known pre-snapshot map, it is ambiguous; in the rare case that it is a pre-snapshot map that changed while no host observed it (a change just before the drop, on a detached card), and the snapshot takes longer than `RESYNC_GRACE_MS`, the barrier clears on pre-snapshot states | Entities whose objects are still the outage base's stay stale (`freshSinceResync`), so only entities changed in that unobserved window could read as current until the snapshot lands moments later. Maps observed while the socket is down count as final, which removes the common detached-tab case. Accepted rather than holding the dashboard in "Reconnecting" indefinitely on a quiet house (§16.15). **Indistinguishable case (§16.17):** an entity that changed in that unobserved pre-drop window and was then deleted during the outage keeps its unobserved object, which differs from the outage base, so after the barrier clears it reads as fresh rather than stale until HA's next change. No local check can tell it apart from the case above (only the snapshot itself could, and it never mentions a deleted entity); it needs both an unobserved change and a deletion inside one outage. The gateway words any not-yet-refreshed entity as "Paused until Home Assistant sends current states", never "wasn't found". **C2 residual: none.** A retained, detached HassHost whose own map is older than the tracker's base is held resyncing until its own next `update()` (§16.17), so it never ingests its older map as fresh; the only cost is "Reconnecting" on a card nobody is looking at |
+| 26 | Tracker created between `ready` and the snapshot (accepted) | Trackers exist only once a card has observed the connection. A tracker first created after `ready` fired but before the snapshot (the first Agraharam card on the page, for example the user switching to this dashboard from another one in exactly that window) never saw the outage, starts clear, and cannot detect the window, so for that round trip it shows pre-outage states as current | The window is one round trip (hundreds of ms). A runtime rebuilt during an outage reuses the module-level tracker, and a replaced connection object starts its tracker armed, so neither is affected. Creating trackers at module load would need `hass.connection` before any card exists, which the card API does not provide (§16.15) |
 
 ---
 
@@ -3621,10 +3921,12 @@ entities, scenario variants and device behaviors only through its own `SectionFi
 
 These bind the owning work packages without another design round.
 
-- **Resync base (WP0).** The tracker records the first `states` reference observed after the latest
-  `disconnected` event or after arming. If no host has observed anything since then, the first `observe()` after
-  arming only sets the base and never clears the barrier. A tracker created while a reconnect may be in flight
-  starts in that pending-base state (brief "Loading" until the next state change).
+- **Resync base (WP0).** *Superseded by §16.15 ("Resync freshness after an unobserved reconnect"): the base is now
+  always the last map observed before the barrier armed, never the first one after it.* The tracker records the
+  first `states` reference observed after the latest `disconnected` event or after arming. If no host has observed
+  anything since then, the first `observe()` after arming only sets the base and never clears the barrier. A
+  tracker created while a reconnect may be in flight starts in that pending-base state (brief "Loading" until the
+  next state change).
 - **One definition of connected (WP0).** `StoreSnapshot.connected = hass.connected && hass.connection.connected
   === true`, evaluated at ingest; tracker events re-ingest. Test: `hass.connected` true with the live getter false
   gives camera gate `disconnected` and zero `fetchWithAuth` calls.
@@ -3645,7 +3947,8 @@ These bind the owning work packages without another design round.
 - **Medium balance and padding (WP0 layout, tuned by WP14).** Assign medium column membership greedily from the
   `budget.ts` targets while keeping each column's internal narrow order (DOM order still equals visual order).
   Today uses 24 px padding in wide and the normal panel padding in medium and narrow; `forecast8` is 312 px so
-  sidebar width jitter cannot drop the strip to 6 cells.
+  sidebar width jitter cannot drop the strip to 6 cells. *The `forecast8` value is superseded by §16.14: it is 360,
+  so the 328 to 334 px boxes show 6 roomier cells.*
 - **Shared comfort seam (WP0 seeds, WP4 owns).** `selectAirTile(input: SelectorInput, ref: Ref, role: 'air' |
   'room_purifier'): AirTileVM` and `agr-fan-controls` with `{ tile: AirTileVM; draft: DraftState; focusKeyPrefix:
   string }`; it re-dispatches its events composed to the drawer holding the `ActionController`.
@@ -3655,3 +3958,393 @@ These bind the owning work packages without another design round.
   lines; the "Current …" copy for the disabled current option varies by kind (mode, preset, source).
 - **Demo coverage (WP0).** `degraded` includes the alarm in `unknown`, so the wrapping compact pill is exercised.
 
+### 16.11 Integration decisions (WP14, team lead)
+
+Recorded at integration. They refine, and do not reopen, the approved design.
+
+- **Presence while disconnected or resyncing reads "Unknown".** Privacy first: a stale Home/Away chip would state
+  where a person is from information that may be hours old. Every chip turns into the dotted Unknown ring, the
+  header keeps its "Connection lost" banner, and the WP2 rule (Home, Away or Unknown, never the raw state) holds.
+  This deliberately differs from the "Last known" convention used for device values (tested in
+  `tests/header/header-model.test.ts`).
+- **Bundle size target 480 KB raw** (§11.5), recorded with the measurement and rationale there and in the README.
+  "KB" here and in §11.5 means KiB: the target is 480 × 1024 = 491,520 bytes (`BUNDLE_SIZE_TARGET_BYTES`).
+- **Garage-class covers in a room** (§4.7 step 5a). The refusal copy is exported once as `GARAGE_LIKE_COVER_COPY`
+  from `messages.ts` and used by both the gateway and `model/home.ts`. The configured garage cover reads "This
+  garage door is moved from the Garage panel, which asks for confirmation first."; any other garage, gate or door
+  cover reads "Garage, gate and door covers can't be moved from this dashboard.", because no panel moves it.
+- **Resync: arm before announcing `ready`** (`resync.ts`). A panel removed while hidden never receives the
+  frontend's `connected: false` push, so its retained `hass` still says connected. With `ready` announced before
+  the barrier armed, HassHost re-ingested that hass and published phase `connected` for one synchronous turn, and
+  the calendar GET and both forecast subscriptions restarted on the new socket before the snapshot (a §9.1/§9.5
+  violation, reproduced as phases `connected, resyncing, connected`). Arming first publishes `resyncing, connected`
+  and nothing reads before the snapshot. No old-generation unsubscribe was ever sent: the two `unsubscribe_events`
+  seen in `tests/root/lifecycle.test.ts` go out on socket 1 while it is still open, when the removed panel stops its
+  forecast. The WP0-era assertion there ("no call except `subscribeMessage`") predated the real calendar and
+  forecast seams; it now proves no service or indirect call at any time, no stale unsubscribe, no call at all
+  between the socket drop and the snapshot, and only allowed reads after it, for both the canonical order and a
+  panel whose retained hass still says connected.
+- **Demo runtime config carries the user's `title` and `diagnostics`** (§4.2 rule 9), so `demo: true,
+  diagnostics: false` hides the diagnostics drawer; the people fixture no longer forces it on (the dev shell turns
+  it on for preview).
+- **`Formatter.hourOfDay(value): number`** (0 to 23) in the formatter's zone. The greeting uses it, so it agrees
+  with the clock and date when the HA profile uses server time in another zone.
+- **Reason display and shared notices.** `agr-slider` and `agr-stepper` gain `reason-display` (and the slider
+  `label-display` and `status-display`) like `agr-button`: the text stays in the primitive's own shadow root for
+  `aria-describedby` and is only hidden visually. The climate and media drawers state a reason every control shares
+  (`controls-off`, `preview`, `disconnected`) once as a drawer notice, as the panels already did; `agr-volume-slider`
+  (which hid the primitive's internals by selector) is gone. A draft discarded by the failure its own ticket
+  reports is shown once, as the ticket's message, and its Dismiss clears both.
+- **Shared modules.** Cross-section helpers moved out of section folders: `components/shared/control-notes.ts` and
+  `components/shared/selector-input.ts` (every section builds its `SelectorInput` there), `model/controls.ts`
+  (readable entity, action key, in-flight, gated availability), `model/choice.ts` (the choice-group builder) and
+  `model/weather-conditions.ts` (the condition map, which selectors must not import from `components/`). The
+  `actions` slot of `agr-panel` may hold one short meta line (Today's sunset) as well as buttons.
+- **Gateway.** `security.run` chooses its confirmation per role: only `silence_sound` may skip it, and only while the
+  alarm is `triggered` or `pending` (every other role previously skipped it too while the alarm sounded; the
+  security drawer's own guard had hidden this). Unknown kinds report `malformed`, never caller text; the frozen
+  request copy is built from the validated keys only. Lock expiry still re-notifies only the ticket's own key
+  (deferred: a room lock that ends leaves its lights' toggles `busy` until the next render, which fails safe;
+  notifying other keys would hand another key's status to `ActionController` draft handling).
+- **Calendar permission denial is sticky**, as for cameras: a 401 or 403 pauses every calendar read until a new
+  socket generation or a `user` meta change, so neither the 15 minute timer nor a re-attach adds http.ban counts.
+- **Camera session probe per user.** A `user` meta change starts a new probe, as a reconnect does. An open live view
+  whose socket was replaced while the tab was hidden asks for "Resume live view" on return (§16.10), and a camera
+  that is still loading while HA starts reads "Waiting for Home Assistant", not "Paused while disconnected".
+- **Medium membership** (§16.10 refined): the raised panels split as a prefix of the narrow order (the lowest
+  taller column; a near-tie within one gap keeps more of the head in column 1, so Today and Climate stay
+  together), then the quiet panels go largest first onto the shorter column; each column keeps the narrow order.
+  Balancing reads `panelHeightEstimates(config)`: the targets, with Home adjusted for its configured rooms, vacuums
+  and appliances (measured row heights), because Home is the one panel the configuration grows by hundreds of
+  pixels. Splitting every panel as one prefix had left column 2 a full panel taller at 1194×834 and stretched Home
+  into a large empty box.
+- **Column slack goes to a panel that can spread it** (§6.2 refined): Today if the column has it (its reading and
+  metrics stay together, centred above the forecast strip), else Garage (the door stays at the top, the car moves to
+  the bottom), else the last raised panel; quiet panels never stretch. `agr-panel spread` lays a stretched panel's
+  children out over its height. Media therefore keeps its 168 px target in wide. Wide membership is unchanged
+  (§16.9); when column 1 holds a very large Home (`dense`), Today and Garage absorb the difference, and the page
+  scrolls as §6.2.1 allows for `dense`.
+- **Timing note for the lead.** The orphan timer and the garage lock are both 60 s, so a garage lock taken before a
+  detach has always expired by the time orphan disposal runs; the in-flight registry protects a new card instance,
+  a gateway rebuilt by `setConfig` and a re-attach within the window, which the lifecycle tests cover.
+
+
+### 16.12 Reconciliation notes (WP13 and WP14, round 1)
+
+Defects found by the acceptance and e2e suites and fixed in `src`; no test assertion was weakened.
+
+- **Stale values are dimmed with `--agr-muted`, never with opacity** (§4.6 "renders dimmed", §6.5 text tokens).
+  `opacity: .62` blended text below 4.5:1 (axe: 2.5 to 3.9:1 in `offline`). One shared `staleStyles` rule in
+  `styles/shared.ts` (last in each styles array, so it beats tone and class colors) replaces nine local copies, and
+  the visually hidden "last known" text is unchanged.
+- **A dialog body that scrolls with nothing focusable becomes a focusable region** (`agr-dialog`, WCAG 2.1.1, axe
+  `scrollable-region-focusable`): `tabindex="0"`, `role="region"` and `aria-labelledby` the heading, set only while
+  it scrolls and holds no tabbable element (health and diagnostics lists). A body with controls stays out of the
+  tab order, so the §12.2 "no nested interactive elements" check still holds.
+- **The `panel` container is the `agr-panel` host, which now carries the surface and padding** (§6.1). WebKit
+  resolves containers for content nested inside a slotted element only through light-tree ancestors, and scopes
+  container names to the declaring tree, so the Today hero stayed at 68 px in Safari at every width. Section hosts
+  re-declare `container: panel / inline-size` on `agr-panel` from their own tree (`sectionHostStyles`). The content
+  box, and so every §6.1 row, is unchanged; the opt-in WebKit layout run now passes.
+- **`normal` binds Courtyard to a privacy entity that reads off** (still "4 cameras, one privacy on", §10.2), and the
+  shell's "Outage change" turns on the first privacy-bound camera that is visible (it reads its exact off value,
+  honoring `privacy_on_value`), else the first whose privacy is uncertain; it never picks one that is already
+  private. Before, it re-sent `on` to Hall, which was private already, so §12.2's "a visible camera's privacy turns
+  on" could not be exercised. `dense` keeps its two privacy bindings.
+- "+N more" in Climate names a single overflow device in the singular.
+
+### 16.13 Visual refinement, round 1 (design critique)
+
+Refinements of §6 and §16.11 from the first design critique. No gate, contract or action rule changed.
+
+- **Slack collects below content, never between it** (refines §16.11). `agr-panel` no longer spreads its children:
+  a stretched panel keeps them packed under the header, and `centered` (Today only) keeps the hero, metrics and strip
+  together in the middle of the free height. Today, then Garage, still take a column's slack; a panel whose config
+  gives it nothing to show (`emptySections`: Home, Climate or Today in their empty state) never stretches.
+  `layout.spec` asserts that no gap between a panel's children exceeds 40 px. Capping the slack (letting a column
+  end unaligned) was not adopted here; §16.14 later adopted it (64 px with a 32 px snap), keeping `normal` aligned.
+- **Wide quiet panels balance a far taller column** (refines §6.2 and §16.11's "wide membership is unchanged").
+  `columnsFor('wide')` keeps the reference columns unless moving the quiet panels (Upcoming, House health) to the
+  foot of a shorter column lowers the tallest estimated column (`panelHeightEstimates`) by more than 64 px; then it
+  takes the placement with the lowest tallest column, and on a tie the one that leaves Today's column the most spare
+  height, because Today centres its content where Garage would only gain a blank band. Raised panels never move,
+  quiet panels follow a column's raised ones in reference order, and DOM order still equals visual order. The
+  `normal` composition (every column at its 700 px target) never moves; `dense` (Home holding the whole overview
+  budget) puts House health under Garage, which cut its page by about 190 px and the stretched panels' slack from
+  about 435 and 460 px to about 250 (Today, centred) and 110 px (Garage).
+- **A panel with nothing to show never stretches.** `agr-panel[fit]` keeps its content height in a stretched column;
+  Garage sets it when it has no car and its door is a binding Home Assistant doesn't have (`missing-binding`). An
+  unavailable door keeps its place, because the device can return at any moment.
+- **First paint shows the frame.** The root renders the columns from the accepted config before any hass arrives;
+  sections without services render ghost blocks shaped like their content (`skeletonStyles .ghost`), and the same
+  elements are filled in afterwards (no re-creation, no reads or calls before the runtime exists). The header shows
+  the shapes of the status pill and the clock. Until the first hass sets `data-theme`, the tokens follow
+  `prefers-color-scheme` (HA's default theme does too), so a dark tablet never flashes the light canvas.
+- **Tokens.** Host `accent-color` is olive; `agr-slider tone` is `media` (plum), `light` (brass-ink, because brass
+  is 2.99:1 on the surface) or `device` (olive). Dark `--agr-brass-tint` is `#463b1f` (brass-ink on it 6.40:1) and a
+  lit room chip has a 25 % brass inner ring (`--agr-lit-ring`). Quiet panels are `--agr-surface-quiet` (the surface
+  at 45 %, a literal because `color-mix()` is below the floor) with no border. `--agr-media-filter` dims camera
+  pictures in the dark theme; `--agr-letterbox` paints snapshot letterbox bars (HA's own live card keeps its
+  near-black letterbox, §9.4). A snapshot still in the live dialog sizes the frame to its own aspect (1 to 2.4,
+  else 16:9 with themed bars), so the demo's 4:3 stills and most camera snapshots show without bars; HA's live card
+  keeps its 16:9 box.
+- **Controls show their own state.** `agr-button powered="device" | "light"` (olive fill, or brass tint and ring)
+  for power and light toggles while the device is on; room chips draw a 36 px disc inside the 44 px target with a
+  lit or unlit bulb. Every disabled control shares one outline look (`disabledControlDeclarations`). Studio monitors
+  are a script with no state, so the row never claims On or Off; what the button does stays in visually hidden text.
+- **One row primitive in Home.** Vacuums, appliances and studio monitors are flat rows with a 36 px well and a
+  12 px gap; room chips are the only insets. Appliance glyphs come from the household's names (`applianceIcon`,
+  with `plug` for anything else); icons added: `utensils`, `shirt`, `cooking-pot`, `microwave`, `refrigerator`.
+- **Offline says it once.** While disconnected or resyncing (`pausedByConnection`) each panel shows a muted
+  "Offline" pill with a wifi-off glyph (first worded "Paused", which beside Media's pause button read as playback
+  paused, §16.14) and drops its visible paused notice; camera tiles show "Paused"; controls keep the full reason in
+  `aria-describedby`. Other shared reasons (`controls-off`, `preview`) keep their notice line. Where a panel would
+  otherwise be blank it says what happens next instead of repeating why: "Forecast resumes when Home Assistant
+  reconnects.", "Events resume when Home Assistant reconnects.", "Counts resume when Home Assistant reconnects."
+- **Re-created sections keep their reads.** A layout change re-creates sections (§5.1); the forecast controller
+  keeps the last live forecast and the calendar controller the latest read (and any denial) per runtime reader and
+  socket generation, so a rotation or sidebar toggle shows no skeleton and spends no extra calendar read or 401.
+  Nothing is kept across a reconnect or a runtime. `layout.spec` toggles the sidebar at 1194×834 and asserts no
+  Today or Upcoming placeholder is ever visible.
+- **Smaller copy and type fixes.** House health uses two stat rows (serif count, meta label); the health drawer
+  collapses healthy devices behind a disclosure; the absent Today hero reads "--°" with "Weather unavailable" and a
+  metrics row of dashes; a decimal hero sets its fraction at 0.45 em (the hero keeps its precision, §4.8); "Feels
+  like" shortens to "Feels" below a 320 px panel and the condition is 20 px below `hero96`; the climate drawer
+  stepper shows "72°" (the scale letter stays for assistive technology); a vacuum in `error` names the integration's
+  `error` text when it reports a short one; an unknown remaining time reads "Time left unknown"; the household
+  drawer drops the time the compact header already shows; the medium header shows a wifi glyph instead of a lone
+  dot. In panels narrower than 388 px both House health labels sit under their counts, so the two rows never break
+  differently, and the stat wells use the surface tone, which stays visible on the quiet panel.
+- **Household copy, sentence case** (round 1 follow-up, team lead). Every button is in sentence case, the security
+  ones included ("Silence sound", "Disarm & hold", "Resume Auto arming"; §8.2), with the protection modes and the
+  Auto policy keeping their capitals; the distinction between silencing and the persistent disarm is unchanged and
+  its tests compare case-insensitively. `missing-entity` (§7.3) drops "Check the dashboard configuration.": which
+  binding to fix is shown in Diagnostics, which lists every binding with its status. Empty states and the media
+  player say devices "will show up here once they're connected" or "weren't found", never "the dashboard
+  configuration".
+- **Not adopted, with reasons.** A missing binding still reads "Not found" (§12.1 row 3 vocabulary): "Not connected"
+  would blur it with the connection-lost state that must stay distinct. A climate tile's value stays on the name's
+  baseline so the status line can run under it ("Cooling to 72°" would otherwise truncate at 1440). A second
+  no-scroll gate at 1194×834 collapsed is not met: column 1 needs about 735 px of the 649 px available, which only a
+  budget change could buy (§6.2.1). Showing extra camera tiles in a column's slack was not adopted: it would change
+  the §6.2.1 budget, and the quiet-panel balance above already brings `dense` within one row of balance.
+  Superseded by §16.14: the garage no longer keeps two disabled buttons for an unknown position (it shows none, only
+  the reason line, §8.5), and the climate pill reads the indoor temperature ("74° inside") rather than "Cooling".
+
+### 16.14 Visual refinement, round 2 (design pass 2)
+
+Refinements of §6 and §8 from the second design critique, recorded here because the code cites them. No safety
+rule, contract or action changed.
+
+- **Breakpoints and panel thresholds** (§6.1). Medium starts at a 700 px card: two columns at 640 left a 256 px panel
+  box where room chips split words, so 640 is now one calm column (584 px box). `forecast8` is 360, so the 328 to
+  334 px boxes (1440 with the sidebar expanded, phones) show 6 roomier cells; `cameraGrid` is 240 (a 240 px box still
+  gives 114 px tiles); `twoUp` (288) puts room chips and comfort tiles one per row in narrower panels.
+- **Slack is capped** (§6.2, refining §16.13). A stretched panel grows at most 64 px beyond its content unless its
+  column is within 64 + 32 px of the tallest (then it aligns); short columns within 32 px of each other end together.
+  `normal` at 1440×900 still aligns; `dense`, `degraded` and `restricted` no longer open a 100 to 300 px void inside
+  Today or Garage. The `dense` gate is "aligned or at least 31 px apart, within 120"; a 640 gate checks one column
+  for split words and inner gaps over 48 px. 1194×834 collapsed still does not fit (column 1 needs 735 of 649 px).
+- **Spare height becomes content.** When more comfort devices are configured than one row shows and Climate's column
+  is a tile row shorter than its tallest neighbour, Climate shows two rows (budget 4); it returns to one row only once
+  that column is the tallest, so the choice never flips across one measurement. `agr-panel` reports its natural
+  height for the root's measurement.
+- **Panels.** The Climate pill reads the indoor temperature ("74° inside", neutral) like the reference, and what the
+  equipment does stays on its tile. A comfort tile stacks its value under the name below 208 px. A fan's power is one
+  "Power" toggle with `aria-pressed` (§7.2). A garage door with an unknown position offers no buttons, only "Position
+  unknown. Check the garage before using it from here." (§8.5). The vehicle words an absent level as one muted phrase
+  ("Range unavailable"). A camera tile whose first picture is loading says "Loading picture" over a placeholder fill.
+  The live-view dialog's width follows the frame's aspect (§9.4).
+- **Shell and copy.** Panels show a muted "Offline" pill with a wifi-off glyph while disconnected ("Paused" read as
+  playback paused beside Media's pause button). The alarm banner says "Alarm triggered." beside "Open Security" and
+  nothing more (§9.1). The security drawer's rows read Alarm, Arming policy, Would choose, Commissioning ("Setup mode
+  on") and Health, each with a household-worded helper (§8.1); Silence sound "stops the alarm sound only" (§8.2); the
+  studio monitors button says "Switch monitors" (§8.4); diagnostics values start with a capital.
+- **Tokens** (§6.5). The hero's 24 px wide padding includes its top; `--agr-ghost-quiet` keeps placeholders visible on
+  quiet panels; `--agr-media-filter` dims camera pictures in the dark theme, and the demo stills use a night palette
+  instead; forecast periods ("PM") are set at 0.85 em.
+
+### 16.15 Code review fixes (round 1)
+
+Defects found by code review and fixed in `src`, each with tests; no safety or privacy assertion was weakened.
+
+- **Resync freshness after an unobserved reconnect** (HIGH, found by two reviewers; §4.4, §9.1). A `disconnected`
+  and `ready` with no `observe()` in between (the card detached or on another dashboard, the runtime disposed by
+  the orphan timer, or a new card instance) left the base pending, so the first map observed, often already the
+  snapshot, became the base. hajs keeps the object of every unchanged entity, so after the next unrelated change
+  cleared the barrier every unchanged entity stayed "not fresh" for good: stale and Offline values, camera gates
+  reporting privacy unknown, and the gateway answering `missing-entity`, which refused Silence sound and Disarm
+  during a triggered alarm while the header said Connected. Now the tracker records `lastObserved` on every
+  observation; a disconnect opens an outage whose base is that map; arming takes `freshBase` (freshness only) and
+  `knownStale` (clearing only) from it, so the base is always a pre-snapshot map. Clearing follows §4.4: the
+  known pre-snapshot map holds and then the next map clears at once; an ambiguous first map clears on the next
+  map or after `RESYNC_GRACE_MS` (2 s). Two refinements of the review's design, both strictly fail-closed: maps
+  observed while the socket is down update the outage base and count as final (nothing can change `hass.states`
+  until the snapshot), which keeps a tracker created while the socket is down holding its base and lets a
+  one-push reconnect clear at once; and a replaced connection object disposes the old tracker (grace timer and
+  listeners). Accepted residual risks: §15 #25 (the grace may clear before a slow snapshot when the first
+  post-ready map was a pre-snapshot map that changed unobserved) and §15 #26 (a tracker first created between
+  `ready` and the snapshot cannot detect the window).
+- **FakeHass entity identity** (§10.3). Live changes now replace only the changed entity's object, as hajs does,
+  and nothing is delivered between `ready` and the snapshot; before, every change re-delivered the devices' own
+  objects, which hid per-entity freshness from every test.
+- **Sections re-attached after store changes re-render** (§4.5). `EntityController.hostConnected` requests an
+  update when it (re)subscribes, as the forecast and calendar controllers already did.
+- **`time_format: 'system'` follows the device** (§4.4), as HA's `useAmPm` does
+  (`new Intl.DateTimeFormat(undefined, {hour: 'numeric'}).resolvedOptions().hour12`), not the profile language.
+- **Upcoming days in the formatter's zone** (§9.5). `Formatter.dayKey` plus the `sameDay`, `dayStart` and
+  `dateStart` helpers in `format.ts` drive the today/tomorrow grouping, all-day dates and the fetch window, so a
+  profile showing server time in another zone groups by the server's day. Today keeps its own `sameDay` on
+  `formatter.date('long')`, which is zone-correct; it may move to the shared helper.
+- **An outcome observed while pending stays confirmed** (§4.7). A connection loss or timeout after the predicate
+  was already observed settles `confirmed`, not `uncertain`.
+- **No entity IDs in HA's quoted messages** (§4.7, §7.3). Entity-ID-shaped tokens (including `domain.service`)
+  are stripped from `rejected` and `device-error` messages before the 160-character cap.
+- **Forecast retry latch** (§9.2). The RUNNING or registry signal waits for an `error('entity')` slot, so an
+  `invalid_entity_id` that arrives after RUNNING still gets its one attempt.
+- **Security hardening** (defense in depth). The `confirmed: true` flag is replaced by a confirmation token
+  (§4.7 step 11): minted single-use by `agr-confirm-dialog` only, held in a module-private WeakSet, bound to the
+  request's action key, kind and arguments, spent by the first `request()` that presents it; fitness tests pin the
+  minter and the redeemer. (§16.17 removed the test-only `isConfirmationToken` predicate: no code but the gateway
+  can ask about a token, and tests spend tokens through `redeemConfirmationToken`.) The overlay host
+  validates and freezes the confirm action before mounting the dialog (`frozenActionRequest` from `types.ts`, so
+  components still never import `validate-args.ts`). A malformed role no longer throws inside `willUpdate`: the
+  dialog fails closed and visibly. `validateConfig` rejects a curtain that is also a perimeter entry or the garage
+  cover (§4.2 rule 4a); step 5a's device_class check stays as the backstop.
+- **Confirm dialog description** (§5.4 rule 1). `agr-dialog` has a `describedBy()` hook; the confirm dialog wraps
+  its body, safety lines included, and sets `aria-describedby` on the alertdialog, so a screen reader reads the
+  consequence along with Cancel.
+
+### 16.16 Maintainability pass
+
+A code-review pass for maintainability. Behaviour and visuals are unchanged except where noted; no safety or
+privacy behaviour or assertion was weakened (gateway pipeline, confirmation token, resync barrier, camera gate, zero
+service calls on render).
+
+- **One wording and one live region** (§7.2). `ticketPhaseCopy()` and `ticketShortText()` in `model/action-copy.ts`
+  replace five copies that had drifted (different uncertain fallbacks, a muted against a neutral pending tone). They
+  take no overrides: every uncertain or failed ticket carries the gateway's §7.3 message, which already words the
+  garage's and the security controller's own timeout and reversal lines, so an override parameter would be dead
+  code. `agr-control-notes` is the one live region (it replaced `agr-home-status` and `renderControlNotes`, and the
+  garage's and security drawer's own regions); every section announces every subject's current ticket (Home used to
+  announce only the latest, which could hide an older uncertain outcome), plus discarded drafts and, new, a pending
+  stepper target ("Target 73°"). Visible changes: Comfort and Media progress text is muted; Home's persistent notes
+  lose their inset box; the security drawer's progress shows on the activated button in place and its outcome in the
+  region at the top of Actions; security pending and sent read "Sending" and "Waiting for the security controller",
+  and confirmed "Requested" (§8.2). `SecurityTickets` holds the security drawer's ticket attribution, which
+  `selectSecurity` no longer takes.
+- **One implementation per predicate**: `supportsBrightness` in `ha/features.ts`, `temperatureGrid` in
+  `model/steps.ts`, `isTicketInFlight` in `ha/actions/types.ts`, `readableEntity` and `absentFor` in `normalize.ts`,
+  `isAlarmSounding` and `alarmIcon` in `model/alarm-labels.ts` (the header pill and the drawer had disagreed on
+  disarmed and on the transitions; Today now uses `format.ts`'s `sameDay`).
+- **Boundaries made checkable.** The adapter-boundary fitness test is an allowlist with a reason per module, and
+  rejects `HassLike`, `EntityStore`, `.hass` and demo or dev imports in components and models. An unused-export
+  guard runs in `npm test`. `tsconfig` adds `noUnusedLocals` and `exactOptionalPropertyTypes` (the conditional
+  spread idiom is therefore needed, not imitative). Exports used only in their own file were dropped, and
+  `selectComfort`, `statusTone`, `versionConflicts` and `CATALOG_SERVICES` left production code.
+- **Dead code.** `agr-icon` and `agr-status-pill` (registered, never rendered), `hasLocalReason`, the `.t-clock`
+  class and its header container rules were deleted.
+- **Structure.** `LiveViewController` (`src/ha/`) owns the live-view lifecycle and `agr-camera-dialog` only renders
+  it, every §9.4 behaviour and test kept. `model/home.ts` is an entry point over `home/rooms.ts`, `home/vacuums.ts`
+  and `home/appliances.ts`. `requestDrawer()`/`requestConfirm()`, one frozen `ENABLED`, one `performFromEvent`, one
+  `ABSENT_GLYPH`, the binding key in `CameraTileVM`, one pending sweep and a `visuallyHiddenDeclarations` fragment
+  replaced repeated code. Every `EntityController` is constructed in the element's constructor.
+- **Consistency.** Every button that opens a drawer suppresses key repeat and carries `aria-haspopup="dialog"`; the
+  media drawer's player picker is an `agr-choice-group` (it now shows the same selection style as the sources). Type
+  is set through `--agr-type-*` tokens; off-scale values folded onto the §6.5 scale (a 1 to 2 px change in a few line
+  heights, a 14 px banner message now 15 px body text). Queries use range syntax; the comfort-tile and media-player
+  thresholds moved into `PANEL_CQ`. `createFormatter` caches `Intl.NumberFormat` per options key; `agr-dialog`
+  re-observes its body only when its elements change; `agr-confirm-dialog` computes its copy and availability once
+  per update (a Confirm click still re-checks at that moment); the overlay host clears its region before announcing
+  so a repeated message is heard; the focus walker falls back to client rects without `checkVisibility`.
+- **Privacy option.** `live: false` per camera (§4.1, §9.3, §9.4, §13.4).
+- **Build, tests, docs.** `vite-lit-css.ts` minifies Lit `css` templates (the bundle went from 482,999 to 437,486 B
+  raw, 475,080 B without the plugin; screenshots with and without it differ only within the run-to-run noise); postbuild prints a size line and the README points at `manifest.json`. e2e proves
+  "nothing more" with Playwright's clock instead of real sleeps, the axe gate allows no violation of any impact, and
+  the 44 px check covers aria-disabled controls. `tests/styles/contrast.test.ts` computes every text pair from
+  `tokens.ts`. Work-package references were removed from code comments (§14 keeps the history).
+
+### 16.17 Final review fixes (safety, correctness, quality, conformance)
+
+Fixes from the second review of every pass, each with tests. No safety or privacy assertion was weakened; the one
+test whose expectation changed (an entity the snapshot did not refresh) now expects the more cautious resync copy.
+
+- **Generator: live view fails closed** (§13.4 rule 7). The indoor-word rule read only the role and name, so it
+  missed an indoor role word outside its list and two cameras whose indoor evidence was only in the entity object
+  ID: it flagged none of the household's indoor cameras. `live` is now `true` only with an outdoor word in the role,
+  name or object ID, no indoor word in any of them (the list gained loft, entry, entryway, fireplace, studio and
+  others, plus any "…room" word), and no privacy binding (treated as indoor). `overrides.camera_live` (entity ID →
+  boolean) overrides explicitly; unknown keys fail loudly. `live` is written for every camera, and the header lists
+  every `live: false` camera with its reason; the terminal still prints counts only. Run in memory against the
+  private candidates (counts only): 8 cameras, 3 `live: false` (2 privacy-bound, 1 by an indoor role word the old
+  list lacked), 5 `live: true`, each with outdoor evidence. install/README.md adds "check each camera's `live` flag"
+  to the read-only verification and documents `camera_live`; `overrides.example.json` and `dashboard.example.yaml`
+  (a commented `live: false`, asserted by `install-docs.test.ts`) show it.
+- **Confirmation token cannot be split from the request** (§4.7 step 1, step 11). `request()` reads the caller's
+  request and options once: `frozenActionRequest(req)` reads the object's prototype, key list and each descriptor
+  exactly once into a plain copy, validates only that copy, and the same frozen copy goes to
+  `redeemConfirmationToken`, the pipeline, the ticket and the service call. A Proxy that answered Silence sound to
+  the token check and Garage open afterwards had opened the garage (reproduced at 7 honest reads); the test now
+  sweeps every switch point. Step 1's tests run through `frozenActionRequest`, and `isActionRequest` and
+  `isActionKind` are no longer exported.
+- **Resync wording for an entity not yet refreshed** (§4.7 step 6, §7.3). While a resync base exists and an entity's
+  object is still the base's (the store connected, the snapshot not yet replacing it), the gateway refuses with
+  `disconnected` and "Paused until Home Assistant sends current states." (after a request, "Not sent: paused until
+  …"), for single targets and rooms, instead of "… wasn't found in Home Assistant".
+- **Minifier robustness** (§11.3). A comment that was the only separator between two tokens leaves `/**/` (a space
+  would turn `.a/**/.b` into a descendant selector); an unquoted `url(…)` body is copied verbatim; a run holding an
+  empty custom property (`--x: ;`) is left untouched; a dropped comment no longer leaves a double space. Rendering
+  is unchanged (src has none of these patterns today).
+- **Nits.** `domain/alarm.ts` matches state keys with `Object.hasOwn` (a "toString" alarm state read as known before).
+  The test-only `isConfirmationToken` is deleted (§16.15 updated).
+- **A security ticket that predates the drawer explains itself visibly** (§7.2). Its note was announce-only, the
+  group busy notice was suppressed because a ticket existed, and each button's reason is visually hidden, so every
+  action was disabled with no visible reason. A ticket no rendered button carries now shows every phase in the live
+  region; a visibility test asserts no part of it is visually hidden.
+- **Retained detached host** (§4.4). A host whose own last map is older than the tracker's base re-ingested it as
+  connected and fresh when another host's observation cleared the barrier. It is now held resyncing until its own
+  next `update()`. §15 #25 names the remaining indistinguishable case (changed unobserved, then deleted during the
+  outage); C2 leaves no residual.
+- **Root and live region.** The focus restore checks `isConnected` before scheduling its frame. `agr-control-notes`
+  is `role="status"` with `aria-atomic="false"` and `aria-relevant="additions text"`.
+- **Export guard counts production users only** (§11.1). Tests no longer keep an export alive: every src export
+  needs a production importer (src, scripts or a root build config), test seams are listed with a reason in
+  `TEST_SEAMS`, element classes count through their own `HTMLElementTagNameMap`, a floor of scanned exports keeps
+  it from passing vacuously, stale seams fail, and `vite-lit-css.ts` is checked. Dead exports went:
+  `isConfirmationToken`, catalog `ACTION_KINDS`, `model/home.ts`'s test-only re-exports.
+- **One implementation each.** The gateway uses `isTicketInFlight`; the live-view fallback is allowed by
+  `openCheck().enabled`; `noValueFor(n)` replaces four `absentFor(n.stale ? 'disconnected' : 'no-data')`;
+  `alarmDisplayFor(store, id)` replaces four `alarmDisplay(normalizeEntity(…))`; `newerStatus()` picks the newer
+  ticket by id for the gateway, `ImmediateTickets` (which had compared start times) and `SecurityTickets`;
+  `ActionController.dismiss(key, {draft, ticket})` replaces seven identical Dismiss bodies; `countPrivate()` serves
+  the cameras panel and drawer; one `isDefined` guard (`util/defined.ts`); one `hyphenationDeclarations` fragment.
+- **The adapter boundary runs one way** (§2.1). Pure rules both sides need moved to `src/domain/` (`steps.ts`,
+  `alarm.ts`, `live-view.ts`); `CameraGate` moved to `ha/camera-gate.ts`; the garage and security ticket lines moved
+  to `messages.ts` (panels show the ticket's message, never their own). A mirror fitness rule: `src/ha` imports
+  nothing from `src/model` or `src/components` except the type-only allowlist (`components/services`, the
+  `DashboardServices` type the two reactive controllers receive), and `src/domain` imports neither.
+- **Styles.** Every size query uses only `(width < N)` and `(width >= N)` (a fitness rule rejects `<=` and `>`);
+  the four `<=` queries became `<` with N + 1, preserving every integer width. The last local thresholds (Today,
+  House health, vehicle, garage, comfort pair and tile) moved into `PANEL_CQ`. Numbers interpolate as plain `${n}`.
+  The hero sizes are defined once in `typography.ts`, and the hero skeleton carries `.t-hero` and measures in em.
+  The narrow-panel condition uses `--agr-type-value` (22/26, was an off-scale 20/26).
+- **Smaller fixes.** `control-helpers.ts` holds `suppressKeyRepeat`, `textClass`, `draftBase`, `draftStatusText`
+  and the stepper value text, so importing them registers no element (the climate drawer now imports
+  `agr-stepper.ts` itself). The pending-target announcement reads the scale like the stepper ("Target 73°F").
+  `HOUR_OF_DAY_LOCALE` is `PARSEABLE_DIGITS_LOCALE`. The empty `hostConnected` is gone; `super.willUpdate` is called
+  in the media drawer, confirm dialog and diagnostics drawer; the security drawer's cast is gone; `selectChoice`'s
+  current availability is frozen; the media player picker disables its pressed option as "Current player", like
+  every choice group. `SIMULATED_CALL_LATENCY_MS` in `timing.ts` serves the demo host, FakeHass and the e2e
+  comment. The fitness file declares before use, folds the overlapping old rule (its `ServicePort` ban moved to the
+  naming rule), and `importsOf` also finds bare `import '…'` and `import()`. "480 KB" means KiB (§11.5, §16.11);
+  the postbuild comment and README no longer quote a stale measurement or claim the manifest holds gzip sizes.
+- **WebKit hyphenation** (found by the all-browser e2e run, present at the previous HEAD). WebKit ignores
+  `hyphenate-limit-chars`, so it hyphenated "library" in a dense room chip at 640 px and failed the §16.14 640 px
+  gate. The shared fragment adds `-webkit-hyphenate-limit-before/after: 5`, so a word needs 10 letters there too.
+- **Docs.** §3 lists the files that had been missing; §13.2 shows `--allow-missing-private`; §13.3 and §13.4 cover
+  `vacuum_battery_sensors` and `camera_live`; the superseded §16.10 bullets (resync base, `forecast8` 312) point at
+  §16.15 and §16.14; §9.1 documents the root's `#hassSinceDetach` rule; the "N private" camera pill counts only
+  cameras whose privacy is known to be on.
+- **Measured after this pass.** The bundle is 437,680 B raw and 125,017 B gzip (target 491,520 B). Unit and
+  component tests 2,612; default e2e 245; the all-browser layout, a11y and keyboard run 444 (Chromium 148, Firefox
+  148, WebKit 138 plus the WebKit keyboard project's 10).

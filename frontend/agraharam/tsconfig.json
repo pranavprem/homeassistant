@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "types": ["vite/client", "node"]
+  },
+  "include": [
+    "src",
+    "tests",
+    "e2e",
+    "scripts",
+    "build-env.ts",
+    "vite.config.ts",
+    "vite-lit-css.ts",
+    "vite.harness.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
+}

@@ -1,0 +1,10 @@
+# Agraharam: the one Lovelace resource for the card (architecture §13.3).
+#
+# Register it ONCE, after install.sh --apply has copied this version to <HA config>/www/agraharam/<version>/:
+# Settings → Dashboards → ⋮ → Resources → Add resource, URL below, type "JavaScript module". The WebSocket path in
+# install/README.md does the same with guards.
+#
+# To upgrade, EDIT this resource's URL to the new version. Never add a second Agraharam resource: Home Assistant
+# does not deduplicate resources, two URLs load two bundle versions, and the card reports a version conflict.
+url: /local/agraharam/0.1.0/agraharam.js
+type: module

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Agraharam harness (not Home Assistant)</title>
+    <style>
+      body {
+        margin: 0;
+      }
+    </style>
+    <script>
+      // Stand-in for HA's logging mixin, which turns every uncaught error into a service call (§4.9).
+      // Every e2e spec asserts this stays 0.
+      window.__agrPageErrors = 0;
+      window.addEventListener('error', () => (window.__agrPageErrors += 1));
+      window.addEventListener('unhandledrejection', () => (window.__agrPageErrors += 1));
+    </script>
+    <script type="module" src="/src/dev/main-harness.ts"></script>
+  </head>
+  <body></body>
+</html>

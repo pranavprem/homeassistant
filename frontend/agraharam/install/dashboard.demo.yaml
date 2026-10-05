@@ -1,0 +1,13 @@
+# Agraharam: the first safe render inside Home Assistant (architecture §13.3, §13.5).
+#
+# Paste into the new agraharam-next dashboard's raw configuration editor before the real config. demo: true shows
+# fictional data only: the card reads no entities and makes no service calls. A "Demo mode: fictional data" label
+# is always visible.
+title: Agraharam
+views:
+  - title: Home
+    path: home
+    type: panel
+    cards:
+      - type: custom:agraharam-dashboard
+        demo: true

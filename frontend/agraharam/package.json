@@ -1,0 +1,41 @@
+{
+  "name": "agraharam-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agraharam: a composed household dashboard, built as one custom Lovelace card for a Home Assistant panel view.",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/postbuild.mjs",
+    "build:harness": "vite build --config vite.harness.config.ts && node scripts/stage-preview.mjs",
+    "preview": "npm run build && npm run build:harness && vite preview --config vite.harness.config.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "npm run build && npm run build:harness && playwright test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "config:private": "node scripts/generate-private-config.mjs",
+    "check:public": "node scripts/check-public.mjs",
+    "verify": "npm run format:check && npm run typecheck && npm test && npm run build && npm run check:public"
+  },
+  "dependencies": {
+    "@fontsource-variable/hanken-grotesk": "5.3.0",
+    "@fontsource-variable/newsreader": "5.3.0",
+    "lit": "3.3.3",
+    "lucide": "1.51.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.1",
+    "happy-dom": "20.14.5",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
+  }
+}
