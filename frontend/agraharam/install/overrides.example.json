@@ -1,0 +1,22 @@
+{
+  "exclude": [],
+  "names": { "camera.demo_front_gate": "Front gate" },
+  "camera_thumbnails": { "camera.demo_side_path": true },
+  "camera_live": { "camera.demo_front_gate": true },
+  "rooms": [
+    {
+      "name": "Lounge",
+      "lights": ["light.demo_lounge_lamp"],
+      "curtains": ["cover.demo_lounge_curtain"]
+    },
+    {
+      "name": "Study",
+      "lights": [],
+      "curtains": ["cover.demo_study_blind"],
+      "purifier": "fan.demo_study_purifier"
+    }
+  ],
+  "vacuum_battery_sensors": { "vacuum.demo_upstairs": "sensor.demo_upstairs_battery" },
+  "vehicle_name": "Demo sedan",
+  "charge_limit_pct": 80
+}

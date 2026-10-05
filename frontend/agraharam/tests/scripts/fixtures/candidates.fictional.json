@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "prepared_at": "2026-09-30T12:00:00Z",
+  "verification": "Fictional candidates for tests only. Every entity is a demo placeholder; nothing here describes a real home.",
+  "groups": {
+    "people": [
+      { "entity_id": "person.demo_asha", "known_in_saved_inventory": true },
+      { "entity_id": "person.demo_ravi", "known_in_saved_inventory": true }
+    ],
+    "today": [
+      { "entity_id": "weather.demo_home", "known_in_saved_inventory": true },
+      { "entity_id": "sun.sun", "known_in_saved_inventory": true }
+    ],
+    "climate": [{ "entity_id": "climate.demo_hallway", "known_in_saved_inventory": true }],
+    "air": [
+      { "entity_id": "fan.demo_bedroom_purifier", "known_in_saved_inventory": true },
+      { "entity_id": "fan.demo_study_purifier", "known_in_saved_inventory": true }
+    ],
+    "bed_comfort_optional": [{ "entity_id": "climate.demo_bed_left", "known_in_saved_inventory": true }],
+    "vacuum_candidates": [
+      { "entity_id": "vacuum.demo_upstairs", "known_in_saved_inventory": true },
+      { "entity_id": "vacuum.demo_downstairs", "known_in_saved_inventory": false }
+    ],
+    "media_candidates": [
+      { "entity_id": "media_player.demo_lounge", "known_in_saved_inventory": true },
+      { "entity_id": "media_player.demo_kitchen_speaker", "known_in_saved_inventory": true }
+    ],
+    "garage": [{ "entity_id": "cover.demo_garage_door", "known_in_saved_inventory": true }],
+    "vehicle_read_only": [
+      { "entity_id": "sensor.demo_sedan_battery_level", "known_in_saved_inventory": true },
+      { "entity_id": "sensor.demo_sedan_battery_range", "known_in_saved_inventory": true },
+      { "entity_id": "binary_sensor.demo_sedan_charger_status", "known_in_saved_inventory": true },
+      { "entity_id": "sensor.demo_sedan_charger_power", "known_in_saved_inventory": true },
+      { "entity_id": "sensor.demo_sedan_session_energy", "known_in_saved_inventory": true }
+    ],
+    "appliances_read_only": [
+      { "entity_id": "sensor.demo_washer_current_status", "known_in_saved_inventory": true },
+      { "entity_id": "sensor.demo_washer_remaining_time", "known_in_saved_inventory": true },
+      { "entity_id": "sensor.demo_dryer_current_status", "known_in_saved_inventory": true }
+    ],
+    "lights": [
+      { "entity_id": "light.demo_lounge_lamp", "known_in_saved_inventory": true },
+      { "entity_id": "light.demo_kitchen_pendant", "known_in_saved_inventory": true },
+      { "entity_id": "light.demo_porch", "known_in_saved_inventory": true }
+    ],
+    "curtains": [
+      { "entity_id": "cover.demo_lounge_curtain", "known_in_saved_inventory": true },
+      { "entity_id": "cover.demo_study_blind", "known_in_saved_inventory": true }
+    ],
+    "security_read_only": [
+      { "entity_id": "alarm_control_panel.demo_house", "known_in_saved_inventory": true },
+      { "entity_id": "input_select.demo_security_policy", "known_in_saved_inventory": true },
+      { "entity_id": "sensor.demo_suggested_mode", "known_in_saved_inventory": true },
+      { "entity_id": "input_boolean.demo_security_commissioning", "known_in_saved_inventory": true },
+      { "entity_id": "input_text.demo_security_health", "known_in_saved_inventory": true },
+      { "entity_id": "sensor.demo_policy_reason", "known_in_saved_inventory": true },
+      { "entity_id": "input_datetime.demo_commissioning_until", "known_in_saved_inventory": true }
+    ],
+    "perimeter_read_only": [
+      { "entity_id": "binary_sensor.demo_front_door_contact", "known_in_saved_inventory": true },
+      { "entity_id": "binary_sensor.demo_back_door_contact", "known_in_saved_inventory": true },
+      { "entity_id": "cover.demo_garage_door", "known_in_saved_inventory": true }
+    ],
+    "upcoming_optional": [{ "entity_id": "calendar.demo_family", "known_in_saved_inventory": true }],
+    "todo_optional": [{ "entity_id": "todo.demo_shopping", "known_in_saved_inventory": true }]
+  },
+  "camera_candidates": [
+    {
+      "entity_id": "camera.demo_front_gate",
+      "role": "front_gate",
+      "privacy_entity": "switch.demo_front_gate_privacy",
+      "privacy_enabled_value": "on"
+    },
+    {
+      "entity_id": "camera.demo_nursery",
+      "role": "nursery",
+      "privacy_entity": "input_boolean.demo_nursery_privacy",
+      "privacy_enabled_value": "off"
+    },
+    {
+      "entity_id": "camera.demo_side_path",
+      "role": "side_path",
+      "privacy_entity": null,
+      "privacy_enabled_value": null
+    },
+    { "entity_id": "camera.demo_driveway", "role": "driveway" }
+  ],
+  "guarded_actions": [
+    {
+      "label": "Disarm & Hold",
+      "entity_id": "script.demo_disarm_and_hold",
+      "meaning": "Fictional: disarms and holds the alarm off.",
+      "invocation": {
+        "domain": "script",
+        "service": "turn_on",
+        "data": { "entity_id": "script.demo_disarm_and_hold" }
+      },
+      "source": "fictional"
+    },
+    {
+      "label": "Silence Sound",
+      "entity_id": "script.demo_silence_sound",
+      "meaning": "Fictional: silences the siren only.",
+      "invocation": { "domain": "script", "service": "turn_on", "data": { "entity_id": "script.demo_silence_sound" } },
+      "source": "fictional"
+    },
+    {
+      "label": "Resume Auto Arming",
+      "entity_id": "script.demo_resume_auto",
+      "meaning": "Fictional: resumes automatic arming.",
+      "invocation": { "domain": "script", "service": "turn_on", "data": { "entity_id": "script.demo_resume_auto" } },
+      "source": "fictional"
+    },
+    {
+      "label": "Hold Night",
+      "entity_id": "script.demo_hold_night",
+      "meaning": "Fictional: holds night mode.",
+      "invocation": { "domain": "script", "service": "turn_on", "data": { "entity_id": "script.demo_hold_night" } },
+      "source": "fictional"
+    },
+    {
+      "label": "Hold Away",
+      "entity_id": "script.demo_hold_away",
+      "meaning": "Fictional: holds away mode.",
+      "invocation": { "domain": "script", "service": "turn_on", "data": { "entity_id": "script.demo_hold_away" } },
+      "source": "fictional"
+    },
+    {
+      "label": "Hold Vacation",
+      "entity_id": "script.demo_hold_vacation",
+      "meaning": "Fictional: holds vacation mode.",
+      "invocation": { "domain": "script", "service": "turn_on", "data": { "entity_id": "script.demo_hold_vacation" } },
+      "source": "fictional"
+    },
+    {
+      "label": "Prepare garage departure",
+      "entity_id": "script.demo_prepare_departure",
+      "meaning": "Fictional: prepares a trusted departure without moving the door.",
+      "invocation": {
+        "domain": "script",
+        "service": "turn_on",
+        "data": { "entity_id": "script.demo_prepare_departure" }
+      },
+      "source": "fictional"
+    },
+    {
+      "label": "Monitors On/Off",
+      "entity_id": "script.demo_studio_monitors",
+      "meaning": "Fictional: toggles the grouped studio monitors.",
+      "invocation": {
+        "domain": "script",
+        "service": "turn_on",
+        "data": { "entity_id": "script.demo_studio_monitors" }
+      },
+      "source": "fictional"
+    }
+  ],
+  "known_ambiguities": [
+    "The vacuum.demo_downstairs entry may be a replaced device; confirm it before enabling actions.",
+    "Fictional note spanning\ntwo lines, to prove comment headers stay comments."
+  ]
+}

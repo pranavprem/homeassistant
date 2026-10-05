@@ -1,0 +1,10 @@
+# Build and test output
+dist
+test-results
+playwright-report
+
+# npm writes this file; Prettier would re-wrap its arrays
+package-lock.json
+
+# Hand-wrapped design documents whose wide tables Prettier would re-pad
+docs/
