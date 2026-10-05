@@ -264,9 +264,10 @@ test.describe('§6.4 header: its own container query decides the variant', () =>
     expect(compact.header.variant).toBe('compact');
   });
 
-  test('in the compact header "Alarm state unknown" wraps onto a second line instead of overflowing', async ({
-    page,
-  }) => {
+  // §6.4: the compact pill may wrap; it is never truncated and never overflows. Whether "Alarm state unknown"
+  // actually needs a second line depends on the platform's text metrics (one line on Linux WebKit, two on macOS),
+  // so the test asserts the wrapping mechanism and its outcome, not a line count.
+  test('in the compact header "Alarm state unknown" may wrap and is never clipped or overflowing', async ({ page }) => {
     await page.setViewportSize(WRAP_VIEWPORT);
     await openHarness(page, { scenario: 'degraded', host: 'fake-hass' });
     await expectFontsLoaded(page);
@@ -274,7 +275,8 @@ test.describe('§6.4 header: its own container query decides the variant', () =>
     const pill = await securityPillText(page);
 
     expect(pill.label).toBe('Alarm state unknown');
-    expect(pill.labelLines).toBeGreaterThanOrEqual(2);
+    expect(pill.labelCanWrap, 'the compact label must be allowed to wrap').toBe(true);
+    expect(pill.labelLines).toBeGreaterThanOrEqual(1);
     expect(pill.labelClipped).toBe(false);
     expect(pill.insideHeader).toBe(true);
     expectNoHorizontalOverflow(measure);
@@ -371,6 +373,8 @@ interface PillText {
   readonly label: string;
   readonly detail: string | null;
   readonly labelLines: number;
+  /** True when the label's computed wrap mode allows a line break (the compact header's mechanism, §6.4). */
+  readonly labelCanWrap: boolean;
   readonly labelClipped: boolean;
   readonly insideHeader: boolean;
 }
@@ -385,7 +389,12 @@ async function securityPillText(page: Page): Promise<PillText> {
       throw new Error('the header has no security pill label');
     }
     const detail = pill.shadowRoot?.querySelector('.detail');
-    const lineHeight = Number.parseFloat(getComputedStyle(label).lineHeight);
+    const labelStyle = getComputedStyle(label);
+    const lineHeight = Number.parseFloat(labelStyle.lineHeight);
+    // Newer engines expose text-wrap-mode; older ones only the white-space shorthand.
+    const wrapMode = labelStyle.getPropertyValue('text-wrap-mode');
+    const labelCanWrap =
+      wrapMode !== '' ? wrapMode === 'wrap' : ['normal', 'pre-wrap', 'break-spaces'].includes(labelStyle.whiteSpace);
     const headerBox = header.getBoundingClientRect();
     const pillBox = pill.getBoundingClientRect();
     return {
@@ -395,6 +404,7 @@ async function securityPillText(page: Page): Promise<PillText> {
           ? null
           : (detail.textContent ?? '').trim(),
       labelLines: Math.round(label.getBoundingClientRect().height / lineHeight),
+      labelCanWrap,
       labelClipped: label.scrollWidth > label.clientWidth + 1,
       insideHeader: pillBox.left >= headerBox.left - 0.5 && pillBox.right <= headerBox.right + 0.5,
     };
