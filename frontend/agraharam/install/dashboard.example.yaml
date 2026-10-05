@@ -1,0 +1,110 @@
+# Agraharam: example dashboard config with FICTIONAL bindings (every ID is *.demo_*). A shape reference only.
+#
+# The real config is generated privately and never committed:
+#   npm run config:private   →   .dashboard-local/agraharam-next.dashboard.yaml
+# Every key is documented in docs/ARCHITECTURE.md §4.1. Unknown keys are reported in the card, not ignored.
+title: Agraharam
+views:
+  - title: Home
+    path: home
+    type: panel
+    cards:
+      - type: custom:agraharam-dashboard
+        demo: false
+        # Controls stay OFF until the read-only verification in install/README.md is done. While false, every
+        # control renders disabled and nothing can call a service; reads still work. Then set true and save.
+        controls: false
+        # Admin-only diagnostics drawer; turn on briefly to check that every binding resolves.
+        diagnostics: false
+        people:
+          - person.demo_asha
+          - entity: person.demo_ravi
+            name: Ravi
+        weather: weather.demo_home
+        sun: sun.sun
+        climate:
+          - climate.demo_hallway
+        air:
+          - entity: fan.demo_bedroom_purifier
+            name: Bedroom purifier
+        # Read-only: bed comfort tiles never get controls.
+        bed_comfort:
+          - climate.demo_bed_left
+        rooms:
+          - name: Lounge
+            lights:
+              - light.demo_lounge_lamp
+              - light.demo_lounge_ceiling
+            curtains:
+              - cover.demo_lounge_curtain
+            purifier: fan.demo_lounge_purifier
+          - name: Kitchen
+            lights:
+              - light.demo_kitchen_pendant
+        vacuums:
+          - entity: vacuum.demo_upstairs
+            name: Upstairs vacuum
+            # Optional: without it the battery is derived from the vacuum's own device, or shown as absent.
+            battery_sensor: sensor.demo_upstairs_battery
+        appliances:
+          - name: Washer
+            status_sensor: sensor.demo_washer_current_status
+            remaining_sensor: sensor.demo_washer_remaining_time
+        media:
+          - media_player.demo_lounge
+        cameras:
+          # privacy_on_value is exactly on or off (lowercase): the privacy entity's state while privacy is ON.
+          # Quote it, because YAML 1.1 parsers read a bare on as true. Anything else is rejected, never coerced.
+          # A camera with a privacy binding is gated by it and fails closed on any unexpected state.
+          - entity: camera.demo_front_gate
+            name: Front gate
+            privacy_entity: switch.demo_front_gate_privacy
+            privacy_on_value: 'on'
+            snapshot_interval: 10
+          # Cameras without a privacy binding default to thumbnails: false in the generated config ("Live view on
+          # request"). Keep it that way for indoor cameras.
+          - entity: camera.demo_nursery
+            name: Nursery
+            thumbnails: false
+            # live: false removes live view from this dashboard (the default is true). The generator writes it for
+            # every camera without positive outdoor evidence; keep it false for indoor cameras.
+            live: false
+          # An outdoor camera opted in after checking it. Cloud or battery cameras may raise snapshot_interval
+          # (seconds, 5 to 600).
+          - entity: camera.demo_side_path
+            name: Side path
+            thumbnails: true
+            snapshot_interval: 60
+        garage:
+          cover: cover.demo_garage
+          name: Garage
+        vehicle:
+          name: Demo sedan
+          battery_sensor: sensor.demo_sedan_battery_level
+          range_sensor: sensor.demo_sedan_battery_range
+          charger_status: binary_sensor.demo_sedan_charger_status
+          charger_power: sensor.demo_sedan_charger_power
+          session_energy: sensor.demo_sedan_session_energy
+          charge_limit_pct: 80
+        security:
+          alarm: alarm_control_panel.demo_home
+          policy: input_select.demo_security_policy
+          suggested_mode: sensor.demo_suggested_mode
+          commissioning: input_boolean.demo_commissioning
+          health_text: input_text.demo_security_health
+          perimeter:
+            - binary_sensor.demo_front_door
+            - cover.demo_garage
+          # Existing guarded scripts only (script.*). Each role needs its OWN script: one script may hold one role,
+          # so a sound-only silence can never be bound to a persistent disarm. Unconfigured roles do not render.
+          actions:
+            disarm_hold: script.demo_disarm_hold
+            silence_sound: script.demo_silence_sound
+            resume_auto: script.demo_resume_auto
+            hold_night: script.demo_hold_night
+            hold_away: script.demo_hold_away
+            hold_vacation: script.demo_hold_vacation
+            prepare_departure: script.demo_prepare_departure
+        studio_monitors_script: script.demo_studio_monitors
+        calendars:
+          - calendar.demo_family

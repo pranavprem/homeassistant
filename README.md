@@ -361,6 +361,10 @@ rather than being hidden or silently failing.
 
 The main dashboard ("Agraharam") uses [Mushroom cards](https://github.com/piitaya/lovelace-mushroom) from HACS. Configuration is in `dashboard.yaml`.
 
+The bespoke dashboard project has a [Claude Code build handoff](docs/dashboard/README.md),
+including a copy-paste prompt, visual brief, HA integration/deployment contract and
+acceptance checks. This is a specification, not an installed replacement dashboard.
+
 ## Automations
 
 25 automations in `automations/` covering lights, garage, vacuum, laundry, Tesla charging, movie mode, air purifiers, and more. See `CLAUDE.md` for the full list.
