@@ -12,6 +12,24 @@ them or inline household data into frontend assets. Implement under
 verified live registry. UI work must preserve existing dashboards, security policy
 and device automations. See `docs/dashboard/README.md` for the complete boundary.
 
+### Working on `frontend/agraharam/`
+
+- Node 24 (`engines: >=24 <25`). From `frontend/agraharam/`: `npm run verify` (format, typecheck, unit tests,
+  build, `check:public`) and `npm run test:e2e` (Chromium, plus WebKit for keyboard tests only).
+- The wall tablet is likely Safari. Run `AGR_E2E_BROWSERS=all npm run test:e2e` before any deployment and after
+  layout changes. WebKit has shown layout differences that Chromium hides (container queries on slotted content).
+- Follow the commit procedure in `frontend/agraharam/README.md`. Before pushing, run
+  `npm run check:public -- --range <upstream>..HEAD` so every outgoing commit is scanned.
+- A push deploys nothing. Deployment is `install/install.sh` over an authorized file channel to the NAS, followed
+  by the read-only check in `frontend/agraharam/docs/ARCHITECTURE.md` §13.5. Ask before deploying.
+- Controls ship with `controls: false`. Only the household enables them, after the §13.5 check. Tooling never
+  exercises physical controls.
+- FakeHass must match home-assistant-js-websocket: `ready` fires before the state snapshot, the store is never
+  cleared, and unchanged entities keep object identity. Every fail-closed gate in `src/ha/` (resync barrier,
+  camera privacy gate) needs a liveness bound and a test for it.
+- `config:private` heuristics must be checked against the real `.dashboard-local/` inputs, printing counts only.
+  With no positive evidence, take the private branch.
+
 ## What this repo is
 
 The Docker Compose deployment + configuration source for Pranav's Home Assistant stack on a
