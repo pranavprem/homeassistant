@@ -207,11 +207,9 @@ services:
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
-    depends_on:
-      homeassistant:
-        condition: service_healthy
-      grocy:
-        condition: service_healthy
+    # Keep ingress independent of backend health. A failing Grocy healthcheck
+    # must not prevent the shared tunnel from serving a healthy Home Assistant.
+    # cloudflared can start first and route requests as each backend becomes ready.
     healthcheck:
       test: ["CMD", "cloudflared", "tunnel", "--version"]
       interval: 30s
