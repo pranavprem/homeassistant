@@ -57,3 +57,37 @@ Because the compose project name and container names are stable, Compose should 
 - Keep Portainer outside this stack so a Home Assistant redeploy does not take down the UI driving it.
 - Keep `.env`, Cloudflare tunnel tokens, MQTT credentials, Govee credentials, and Grocy API keys out of git.
 - If you switch this repo back to private later, add Git credentials in Portainer or mirror it to NAS Gitea and use that repository URL instead.
+
+## Keep the shared tunnel independent
+
+`cloudflared` must not have a startup dependency on Home Assistant or Grocy health.
+It is shared ingress: a failed Grocy healthcheck must not block remote access to
+an otherwise healthy Home Assistant. The tunnel can start before either backend;
+requests to an unavailable backend will fail independently until it recovers.
+Do not weaken Grocy's healthcheck to make the tunnel start.
+
+For a narrowly scoped recovery, start the existing `ha-cloudflared` container in
+Portainer. To apply an approved tunnel-only Compose change from the correct NAS
+checkout and environment, use:
+
+```bash
+docker compose up -d --no-deps --pull never cloudflared
+```
+
+This command targets only the tunnel and avoids pulling a new image. It is not
+`make up`: that target can rebuild the stack and restart HA for proxy changes.
+Starting an existing stopped/created container restores service only; the dependency
+change must also reach the Git source used by Portainer to survive future recreations.
+
+Verify separately:
+
+- HA's local response and its unchanged container ID/start time.
+- Tunnel container running and logs showing registered Cloudflare connections.
+- The public HA URL loads successfully; a running container alone is not proof.
+- Grocy's health independently, without describing its recovery as part of the tunnel fix.
+
+The current tunnel healthcheck runs `cloudflared tunnel --version`; it only checks
+that the executable works, not that the tunnel is connected. Do not use that
+`healthy` label alone as proof of remote availability. Inspect Git polling settings
+when redeployments recur, and avoid automatically pulling unrelated `latest`/`stable`
+images as part of a narrow ingress repair.
