@@ -1,8 +1,9 @@
 /**
  * <dev-ha-shell> (§10.3): fake HA chrome around the card for `npm run dev`, `npm run preview` and e2e. Not in the
  * bundle. A 56 px toolbar and a sidebar that is 256 px expanded, 56 px collapsed and hidden below an 870 px viewport
- * (HA narrow), so the card sees the widths it sees inside HA. Query params (scenario, theme, sidebar, host) are the
- * only state; no storage APIs.
+ * (HA narrow), so the card sees the widths it sees inside HA. Query params (scenario, theme, sidebar, host, and
+ * registry=pending for a fake-hass whose entity registry arrives only on "Deliver registry", §18) are the only state;
+ * no storage APIs.
  *
  * Import boundary (§10.3): it never imports element source. The page entry defines the card (from source in dev,
  * from the built bundle in the harness) and the shell creates it by tag name.
@@ -298,6 +299,10 @@ class DevHaShell extends LitElement {
   @state() private busy = false;
   @state() private connected = true;
   @state() private firstUpdateHeld = false;
+  /** `registry=pending`: every FakeHass starts with `entities: null`, as the real frontend does (§18). */
+  @state() private registryPending = false;
+  /** The current FakeHass has not delivered its registry yet. */
+  @state() private registryHeld = false;
   @state() private pageErrors = 0;
 
   readonly #card = document.createElement(CARD_TAG) as CardElement;
@@ -402,6 +407,7 @@ class DevHaShell extends LitElement {
             : nothing
         }
         ${this.firstUpdateHeld ? html`<button @click=${this.#deliverFirstUpdate}>Deliver first update</button>` : nothing}
+        ${fake && this.registryHeld ? html`<button @click=${this.#deliverRegistry}>Deliver registry</button>` : nothing}
         <button ?disabled=${this.busy} @click=${this.#routeChange}>Route change</button>
         <button ?disabled=${this.busy} @click=${this.#editModeToggle}>Edit-mode toggle</button>
         <button ?disabled=${this.busy} @click=${this.#hiddenFiveMinutes}>Hidden 5 min</button>
@@ -419,8 +425,12 @@ class DevHaShell extends LitElement {
 
   #startScenario(): void {
     this.#disposeFake();
-    const fake = new FakeHass(this.scenario, { darkMode: this.theme === 'dark' });
+    const fake = new FakeHass(this.scenario, {
+      darkMode: this.theme === 'dark',
+      registryPending: this.registryPending,
+    });
     this.#fake = fake;
+    this.registryHeld = this.registryPending;
     window.__agrCalls = fake.calls;
     this.connected = true;
     this.#delivering = true;
@@ -455,6 +465,11 @@ class DevHaShell extends LitElement {
     if (this.host === 'demo') this.#card.releaseDemoFirstIngest();
     else if (this.#fake) this.#card.hass = this.#fake.hass;
     this.#fake?.applyScenarioConnection();
+  };
+
+  #deliverRegistry = (): void => {
+    this.registryHeld = false;
+    this.#fake?.deliverRegistry();
   };
 
   #toggleConnection = (): void => {
@@ -586,6 +601,7 @@ class DevHaShell extends LitElement {
     if (params.get('theme') === 'dark') this.theme = 'dark';
     if (params.get('sidebar') === 'collapsed') this.sidebar = 'collapsed';
     if (params.get('host') === 'fake-hass') this.host = 'fake-hass';
+    if (params.get('registry') === 'pending') this.registryPending = true;
   }
 
   #writeQuery(): void {
@@ -594,6 +610,7 @@ class DevHaShell extends LitElement {
       theme: this.theme,
       sidebar: this.sidebar,
       host: this.host,
+      ...(this.registryPending && { registry: 'pending' }),
     });
     window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
   }

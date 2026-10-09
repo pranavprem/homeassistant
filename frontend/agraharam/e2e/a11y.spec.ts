@@ -34,6 +34,14 @@ interface Overlay {
 }
 
 const OVERLAYS: readonly Overlay[] = [
+  { name: 'readings drawer', scenario: 'dense', open: ['health:readings'], viewports: ['1440x900', '390x844'] },
+  {
+    name: 'whole-house confirmation',
+    scenario: 'dense',
+    open: ['home:shortcut:lights_toggle'],
+    viewports: ['1440x900', '390x844'],
+  },
+
   { name: 'security drawer', scenario: 'normal', open: ['header:security'], viewports: ['1440x900', '390x844'] },
   { name: 'security drawer (alarm triggered)', scenario: 'alert', open: ['header:security'], viewports: ['1440x900'] },
   { name: 'garage confirm dialog', scenario: 'normal', open: ['garage:open'], viewports: ['1440x900', '390x844'] },

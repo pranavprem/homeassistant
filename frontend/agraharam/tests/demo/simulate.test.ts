@@ -20,6 +20,8 @@ const NOW = Date.UTC(2026, 8, 30, 0, 51);
 const CATALOG_SERVICES = [
   'light.turn_on',
   'light.turn_off',
+  'switch.turn_on',
+  'switch.turn_off',
   'climate.set_temperature',
   'climate.set_hvac_mode',
   'fan.turn_on',
@@ -87,6 +89,31 @@ describe('simulateServiceCall (§10.2)', () => {
         'brightness'
       ],
     ).toBeNull();
+  });
+
+  it('lighting switches turn on and off as new objects with a new context and last_changed, every target (§18)', () => {
+    const desk = testEntity('switch.demo_desk_lamp', 'off', { friendly_name: 'Desk lamp' });
+    const floor = testEntity('switch.demo_floor_lamp', 'off', { friendly_name: 'Floor lamp' });
+    const steps = simulateServiceCall(
+      call('switch.turn_on', [desk.entity_id, floor.entity_id]),
+      statesOf(desk, floor),
+      NOW,
+    );
+    const finals = new Map(steps.map((step) => [step.state.entity_id, step.state]));
+    for (const before of [desk, floor]) {
+      const after = finals.get(before.entity_id);
+      expect(after, before.entity_id).toMatchObject({
+        state: 'on',
+        attributes: { friendly_name: before.attributes['friendly_name'] },
+      });
+      expect(after).not.toBe(before);
+      expect(after?.context.id).toBe(demoContextId(NOW));
+      expect(after?.last_changed).not.toBe(before.last_changed);
+    }
+    const on = testEntity('switch.demo_desk_lamp', 'on');
+    expect(finalState(simulateServiceCall(call('switch.turn_off', on.entity_id), statesOf(on), NOW))?.state).toBe(
+      'off',
+    );
   });
 
   it('covers move through opening to open, each step built on the previous one', () => {

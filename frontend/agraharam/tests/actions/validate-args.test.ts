@@ -38,6 +38,11 @@ describe('request shape (step 1, through frozenActionRequest)', () => {
     expect(isRequest({ kind: 'security.run', role: 'hold_away' })).toBe(true);
     expect(isRequest({ kind: 'room.lights_off', room: 0 })).toBe(true);
     expect(isRequest(Object.assign(Object.create(null), { kind: 'studio_monitors.run' }))).toBe(true);
+    // §18
+    expect(isRequest({ kind: 'switch.turn_on', entity: 'switch.demo_desk_lamp' })).toBe(true);
+    expect(isRequest({ kind: 'switch.turn_off', entity: 'switch.demo_desk_lamp' })).toBe(true);
+    expect(isRequest({ kind: 'shortcut.run', role: 'lights_toggle' })).toBe(true);
+    expect(isRequest({ kind: 'shortcut.run', role: 'curtains_toggle' })).toBe(true);
   });
 
   it.each([
@@ -50,7 +55,19 @@ describe('request shape (step 1, through frozenActionRequest)', () => {
     ['malformed entity ID', { kind: 'fan.turn_on', entity: 'fan.demo__purifier' }],
     ['fractional room', { kind: 'room.lights_on', room: 1.5 }],
     ['unknown role', { kind: 'security.run', role: 'arm_away' }],
-    ['unknown kind', { kind: 'switch.turn_on', entity: 'switch.demo_plug' }],
+    ['unknown kind', { kind: 'switch.toggle', entity: 'switch.demo_plug' }],
+    ['cross-domain kind', { kind: 'homeassistant.turn_on', entity: 'switch.demo_plug' }],
+    ['a reading kind', { kind: 'collection.read', entity: 'sensor.demo_ink' }],
+    ['unknown shortcut role', { kind: 'shortcut.run', role: 'garage_toggle' }],
+    ['shortcut role in another case', { kind: 'shortcut.run', role: 'Lights_toggle' }],
+    ['shortcut without a role', { kind: 'shortcut.run' }],
+    ['shortcut with a script', { kind: 'shortcut.run', role: 'lights_toggle', entity: 'script.demo_other' }],
+    ['shortcut with variables', { kind: 'shortcut.run', role: 'lights_toggle', variables: { all: true } }],
+    ['shortcut with a confirmation flag', { kind: 'shortcut.run', role: 'lights_toggle', confirmed: true }],
+    ['switch without an entity', { kind: 'switch.turn_on' }],
+    ['switch with a room', { kind: 'switch.turn_off', entity: 'switch.demo_plug', room: 0 }],
+    ['switch with data', { kind: 'switch.turn_on', entity: 'switch.demo_plug', data: {} }],
+    ['malformed switch ID', { kind: 'switch.turn_on', entity: 'switch.Demo' }],
     ['symbol key', { kind: 'garage.open', [Symbol('x')]: 1 }],
     ['own __proto__ key', JSON.parse('{"kind": "garage.open", "__proto__": {"x": 1}}')],
     ['getter', Object.defineProperty({}, 'kind', { get: () => 'garage.open', enumerable: true })],

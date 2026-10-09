@@ -1,7 +1,7 @@
 /**
- * Room drawer (§5.3): every light with its toggle and brightness slider, explicit All on and All off for the room,
- * curtains with Open and Close (garage, gate and door covers read-only with the reason), and the room purifier
- * through the shared agr-fan-controls.
+ * Room drawer (§5.3, §18): every light with its toggle and brightness slider, every lighting switch with its toggle,
+ * explicit All on and All off for the room's lights and switches together, curtains with Open and Close (garage, gate
+ * and door covers read-only with the reason), and the room purifier through the shared agr-fan-controls.
  *
  * The drawer holds the ActionController for everything inside it: rows and the fan controls emit intents, and each
  * becomes exactly one request (or one debounced draft for sliders). Ticket messages go to its single polite live
@@ -34,13 +34,16 @@ import {
   panelNotice,
   performFromEvent,
   roomRequest,
+  switchRequest,
   type BrightnessDraftDetail,
   type CurtainCommandDetail,
   type LightCommandDetail,
+  type SwitchCommandDetail,
 } from './home-actions.ts';
 import { drawerGroupStyles, insetStyles } from './home-styles.ts';
 import './agr-curtain-row.ts';
 import './agr-light-row.ts';
+import './agr-switch-row.ts';
 import { selectorInput } from '../shared/selector-input.ts';
 
 type AgrRoomDrawerRequest = Extract<DrawerRequest, { id: 'room' }>;
@@ -82,6 +85,9 @@ export class AgrRoomDrawer extends LitElement implements DrawerElement<AgrRoomDr
       agr-control-notes:not([quiet]) {
         margin-block-end: var(--agr-space-2);
       }
+      .registry {
+        margin: 0;
+      }
     `,
   ];
 
@@ -107,6 +113,11 @@ export class AgrRoomDrawer extends LitElement implements DrawerElement<AgrRoomDr
   readonly #onLight = contained('room-light-failed', (event: CustomEvent<LightCommandDetail>) => {
     event.stopPropagation();
     performFromEvent(this, this.#actions, this.#tickets, lightRequest(event.detail), event);
+  });
+
+  readonly #onSwitch = contained('room-switch-failed', (event: CustomEvent<SwitchCommandDetail>) => {
+    event.stopPropagation();
+    performFromEvent(this, this.#actions, this.#tickets, switchRequest(event.detail), event);
   });
 
   readonly #onBrightness = contained('room-brightness-failed', (event: CustomEvent<BrightnessDraftDetail>) => {
@@ -164,9 +175,17 @@ export class AgrRoomDrawer extends LitElement implements DrawerElement<AgrRoomDr
   }
 
   #renderRoom(room: HomeRoomVM): TemplateResult {
-    const notice = panelNotice([room.allOn, room.allOff, ...room.lights.map((light) => light.toggle)]);
+    // A settings switch is refused whatever else holds, so it never takes part in the one shared notice.
+    const switchToggles = room.switches.filter((item) => !item.readOnly).map((item) => item.toggle);
+    const notice = panelNotice([
+      room.allOn,
+      room.allOff,
+      ...room.lights.map((light) => light.toggle),
+      ...switchToggles,
+    ]);
     return html`<div
       @agr-home-light=${this.#onLight}
+      @agr-home-switch=${this.#onSwitch}
       @agr-home-brightness=${this.#onBrightness}
       @agr-home-curtain=${this.#onCurtain}
       @agr-dismiss-note=${this.#onDismiss}
@@ -183,48 +202,61 @@ export class AgrRoomDrawer extends LitElement implements DrawerElement<AgrRoomDr
 
   #renderLights(room: HomeRoomVM): TemplateResult {
     const prefix = `room-drawer:${room.index}`;
-    if (room.lights.length === 0) {
-      return html`<section class="group">
-        <h3 class="t-label">Lights</h3>
-        <p class="t-meta">No lights are set up for this room.</p>
-      </section>`;
-    }
+    const rows = room.lights.length + room.switches.length;
     return html`<section class="group">
       <h3 class="t-label">Lights</h3>
-      <div class="summary">
-        <p class="t-body">${room.summary}</p>
-        <div class="room-actions" role="group" aria-label=${`All ${room.name} lights`}>
-          <agr-button
-            label="All on"
-            icon="lightbulb"
-            focus-key=${`${prefix}:all-on`}
-            reason-display="hidden"
-            .availability=${room.allOn}
-            @agr-activate=${(event: Event) => this.#onRoomAction('on', event)}
-          ></agr-button>
-          <agr-button
-            label="All off"
-            icon="lightbulb-off"
-            focus-key=${`${prefix}:all-off`}
-            reason-display="hidden"
-            .availability=${room.allOff}
-            @agr-activate=${(event: Event) => this.#onRoomAction('off', event)}
-          ></agr-button>
-        </div>
-      </div>
-      <ul class="stack">
-        ${room.lights.map(
-          (light) =>
-            html`<li>
-              <agr-light-row
-                .light=${light}
-                .draft=${this.#actions.draftState(`entity:${light.key}`)}
-                focus-key-prefix=${`${prefix}:light`}
-              ></agr-light-row>
-            </li>`,
-        )}
-      </ul>
+      ${room.registryNotice === undefined ? nothing : html`<p class="registry t-meta">${room.registryNotice}</p>`}
+      ${this.#renderRoomActions(room)}
+      ${
+        rows === 0
+          ? nothing
+          : html`<ul class="stack">
+              ${room.lights.map(
+                (light) =>
+                  html`<li>
+                    <agr-light-row
+                      .light=${light}
+                      .draft=${this.#actions.draftState(`entity:${light.key}`)}
+                      focus-key-prefix=${`${prefix}:light`}
+                    ></agr-light-row>
+                  </li>`,
+              )}
+              ${room.switches.map(
+                (item) =>
+                  html`<li><agr-switch-row .item=${item} focus-key-prefix=${`${prefix}:switch`}></agr-switch-row></li>`,
+              )}
+            </ul>`
+      }
     </section>`;
+  }
+
+  /** The summary with All on and All off for lights and lamp switches together; none without a lighting item. */
+  #renderRoomActions(room: HomeRoomVM): TemplateResult {
+    const prefix = `room-drawer:${room.index}`;
+    if (room.allOn === undefined || room.allOff === undefined) {
+      return html`<p class="t-meta">No lights are set up for this room.</p>`;
+    }
+    return html`<div class="summary">
+      <p class="t-body">${room.summary}</p>
+      <div class="room-actions" role="group" aria-label=${`All ${room.name} lights`}>
+        <agr-button
+          label="All on"
+          icon="lightbulb"
+          focus-key=${`${prefix}:all-on`}
+          reason-display="hidden"
+          .availability=${room.allOn}
+          @agr-activate=${(event: Event) => this.#onRoomAction('on', event)}
+        ></agr-button>
+        <agr-button
+          label="All off"
+          icon="lightbulb-off"
+          focus-key=${`${prefix}:all-off`}
+          reason-display="hidden"
+          .availability=${room.allOff}
+          @agr-activate=${(event: Event) => this.#onRoomAction('off', event)}
+        ></agr-button>
+      </div>
+    </div>`;
   }
 
   #renderCurtains(room: HomeRoomVM): TemplateResult | typeof nothing {
@@ -278,6 +310,7 @@ export class AgrRoomDrawer extends LitElement implements DrawerElement<AgrRoomDr
     const subjects: NoteSubject[] = [
       { key: `room:${room.index}`, name: `${room.name} lights` },
       ...room.lights.map((light) => ({ key: `entity:${light.key}` as const, name: light.name })),
+      ...room.switches.map((item) => ({ key: `entity:${item.key}` as const, name: item.name })),
       ...room.curtains.map((curtain) => ({ key: `entity:${curtain.key}` as const, name: curtain.name })),
       ...(room.purifier === undefined ? [] : [{ key: fanActionKey(room.purifier.key), name: room.purifier.name }]),
     ];

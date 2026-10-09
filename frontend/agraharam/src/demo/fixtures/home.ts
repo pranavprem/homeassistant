@@ -1,17 +1,22 @@
 /**
- * Home fixture (§10.2): rooms with lights, curtains and a room purifier, robot vacuums, appliances and the
- * studio monitors script, per scenario. Everything is fictional and every time is relative to the fixture clock.
+ * Home fixture (§10.2, §18): rooms with lights, lamp switches, curtains and a room purifier, robot vacuums,
+ * appliances, the studio monitors script and the whole-house shortcuts, per scenario. Everything is fictional and
+ * every time is relative to the fixture clock.
  *
- * normal     four rooms (one lit), one docked vacuum, one running dishwasher, studio monitors (the §6.2.1 gate)
+ * normal     four rooms (one lit), one docked vacuum, one running dishwasher, studio monitors (the §6.2.1 gate); no
+ *            switches or shortcuts, so the hard gate is unchanged
  * degraded   an unavailable light, a light that rejects actions, a garage-class cover listed as a curtain
- *            (read-only), a vacuum in error, a remaining time of null and a configured appliance that is missing
+ *            (read-only), a vacuum in error, a remaining time of null and a configured appliance that is missing; an
+ *            unavailable lamp switch and a settings switch (read-only) in the Workshop, a lamp switch that rejects
+ *            actions in the Reading room (its "All on" goes out partly), and a lights shortcut that never confirms
  * empty      nothing configured: the panel shows its empty state
- * starting   HA starting: some bound states have not arrived yet ("Loading", never "Not found")
- * dense      seven rooms, nine lights, four curtains, three vacuums (one with a derived battery), four appliances
- *            and long names, so the overview overflows into the home drawer
+ * starting   HA starting: some bound states have not arrived yet ("Loading", never "Not found"), a switch included
+ * dense      ten rooms (two lit only by lamp switches), ten lights, six lamp switches, four curtains, three vacuums
+ *            (one with a derived battery), four appliances, both shortcuts and long names, so the overview overflows
+ *            into the home drawer
  * Every other scenario uses normal.
  */
-import type { CardConfigInput, DemoScenarioId, EntityId } from '../../config/schema.ts';
+import type { CardConfigInput, DemoScenarioId, EntityId, ShortcutRole } from '../../config/schema.ts';
 import { COVER_FEATURE, FAN_FEATURE, VACUUM_FEATURE } from '../../ha/features.ts';
 import type { HassEntityLike, RegistryEntryLike } from '../../ha/types.ts';
 import { demoEntity, type DemoBehavior, type FixtureClock, type SectionFixture } from '../fixture-types.ts';
@@ -36,6 +41,14 @@ interface DemoLight {
   readonly modes?: readonly string[];
 }
 
+interface DemoSwitch {
+  readonly id: string;
+  readonly name: string;
+  readonly state: LightState;
+  /** A settings switch: HA's registry marks it, and the dashboard shows it read-only (§18). */
+  readonly category?: 'config' | 'diagnostic';
+}
+
 interface DemoCurtain {
   readonly id: string;
   readonly name: string;
@@ -53,6 +66,8 @@ interface DemoPurifier {
 interface DemoRoom {
   readonly name: string;
   readonly lights: readonly DemoLight[];
+  /** Lamp switches; a room with switches and no lights leaves `lights` out of its config (§18 rule 11c). */
+  readonly switches?: readonly DemoSwitch[];
   readonly curtains?: readonly DemoCurtain[];
   readonly purifier?: DemoPurifier;
 }
@@ -84,10 +99,17 @@ interface HomeScene {
   readonly vacuums: readonly DemoVacuum[];
   readonly appliances: readonly DemoAppliance[];
   readonly studioMonitors: boolean;
+  readonly shortcuts?: readonly ShortcutRole[];
   readonly behaviors: readonly DemoBehavior[];
 }
 
 const STUDIO_MONITORS = 'script.demo_studio_monitors';
+const SHORTCUT_SCRIPTS: Readonly<Record<ShortcutRole, { readonly id: string; readonly name: string }>> = Object.freeze({
+  lights_toggle: { id: 'script.demo_house_lights_toggle', name: 'House lights toggle' },
+  curtains_toggle: { id: 'script.demo_house_curtains_toggle', name: 'House curtains toggle' },
+});
+/** Smart plugs commonly report this device class for a lamp's power switch. */
+const LAMP_SWITCH_DEVICE_CLASS = 'outlet';
 
 const READING_BLIND: DemoCurtain = {
   id: 'cover.demo_reading_blind',
@@ -152,10 +174,26 @@ const NORMAL: HomeScene = {
   behaviors: [],
 };
 
+/** A lamp switch that rejects actions: the Reading room's "All on" then goes out only in part (§18). */
+const READING_STRIP = 'switch.demo_reading_strip';
+
 const DEGRADED: HomeScene = {
-  rooms: normalRooms({ path: 'unavailable' }).map((room) =>
-    room.name === 'Workshop' ? { ...room, curtains: [WORKSHOP_SHUTTER] } : room,
-  ),
+  rooms: normalRooms({ path: 'unavailable' }).map((room) => {
+    if (room.name === 'Workshop') {
+      return {
+        ...room,
+        curtains: [WORKSHOP_SHUTTER],
+        switches: [
+          { id: 'switch.demo_workshop_lamp', name: 'Workshop lamp', state: 'unavailable' },
+          { id: 'switch.demo_workshop_child_lock', name: 'Plug child lock', state: 'off', category: 'config' },
+        ],
+      };
+    }
+    if (room.name === 'Reading room') {
+      return { ...room, switches: [{ id: READING_STRIP, name: 'Shelf strip', state: 'off' }] };
+    }
+    return room;
+  }),
   vacuums: [{ id: PEBBLE, name: 'Pebble', state: 'error', battery: { id: PEBBLE_BATTERY, state: '41' } }],
   appliances: [
     {
@@ -167,14 +205,24 @@ const DEGRADED: HomeScene = {
     { name: 'Dryer', status: { id: 'sensor.demo_dryer_status', state: 'absent' } },
   ],
   studioMonitors: true,
-  behaviors: [{ entity: 'light.demo_kitchen' as EntityId, onInvoke: 'reject-validation' }],
+  shortcuts: ['lights_toggle'],
+  behaviors: [
+    { entity: 'light.demo_kitchen' as EntityId, onInvoke: 'reject-validation' },
+    { entity: READING_STRIP as EntityId, onInvoke: 'reject-validation' },
+    { entity: SHORTCUT_SCRIPTS.lights_toggle.id as EntityId, onInvoke: 'never-confirm' },
+  ],
 };
 
 const EMPTY: HomeScene = { rooms: [], vacuums: [], appliances: [], studioMonitors: false, behaviors: [] };
 
 const STARTING: HomeScene = {
-  // Kitchen has not reported at all ("Loading"); Courtyard is partly in ("2 on, 1 loading"), never "Off".
-  rooms: normalRooms({ kitchen: 'absent', steps: 'absent' }),
+  // Kitchen has not reported at all ("Loading"), its lamp switch included; Courtyard is partly in ("2 on, 1
+  // loading"), never "Off".
+  rooms: normalRooms({ kitchen: 'absent', steps: 'absent' }).map((room) =>
+    room.name === 'Kitchen'
+      ? { ...room, switches: [{ id: 'switch.demo_kitchen_cabinet_lamp', name: 'Cabinet lamp', state: 'absent' }] }
+      : room,
+  ),
   vacuums: [{ id: PEBBLE, name: 'Pebble', state: 'docked', battery: { id: PEBBLE_BATTERY, state: 'absent' } }],
   appliances: [
     {
@@ -208,6 +256,7 @@ const DENSE: HomeScene = {
         { id: 'light.demo_kitchen', name: 'Kitchen', state: 'on', brightness: DIM },
         { id: 'light.demo_kitchen_counter', name: 'Counter strip', state: 'off', modes: ['color_temp'] },
       ],
+      switches: [{ id: 'switch.demo_kitchen_cabinet_lamp', name: 'Cabinet lamp', state: 'on' }],
     },
     {
       name: 'Workshop',
@@ -229,6 +278,20 @@ const DENSE: HomeScene = {
       ],
     },
     { name: 'Entry hall', lights: [{ id: 'light.demo_entry_hall', name: 'Entry hall', state: 'off' }] },
+    {
+      name: 'Study',
+      lights: [{ id: 'light.demo_study_ceiling', name: 'Study ceiling', state: 'off' }],
+      switches: [{ id: 'switch.demo_study_desk_lamp', name: 'Desk lamp', state: 'on' }],
+    },
+    {
+      name: 'Loft',
+      lights: [],
+      switches: [
+        { id: 'switch.demo_loft_floor_lamp', name: 'Floor lamp', state: 'off' },
+        { id: 'switch.demo_loft_string_lights', name: 'String lights', state: 'on' },
+      ],
+    },
+    { name: 'Pantry', lights: [], switches: [{ id: 'switch.demo_pantry_lamp', name: 'Pantry lamp', state: 'off' }] },
   ],
   vacuums: [
     { id: PEBBLE, name: 'Pebble', state: 'cleaning', battery: { id: PEBBLE_BATTERY, state: '64' } },
@@ -269,6 +332,7 @@ const DENSE: HomeScene = {
     },
   ],
   studioMonitors: true,
+  shortcuts: ['lights_toggle', 'curtains_toggle'],
   behaviors: [],
 };
 
@@ -309,13 +373,19 @@ function config(scenario: DemoScenarioId): Partial<CardConfigInput> {
       })),
     }),
     ...(scene.studioMonitors && { studio_monitors_script: STUDIO_MONITORS }),
+    ...(scene.shortcuts !== undefined && {
+      shortcuts: Object.fromEntries(scene.shortcuts.map((role) => [role, SHORTCUT_SCRIPTS[role].id])),
+    }),
   };
 }
 
 function roomConfig(room: DemoRoom): NonNullable<CardConfigInput['rooms']>[number] {
+  const switches = room.switches ?? [];
   return {
     name: room.name,
-    lights: room.lights.map((light) => light.id),
+    // A room lit only by lamp switches omits `lights`, as a household would write it (§18 rule 11c).
+    ...((room.lights.length > 0 || switches.length === 0) && { lights: room.lights.map((light) => light.id) }),
+    ...(switches.length > 0 && { switches: switches.map((item) => item.id) }),
     ...(room.curtains !== undefined && { curtains: room.curtains.map((curtain) => curtain.id) }),
     ...(room.purifier !== undefined && { purifier: room.purifier.id }),
   };
@@ -339,12 +409,24 @@ function states(scenario: DemoScenarioId, clock: FixtureClock): HassEntityLike[]
           }),
         ]
       : []),
+    ...(scene.shortcuts ?? []).map((role) =>
+      demoEntity(clock, SHORTCUT_SCRIPTS[role].id, 'off', {
+        friendly_name: SHORTCUT_SCRIPTS[role].name,
+        last_triggered: clock.at(-600),
+        mode: 'single',
+      }),
+    ),
   ];
 }
 
 function roomStates(clock: FixtureClock, room: DemoRoom): HassEntityLike[] {
   return [
     ...room.lights.filter((light) => light.state !== 'absent').map((light) => lightState(clock, light)),
+    ...(room.switches ?? [])
+      .filter((item) => item.state !== 'absent')
+      .map((item) =>
+        demoEntity(clock, item.id, item.state, { friendly_name: item.name, device_class: LAMP_SWITCH_DEVICE_CLASS }),
+      ),
     ...(room.curtains ?? []).map((curtain) =>
       demoEntity(clock, curtain.id, curtain.state, {
         friendly_name: curtain.name,
@@ -423,9 +505,13 @@ function applianceStates(clock: FixtureClock, appliance: DemoAppliance): HassEnt
 // ---------------------------------------------------------------------------------------------------------------
 // Registry and behaviors
 
-/** Device entries only for vacuums whose battery is derived, so DemoHost derives it as HassHost would. */
+/**
+ * Device entries for vacuums whose battery is derived, so DemoHost derives it as HassHost would, and the registry
+ * category of each settings switch, so the room drawer shows it read-only (§18).
+ */
 function registry(scenario: DemoScenarioId): RegistryEntryLike[] {
-  return sceneFor(scenario).vacuums.flatMap((vacuum) => {
+  const scene = sceneFor(scenario);
+  const vacuums = scene.vacuums.flatMap((vacuum) => {
     const derived = vacuum.derivedBattery;
     if (derived === undefined) return [];
     return [
@@ -433,6 +519,12 @@ function registry(scenario: DemoScenarioId): RegistryEntryLike[] {
       { entity_id: derived.id, device_id: derived.device },
     ];
   });
+  const settingsSwitches = scene.rooms.flatMap((room) =>
+    (room.switches ?? []).flatMap((item) =>
+      item.category === undefined ? [] : [{ entity_id: item.id, entity_category: item.category }],
+    ),
+  );
+  return [...vacuums, ...settingsSwitches];
 }
 
 function behaviors(scenario: DemoScenarioId): readonly DemoBehavior[] {

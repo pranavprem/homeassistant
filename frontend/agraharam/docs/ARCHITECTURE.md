@@ -4727,3 +4727,31 @@ as written; these notes record how, and the few refinements the implementation n
 - **Measured** (after the review fixes). `agraharam.js` 660,733 B raw and 295,028 B gzip (target 737,280 B). Unit
   and component tests 2,844 in 135 files. Default e2e 246 (Chromium plus the WebKit keyboard project); the §17.5
   WebKit layout and a11y run 138 (before the review fixes, which did not touch layout).
+
+
+## 18. Household completeness
+
+The optional contract is documented in [HOUSEHOLD.md](HOUSEHOLD.md).
+
+- `collections` resolves to read-only bindings only. `model/readings.ts` memoizes bounded groups against entity
+  identity, connection, locale, registry precision and minute. `reading-value.ts` reads an explicit attribute
+  allowlist and renders escaped, length-bounded text. Missing or non-comparable ruled readings are unavailable,
+  never healthy. The House summary and grouped/searchable drawer never dispatch actions or HA more-info.
+- `rooms[].switches` is explicit lighting-only membership. The action catalog assigns a separate `room_switch`
+  role; mixed room actions plan one light call and one switch call. `aggregate.ts` retains honest partial outcomes
+  and target locks without retry. Registry-pending switches fail closed with visible waiting copy; configuration
+  and diagnostic switches are refused. Existing light-only calls retain their exact shape.
+- `shortcuts` allows only `lights_toggle` and `curtains_toggle` script roles. They cannot overlap security or monitor
+  script roles, always require confirmation, accept no variables/data and report Requested rather than pretending
+  the script's effects were observed. Every existing controls, preview, connection, role, busy and permission gate
+  remains authoritative.
+- `vehicle.model` defaults to generic. The selector carries the chosen model to `agr-vehicle`; the optional Model 3
+  is original, static embedded SVG with theme tokens, no logo, URL, image fetch or vehicle commands.
+- The adaptive column algorithm accounts for the added Home row and House fact. Wide placements within 32 px
+  of the best estimated height prefer a shorter Today column: a small estimated gain must not move House away
+  from Home when wrapped labels erase that gain. Raised panels never move; dense pages may scroll
+  vertically. Existing overview layout, camera privacy, security, infrastructure and deployment remain unchanged.
+
+Verification includes legacy config snapshots, config validation, gateway/state/aggregate tests, readings/time
+formatting, full-card acceptance, three-browser built-bundle tests and fictional screenshots. Public-literal scans
+cover the working tree, staged blobs and every outgoing commit. No live device actions are part of verification.

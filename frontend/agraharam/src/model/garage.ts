@@ -126,6 +126,7 @@ function selectVehicle(input: SelectorInput, vehicle: VehicleConfig): VehicleVM 
   const charger = selectCharger(input, vehicle, formatter);
   return {
     name: vehicle.name,
+    model: vehicle.model,
     battery: numericDisplay(battery, readState, (value) => formatPercent(formatter, value)),
     batteryPct: batteryPercent(battery),
     range: numericDisplay(range, readState, (value) => formatSensor(formatter, range, value)),

@@ -511,3 +511,58 @@ describe('HassHost reads', () => {
     expect(host.key.startsWith('hass|-|')).toBe(true);
   });
 });
+
+describe('HassHost: registry-pending gate (§18 step 5b.1, liveness)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('reports the registry loaded only once hass.entities is a non-null object, and changes the registry meta then', () => {
+    const { host, fake } = hostWithFake(new FakeHass('normal', { latencyMs: [0, 0], registryPending: true }));
+    expect(host.reader.registryLoaded()).toBe(false);
+    expect(host.reader.registry(LIGHT)).toBeUndefined();
+    const notified: string[] = [];
+    host.reader.store.subscribe([], ['registry'], () => notified.push('registry'));
+    fake.setState(LIGHT, 'on');
+    expect(host.reader.registryLoaded()).toBe(false);
+    fake.deliverRegistry();
+    expect(host.reader.registryLoaded()).toBe(true);
+    expect(notified).toEqual(['registry']);
+  });
+
+  it('never clears on its own: an hour of updates and a reconnect without the registry keep it pending', async () => {
+    const { host, fake } = hostWithFake(new FakeHass('normal', { latencyMs: [0, 0], registryPending: true }));
+    for (let minute = 0; minute < 60; minute += 1) {
+      fake.setState(LIGHT, minute % 2 === 0 ? 'on' : 'off');
+      await vi.advanceTimersByTimeAsync(60_000);
+    }
+    fake.disconnect();
+    fake.reconnect({ snapshotDelayMs: 0 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(host.reader.connection().phase).toBe('connected');
+    expect(host.reader.registryLoaded()).toBe(false);
+  });
+
+  it('a host created on a hass whose registry already arrived never arms, and a reconnect never re-arms it', async () => {
+    const { host, fake } = hostWithFake();
+    expect(host.reader.registryLoaded()).toBe(true);
+    fake.disconnect();
+    expect(host.reader.registryLoaded()).toBe(true);
+    fake.reconnect({ snapshotDelayMs: 400 });
+    expect(host.reader.registryLoaded()).toBe(true);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(host.reader.registryLoaded()).toBe(true);
+  });
+
+  it('treats a missing entities member (an older frontend) as not loaded, never as loaded and empty', () => {
+    const { hass } = new FakeHass('normal', { latencyMs: [0, 0] });
+    const { entities: _entities, ...withoutEntities } = hass;
+    const host = new HassHost(normalBindings());
+    host.update(withoutEntities as unknown as HassLike);
+    expect(host.reader.registryLoaded()).toBe(false);
+  });
+});

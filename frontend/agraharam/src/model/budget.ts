@@ -35,8 +35,9 @@ export const PANEL_HEIGHT_TARGET_PX: Readonly<Record<PanelId, number>> = Object.
 
 /**
  * Home rows as agr-home draws them (measured at 1440×900): room chips sit two to a row, 48 px plus an 8 px gap; a vacuum
- * row is 52 px plus 8; an appliance, idle-summary or studio-monitors row is 49 px; "All rooms and devices" is 44 px
- * plus the 12 px body gap. The Home target above already holds two chip rows, one vacuum and two device rows.
+ * row is 52 px plus 8; an appliance, idle-summary, studio-monitors or Whole-house shortcuts row is 49 px; "All rooms
+ * and devices" is 44 px plus the 12 px body gap. The Home target above already holds two chip rows, one vacuum and two
+ * device rows.
  */
 const HOME_ROWS = Object.freeze({
   targetChipRows: 2,
@@ -49,14 +50,18 @@ const HOME_ROWS = Object.freeze({
   allRoomsPx: 56,
 } as const);
 
+/** House health's readings fact (§18): one 36 px fact row plus its 4 px gap, shown when collections exist. */
+const READINGS_FACT_PX = 40;
+
 /**
  * Expected panel heights for balancing the medium columns (§16.10): the targets, with Home adjusted for the rooms,
- * vacuums and appliances the configuration holds, because Home is the one panel whose size the configuration
- * decides by hundreds of pixels. Only column membership reads these; a miss moves a panel to the other column and
- * never changes content.
+ * vacuums, appliances and shortcuts the configuration holds, because Home is the one panel whose size the
+ * configuration decides by hundreds of pixels, and House health for its readings fact (§18). Only column membership
+ * reads these; a miss moves a panel to the other column and never changes content.
  */
 export function panelHeightEstimates(config: ResolvedConfig): Readonly<Record<PanelId, number>> {
-  return Object.freeze({ ...PANEL_HEIGHT_TARGET_PX, home: homeHeightEstimate(config) });
+  const health = PANEL_HEIGHT_TARGET_PX.health + (config.collections.length > 0 ? READINGS_FACT_PX : 0);
+  return Object.freeze({ ...PANEL_HEIGHT_TARGET_PX, home: homeHeightEstimate(config), health });
 }
 
 function homeHeightEstimate(config: ResolvedConfig): number {
@@ -66,7 +71,9 @@ function homeHeightEstimate(config: ResolvedConfig): number {
   // Appliances beyond the active budget collapse into one idle row; activity is runtime state, so assume the most.
   const applianceRows =
     Math.min(appliances, CONTENT_BUDGET.activeAppliances) + (appliances > CONTENT_BUDGET.activeAppliances ? 1 : 0);
-  const deviceRows = applianceRows + (config.studioMonitors === undefined ? 0 : 1);
+  // The Whole-house shortcuts row is one more device row, the same height (§18).
+  const shortcutRows = Object.keys(config.shortcuts).length > 0 ? 1 : 0;
+  const deviceRows = applianceRows + (config.studioMonitors === undefined ? 0 : 1) + shortcutRows;
   const overflows =
     config.rooms.length > CONTENT_BUDGET.rooms ||
     config.vacuums.length > CONTENT_BUDGET.vacuums ||

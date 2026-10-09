@@ -80,6 +80,7 @@ function vehicleConfig(scenario: DemoScenarioId): NonNullable<CardConfigInput['v
     charger_power: CHARGER_POWER,
     session_energy: SESSION_ENERGY,
     charge_limit_pct: CHARGE_LIMIT_PCT,
+    ...(scenario === 'dense' && { model: 'tesla-model-3' }),
   };
 }
 

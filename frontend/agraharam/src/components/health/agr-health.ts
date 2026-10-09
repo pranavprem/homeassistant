@@ -5,6 +5,10 @@
  * points first). It never says everything is fine: the facts always count. While Home Assistant is disconnected the
  * header carries an "Offline" pill and the banner carries the full sentence, so the panel does not repeat it.
  *
+ * With collections configured (§18), a third stat row summarises the house readings and a "Readings" button opens
+ * their drawer. Readings never feed the health headline, the device counts or the problem list. Without collections
+ * the panel renders exactly as before.
+ *
  * Quiet panels never stretch (§6.2).
  */
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit';
@@ -14,6 +18,7 @@ import { EntityController } from '../../ha/entity-controller.ts';
 import type { MetaKind } from '../../ha/host.ts';
 import { renderIcon } from '../../icons/render-icon.ts';
 import { healthEntityIds, selectHealth, type HealthFactVM, type HealthPanelVM } from '../../model/health.ts';
+import { collectionEntityIds, createReadingsSelector, readingsFact } from '../../model/readings.ts';
 import { numStyles, sectionHostStyles, skeletonStyles, toneStyles } from '../../styles/shared.ts';
 import { PANEL_CQ } from '../../styles/breakpoints.ts';
 import { typographyStyles } from '../../styles/typography.ts';
@@ -31,9 +36,11 @@ const HEALTH_META: readonly MetaKind[] = Object.freeze(['connection', 'locale'])
 const FACT_ICON_PX = 20;
 const PAUSED_LINE = 'Counts resume when Home Assistant reconnects.';
 const HEALTH_DETAILS_FOCUS_KEY = 'health:details';
+const READINGS_FOCUS_KEY = 'health:readings';
 
-/** The loaded panel's two stat rows: entry points and devices. */
+/** The loaded panel's stat rows: entry points and devices, plus readings when collections are configured. */
 const GHOST_FACTS: readonly number[] = Object.freeze([0, 1]);
+const GHOST_FACTS_WITH_READINGS: readonly number[] = Object.freeze([0, 1, 2]);
 
 export class AgrHealth extends LitElement {
   static override styles = [
@@ -108,6 +115,14 @@ export class AgrHealth extends LitElement {
       .summary agr-button {
         flex: none;
       }
+      /* With readings, Details and Readings stack at the inline end, beside the three stat rows. */
+      .actions {
+        display: flex;
+        flex: none;
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--agr-space-2);
+      }
       .paused {
         flex: 1 1 auto;
         margin: 0;
@@ -162,12 +177,17 @@ export class AgrHealth extends LitElement {
 
   @property({ attribute: false }) services?: DashboardServices;
 
+  readonly #readings = createReadingsSelector();
+
   constructor() {
     super();
     new EntityController(
       this,
       () => this.services?.store,
-      () => (this.services?.config === undefined ? [] : healthEntityIds(this.services.config)),
+      () => {
+        const config = this.services?.config;
+        return config === undefined ? [] : [...new Set([...healthEntityIds(config), ...collectionEntityIds(config)])];
+      },
       HEALTH_META,
     );
   }
@@ -180,11 +200,12 @@ export class AgrHealth extends LitElement {
     </agr-panel>`;
   }
 
-  /** The two stat rows of the loaded panel, as placeholders (§6.2.1). */
+  /** The stat rows of the loaded panel, as placeholders (§6.2.1), so nothing moves when they arrive. */
   #renderLoading(): TemplateResult {
+    const ghosts = this.#hasReadings() ? GHOST_FACTS_WITH_READINGS : GHOST_FACTS;
     return html`<div class="summary" aria-hidden="true">
       <ul class="facts">
-        ${GHOST_FACTS.map(
+        ${ghosts.map(
           () =>
             html`<li class="fact fact-ghost">
               <span class="fact-icon ghost"></span>
@@ -198,21 +219,37 @@ export class AgrHealth extends LitElement {
   }
 
   #renderHealth(vm: HealthPanelVM): TemplateResult {
+    const readings = this.#readingsFact();
+    const facts = readings === undefined ? vm.facts : [...vm.facts, readings];
+    const details = html`<agr-button
+      label="Details"
+      opens-dialog
+      focus-key=${HEALTH_DETAILS_FOCUS_KEY}
+      .availability=${ENABLED}
+      @agr-activate=${this.#onDetails}
+    ></agr-button>`;
     return html`<div class="summary">
         ${
           vm.state === 'paused'
             ? html`<p class="paused t-meta">${PAUSED_LINE}</p>`
             : html`<ul class="facts">
-                ${vm.facts.map((fact) => this.#renderFact(fact))}
+                ${facts.map((fact) => this.#renderFact(fact))}
               </ul>`
         }
-        <agr-button
-          label="Details"
-          opens-dialog
-          focus-key=${HEALTH_DETAILS_FOCUS_KEY}
-          .availability=${ENABLED}
-          @agr-activate=${this.#onDetails}
-        ></agr-button>
+        ${
+          this.#hasReadings()
+            ? html`<div class="actions">
+                ${details}
+                <agr-button
+                  label="Readings"
+                  opens-dialog
+                  focus-key=${READINGS_FOCUS_KEY}
+                  .availability=${ENABLED}
+                  @agr-activate=${this.#onReadings}
+                ></agr-button>
+              </div>`
+            : details
+        }
       </div>
       ${
         vm.problems.length === 0
@@ -257,6 +294,27 @@ export class AgrHealth extends LitElement {
   readonly #onDetails = contained('health-details-failed', (event: Event) => {
     requestDrawer(this, { id: 'health' }, event.currentTarget as HTMLElement);
   });
+
+  /** Stays enabled while paused: the drawer shows the last known values. */
+  readonly #onReadings = contained('health-readings-failed', (event: Event) => {
+    requestDrawer(this, { id: 'readings' }, event.currentTarget as HTMLElement);
+  });
+
+  #hasReadings(): boolean {
+    return (this.services?.config.collections.length ?? 0) > 0;
+  }
+
+  /** The readings stat row, live only; undefined without collections, while loading or paused. */
+  #readingsFact(): HealthFactVM | undefined {
+    const services = this.services;
+    if (services === undefined || !this.#hasReadings()) return undefined;
+    try {
+      return readingsFact(this.#readings(selectorInput(services)), services.reader.formatter());
+    } catch {
+      log.error('readings-fact-failed');
+      return undefined;
+    }
+  }
 }
 
 defineOnce('agr-health', AgrHealth);

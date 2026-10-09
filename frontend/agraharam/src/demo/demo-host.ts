@@ -215,6 +215,8 @@ export class DemoHost implements HostRuntime {
       connection: () => this.#connectionInfo(),
       connectionGeneration: () => this.#generation,
       registry: (id: EntityId) => this.#registry[id],
+      // The fixture registry exists from the start, as on a page whose registry has already arrived (§18).
+      registryLoaded: () => true,
       entitiesOnDevice: (deviceId: string) => this.#byDevice.get(deviceId) ?? NO_ENTITIES,
       hasService: (domain: string, service: string) => {
         const services = this.#services[domain];

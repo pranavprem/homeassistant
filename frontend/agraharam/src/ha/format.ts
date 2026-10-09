@@ -4,7 +4,7 @@
  * formatters are built once per Formatter (number formats once per options key), which lives until the 'locale'
  * meta changes.
  */
-import type { ClockParts, Formatter } from './host.ts';
+import type { ClockParts, DateStyle, Formatter } from './host.ts';
 import type { HassEntityLike, LocaleLike } from './types.ts';
 
 interface FormatterSource {
@@ -28,8 +28,15 @@ const DAY_KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
  * and 12 hours after it. The search window adds an hour on each side.
  */
 const DAY_START_SEARCH_MINUTES = Object.freeze({ before: 15 * MINUTES_PER_HOUR, after: 13 * MINUTES_PER_HOUR });
-/** HA puts no space before these units ("21%", "69°") and a space before every other unit ("21.5 °C"). */
-const UNITS_WITHOUT_SPACE: ReadonlySet<string> = new Set(['%', '°']);
+/**
+ * HA's own spacing rule (frontend 20260826.7, src/common/translations/blank_before_unit.ts and
+ * blank_before_percent.ts): no space before "°", a space before "%" only in these profile languages, and a space
+ * before every other unit ("21.5 °C", "1,180 ppm"). One difference: with no locale known, HA would put a space before
+ * "%"; this keeps the dashboard's previous "21%" there.
+ */
+const DEGREE = '°';
+const PERCENT = '%';
+const LANGUAGES_WITH_SPACE_BEFORE_PERCENT: ReadonlySet<string> = new Set(['cs', 'de', 'fi', 'fr', 'sk', 'sv']);
 
 /** HA's number_format profile options mapped to the locales HA itself uses for them. */
 const NUMBER_FORMAT_LOCALES: Readonly<Partial<Record<LocaleLike['number_format'], readonly string[]>>> = Object.freeze({
@@ -39,16 +46,20 @@ const NUMBER_FORMAT_LOCALES: Readonly<Partial<Record<LocaleLike['number_format']
   quote_decimal: ['de-CH'],
 });
 
-const DATE_STYLES: Readonly<Record<'long' | 'weekday-short' | 'month-day', Intl.DateTimeFormatOptions>> = {
+const DATE_STYLES: Readonly<Record<DateStyle, Intl.DateTimeFormatOptions>> = {
   long: { weekday: 'long', month: 'long', day: 'numeric' }, // "Wednesday, September 30"
   'weekday-short': { weekday: 'short', month: 'short', day: 'numeric' }, // "Wed, Sep 30"
   'month-day': { month: 'short', day: 'numeric' }, // "Sep 30"
+  'month-day-year': { month: 'short', day: 'numeric', year: 'numeric' }, // "Sep 30, 2025"
 };
+/** Any fixed day: wallTime formats only the hour and minute of this UTC date, in UTC, so nothing shifts them. */
+const WALL_TIME_DAY = Object.freeze({ year: 2000, monthIndex: 0, day: 1 });
 
 export function createFormatter(source: FormatterSource): Formatter {
   const language = source.locale?.language;
   const numberLocales = numberLocalesFor(source.locale);
   const useGrouping = source.locale?.number_format !== 'none';
+  const withUnit = (text: string, unit: string): string => `${text}${blankBeforeUnit(unit, language)}${unit}`;
   const hour12 = hour12For(source.locale);
   const timeZone = source.locale?.time_zone === 'server' ? source.serverTimeZone : undefined;
   const timeOptions: Intl.DateTimeFormatOptions = { timeZone, ...(hour12 !== undefined && { hour12 }) };
@@ -66,11 +77,20 @@ export function createFormatter(source: FormatterSource): Formatter {
     month: '2-digit',
     day: '2-digit',
   });
-  const dateFormats = {
+  const dateFormats: Readonly<Record<DateStyle, Intl.DateTimeFormat>> = {
     long: new Intl.DateTimeFormat(language, { timeZone, ...DATE_STYLES.long }),
     'weekday-short': new Intl.DateTimeFormat(language, { timeZone, ...DATE_STYLES['weekday-short'] }),
     'month-day': new Intl.DateTimeFormat(language, { timeZone, ...DATE_STYLES['month-day'] }),
+    'month-day-year': new Intl.DateTimeFormat(language, { timeZone, ...DATE_STYLES['month-day-year'] }),
   };
+  // HA stores input_datetime times as local wall time with no zone, so they are formatted in UTC from a UTC instant:
+  // the profile's time zone must never move "07:30" to another hour.
+  const wallTimeFormat = new Intl.DateTimeFormat(language, {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    ...(hour12 !== undefined && { hour12 }),
+  });
 
   // Selectors format numbers on every render; building an Intl.NumberFormat is far costlier than using one, so each
   // distinct options object is built once and reused for this Formatter's lifetime.
@@ -87,19 +107,21 @@ export function createFormatter(source: FormatterSource): Formatter {
 
   return Object.freeze({
     temperatureUnit: source.temperatureUnit,
+    translatesStates: source.formatEntityState !== undefined,
     entityState(entity: HassEntityLike): string {
-      return source.formatEntityState?.(entity) ?? fallbackEntityState(entity, number);
+      return source.formatEntityState?.(entity) ?? fallbackEntityState(entity, number, withUnit);
     },
     attribute(entity: HassEntityLike, attribute: string): string {
       const value = entity.attributes[attribute];
       return source.formatEntityAttributeValue?.(entity, attribute, value) ?? fallbackAttribute(value, number);
     },
     number,
+    withUnit,
     /** "69°" without a unit (compact tiles); with a unit, HA's spacing rule: "21.5 °C". */
     temperature(value: number, unit: string | undefined): string {
       const formatted = number(value, { maximumFractionDigits: 1 });
-      if (unit === undefined) return `${formatted}°`;
-      return `${formatted}${UNITS_WITHOUT_SPACE.has(unit) ? '' : ' '}${unit}`;
+      if (unit === undefined) return `${formatted}${DEGREE}`;
+      return withUnit(formatted, unit);
     },
     time: (value: Date) => timeFormat.format(value),
     hour: (value: Date) => hourFormat.format(value),
@@ -108,7 +130,9 @@ export function createFormatter(source: FormatterSource): Formatter {
     clock(value: Date): ClockParts {
       return clockParts(timeFormat.formatToParts(value));
     },
-    date: (value: Date, style: 'long' | 'weekday-short' | 'month-day') => dateFormats[style].format(value),
+    date: (value: Date, style: DateStyle) => dateFormats[style].format(value),
+    wallTime: (hour: number, minute: number) =>
+      wallTimeFormat.format(Date.UTC(WALL_TIME_DAY.year, WALL_TIME_DAY.monthIndex, WALL_TIME_DAY.day, hour, minute)),
     duration: formatDuration,
   });
 }
@@ -228,11 +252,22 @@ export function formatDuration(ms: number): string {
   return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
 }
 
-function fallbackEntityState(entity: HassEntityLike, number: (value: number) => string): string {
+function fallbackEntityState(
+  entity: HassEntityLike,
+  number: (value: number) => string,
+  withUnit: (text: string, unit: string) => string,
+): string {
   const unit = entity.attributes['unit_of_measurement'];
   const numeric = /^-?\d+(\.\d+)?$/.test(entity.state) ? number(Number(entity.state)) : entity.state;
   if (typeof unit !== 'string' || unit === '') return numeric;
-  return `${numeric}${UNITS_WITHOUT_SPACE.has(unit) ? '' : ' '}${unit}`;
+  return withUnit(numeric, unit);
+}
+
+/** HA's blankBeforeUnit: '' before "°", before "%" outside the listed languages; ' ' before every other unit. */
+function blankBeforeUnit(unit: string, language: string | undefined): string {
+  if (unit === DEGREE) return '';
+  if (unit === PERCENT) return language !== undefined && LANGUAGES_WITH_SPACE_BEFORE_PERCENT.has(language) ? ' ' : '';
+  return ' ';
 }
 
 function fallbackAttribute(value: unknown, number: (value: number) => string): string {

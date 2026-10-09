@@ -60,6 +60,9 @@ const SIMULATORS = {
   'light.turn_off': (entity, _data, now) => [
     step(entity, now + DELAY.quick, 'off', { brightness: null, color_mode: null }),
   ],
+  // Room lighting switches (§18). HA stamps a state change caused by a call with that call's context.
+  'switch.turn_on': (entity, _data, now) => [step(entity, now + DELAY.quick, 'on', {}, callContext(now))],
+  'switch.turn_off': (entity, _data, now) => [step(entity, now + DELAY.quick, 'off', {}, callContext(now))],
   'climate.set_temperature': (entity, data, now) => [
     step(entity, now + DELAY.settle, entity.state, { temperature: data['temperature'] }),
   ],
@@ -117,11 +120,7 @@ const SIMULATORS = {
       now + DELAY.scriptRun,
       'on',
       { last_triggered: iso(now + DELAY.scriptRun) },
-      {
-        id: demoContextId(now),
-        parent_id: null,
-        user_id: null,
-      },
+      callContext(now),
     );
     return [running, step(running.state, now + DELAY.scriptEnd, 'off')];
   },
@@ -165,6 +164,11 @@ export function simulatedServiceRegistry(
 
 function isSimulatedService(key: string): key is SimulatedService {
   return Object.hasOwn(SIMULATORS, key);
+}
+
+/** The context of the simulated call made at `now`, as HA puts it on the states that call changes. */
+function callContext(now: number): HassEntityLike['context'] {
+  return { id: demoContextId(now), parent_id: null, user_id: null };
 }
 
 function iso(ms: number): string {

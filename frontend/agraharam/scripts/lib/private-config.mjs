@@ -16,7 +16,7 @@ export const OVERRIDES_FILE_NAME = 'agraharam.overrides.json';
 export const DASHBOARD_TITLE = 'Agraharam';
 export const VIEW_PATH = 'home';
 export const CARD_TYPE = 'custom:agraharam-dashboard';
-/** Without overrides.rooms, every light and curtain candidate lands in this one room. */
+/** Without overrides.rooms, every light and curtain candidate (never a lighting switch) lands in this one room. */
 export const DEFAULT_ROOM_NAME = 'Lights';
 
 /** Exact guarded-action labels → security role (or the studio monitors key). No fuzzy matching, ever. */
@@ -69,6 +69,9 @@ const KNOWN_GROUPS = Object.freeze([
   'vehicle_read_only',
   'appliances_read_only',
   'lights',
+  // Switches that power lighting only (§18). Optional; room switches are actionable, so they are bound only where
+  // overrides.rooms places them, never automatically.
+  'lighting_switches',
   'curtains',
   'security_read_only',
   'perimeter_read_only',
@@ -106,7 +109,7 @@ function fail(message) {
  * @typedef {{ label: unknown, entity_id: unknown, invocation: unknown }} GuardedAction
  * @typedef {{ preparedAt?: string, groups: Record<string, string[]>, notInInventory: string[], unknownGroups: string[],
  *             cameras: CameraCandidate[], guardedActions: GuardedAction[], knownAmbiguities: string[] }} Candidates
- * @typedef {{ name: string, lights: unknown, curtains?: unknown, purifier?: unknown }} RoomOverride
+ * @typedef {{ name: string, lights?: unknown, switches?: unknown, curtains?: unknown, purifier?: unknown }} RoomOverride
  * @typedef {{ exclude: string[], names: Record<string, string>, cameraThumbnails: Record<string, boolean>,
  *             cameraLive: Record<string, boolean>, rooms?: unknown[], vehicleName?: string,
  *             chargeLimitPct?: unknown, vacuumBatterySensors: Record<string, string> }} Overrides
@@ -382,6 +385,7 @@ function mapToday(ids, notes) {
 /** Each `overrides.rooms` field and the candidate group its IDs must come from. */
 const ROOM_MEMBERS = Object.freeze([
   { field: 'lights', group: 'lights', kind: 'light' },
+  { field: 'switches', group: 'lighting_switches', kind: 'lighting switch' },
   { field: 'curtains', group: 'curtains', kind: 'curtain' },
   { field: 'purifier', group: 'air', kind: 'purifier' },
 ]);
@@ -395,7 +399,10 @@ const ROOM_MEMBERS = Object.freeze([
 function mapRooms(pick, excluded, rooms, notes) {
   const lights = pick('lights');
   const curtains = pick('curtains');
+  const switches = pick('lighting_switches');
   if (rooms === undefined) {
+    // A lighting switch is only ever bound where a person placed it: the default room never takes one.
+    for (const id of switches) notes.unassigned.push(`${id} (unassigned lighting switch)`);
     if (lights.length === 0 && curtains.length === 0) return [];
     notes.notes.push(
       `One default room "${DEFAULT_ROOM_NAME}" holds every light and curtain candidate. ` +
@@ -404,15 +411,22 @@ function mapRooms(pick, excluded, rooms, notes) {
     return [{ name: DEFAULT_ROOM_NAME, lights: [...lights], curtains: [...curtains] }];
   }
   const placedLights = new Set();
+  const placedSwitches = new Set();
   const placedCurtains = new Set();
   rooms.forEach((room, index) => {
     if (!isRecord(room)) throw fail(`overrides.rooms[${index}] must be an object.`);
     const record = /** @type {Record<string, unknown>} */ (room);
     assertRoomMembers(record, index, pick, excluded);
     if (Array.isArray(record.lights)) record.lights.forEach((id) => placedLights.add(id));
+    if (Array.isArray(record.switches)) record.switches.forEach((id) => placedSwitches.add(id));
     if (Array.isArray(record.curtains)) record.curtains.forEach((id) => placedCurtains.add(id));
   });
   for (const id of lights) if (!placedLights.has(id)) notes.unassigned.push(`${id} (unassigned light)`);
+  for (const id of switches) {
+    // A placed switch becomes a control once `controls: true`, so its §13.5 check item sits beside the binding.
+    if (placedSwitches.has(id)) notes.verifyBeforeEnabling.push(`${id} (lighting switch: confirm it powers a lamp)`);
+    else notes.unassigned.push(`${id} (unassigned lighting switch)`);
+  }
   for (const id of curtains) if (!placedCurtains.has(id)) notes.unassigned.push(`${id} (unassigned curtain)`);
   return rooms.map((room) => structuredClone(room));
 }

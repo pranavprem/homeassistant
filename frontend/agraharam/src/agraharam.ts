@@ -36,6 +36,7 @@ import './components/upcoming/agr-upcoming.ts';
 import './components/security/agr-security-drawer.ts';
 import './components/health/agr-health.ts';
 import './components/health/agr-health-drawer.ts';
+import './components/readings/agr-readings-drawer.ts';
 import './components/diagnostics/agr-diagnostics-drawer.ts';
 
 const CARD_ENTRY: CustomCardEntry = Object.freeze({

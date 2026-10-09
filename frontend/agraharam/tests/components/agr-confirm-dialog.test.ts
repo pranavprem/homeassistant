@@ -4,7 +4,7 @@ import type { AgrConfirmDialog } from '../../src/components/primitives/agr-confi
 import type { SecurityActionRole } from '../../src/config/schema.ts';
 import { redeemConfirmationToken } from '../../src/ha/actions/confirmation.ts';
 import { CONFIRM_DIALOG_TIMEOUT_MS, type ActionRequest } from '../../src/ha/actions/types.ts';
-import { GARAGE_BUTTON_LABELS, SECURITY_ACTION_COPY } from '../../src/model/action-copy.ts';
+import { GARAGE_BUTTON_LABELS, SECURITY_ACTION_COPY, SHORTCUT_COPY } from '../../src/model/action-copy.ts';
 import { deepActive } from '../helpers/dom.ts';
 import { FakeGateway } from '../helpers/fake-gateway.ts';
 import { liveStore, type LiveStore } from '../helpers/live-store.ts';
@@ -267,5 +267,56 @@ describe('garage Open alarm-aware copy (§8.5)', () => {
     live.set(ALARM, 'armed_away');
     await dialog.updateComplete;
     expect(body()).toEqual(['The door starts moving when you confirm.', 'Make sure nothing is in the doorway.']);
+  });
+});
+
+describe('whole-house shortcuts (§18)', () => {
+  const LIGHTS_SCRIPT = 'script.demo_house_lights_toggle';
+  const CURTAINS_SCRIPT = 'script.demo_house_curtains_toggle';
+  const shortcutConfig = () =>
+    configFrom({
+      garage: { cover: GARAGE },
+      shortcuts: { lights_toggle: LIGHTS_SCRIPT, curtains_toggle: CURTAINS_SCRIPT },
+    });
+
+  it.each(['lights_toggle', 'curtains_toggle'] as const)(
+    '%s: renders its fixed copy with Cancel focused; Confirm sends one request with a token for exactly it',
+    async (role) => {
+      const copy = SHORTCUT_COPY.buttons[role];
+      const { root, native, body, confirmButton, cancelButton } = await openConfirm(
+        { kind: 'shortcut.run', role },
+        shortcutConfig(),
+      );
+      expect(native.getAttribute('role')).toBe('alertdialog');
+      expect(root.querySelector('h2')?.textContent).toBe(copy.confirm.title);
+      expect(body()).toEqual(copy.confirm.body);
+      expect(confirmButton().textContent?.trim()).toBe(copy.confirm.confirmLabel);
+      expect(deepActive()).toBe(cancelButton());
+      confirmButton().click();
+      expect(gateway.calls).toHaveLength(1);
+      const [call] = gateway.calls;
+      expect(call?.req).toEqual({ kind: 'shortcut.run', role });
+      // Bound to exactly this role (a lights token cannot confirm curtains: gateway-shortcut.test.ts).
+      expect(redeemConfirmationToken(call?.opts?.confirmation, { kind: 'shortcut.run', role })).toBe(true);
+    },
+  );
+
+  it('watches the shortcut script: a run starting while it is open disables Confirm with the reason', async () => {
+    const opened = await openConfirm({ kind: 'shortcut.run', role: 'lights_toggle' }, shortcutConfig());
+    gateway.availability = { enabled: false, reason: 'not-applicable', message: 'Already running' };
+    // Only the script changes, so only a watch on that script can re-check the precondition.
+    live.set(LIGHTS_SCRIPT, 'on');
+    await opened.dialog.updateComplete;
+    expect(opened.confirmButton().getAttribute('aria-disabled')).toBe('true');
+    expect(opened.body().at(-1)).toBe('Already running');
+    opened.confirmButton().click();
+    expect(gateway.calls).toEqual([]);
+  });
+
+  it('Cancel sends nothing', async () => {
+    const opened = await openConfirm({ kind: 'shortcut.run', role: 'curtains_toggle' }, shortcutConfig());
+    opened.cancelButton().click();
+    expect(opened.dialog.outcome).toBe('cancelled');
+    expect(gateway.calls).toEqual([]);
   });
 });

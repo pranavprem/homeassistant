@@ -134,6 +134,93 @@ describe('createFormatter (§4.4)', () => {
   });
 });
 
+describe('§18 formatter additions', () => {
+  const SERVER = 'America/Los_Angeles';
+
+  it.each([
+    ['en', '15', '%', '15%'],
+    ['de', '15', '%', '15 %'],
+    ['fr', '15', '%', '15 %'],
+    ['sv', '15', '%', '15 %'],
+    ['cs', '15', '%', '15 %'],
+    ['fi', '15', '%', '15 %'],
+    ['sk', '15', '%', '15 %'],
+    ['de-CH', '15', '%', '15%'], // HA matches the exact language code
+    ['en', '69', '°', '69°'],
+    ['de', '69', '°', '69°'],
+    ['en', '41', '°F', '41 °F'],
+    ['de', '41', '°F', '41 °F'],
+    ['en', '1,180', 'ppm', '1,180 ppm'],
+    ['de', '1.180', 'ppm', '1.180 ppm'],
+    ['en', '6', 'µg/m³', '6 µg/m³'],
+  ])('withUnit (%s): %s + %s → %s, as HA blankBeforeUnit', (language, text, unit, expected) => {
+    expect(createFormatter({ locale: locale({ language }), temperatureUnit: '°F' }).withUnit(text, unit)).toBe(
+      expected,
+    );
+  });
+
+  it('withUnit keeps "%" tight when no locale is known (the demo and older fallback), as before §18', () => {
+    expect(createFormatter({ temperatureUnit: '°F' }).withUnit('15', '%')).toBe('15%');
+  });
+
+  it('the fallback entity state and temperature() use the same spacing', () => {
+    const de = createFormatter({ locale: locale({ language: 'de' }), temperatureUnit: '°C' });
+    const ink = testEntity('sensor.demo_printer_black_ink', '12', { unit_of_measurement: '%' });
+    expect(de.entityState(ink)).toBe('12 %');
+    expect(de.temperature(21.5, '°C')).toBe('21,5 °C');
+    const en = createFormatter({ locale: locale(), temperatureUnit: '°F' });
+    expect(en.entityState(ink)).toBe('12%');
+  });
+
+  it.each([
+    ['12', 7, 30, '7:30 AM'],
+    ['12', 19, 5, '7:05 PM'],
+    ['12', 0, 0, '12:00 AM'],
+    ['24', 7, 30, '07:30'],
+    ['24', 19, 5, '19:05'],
+    ['24', 0, 0, '00:00'],
+  ] as const)('wallTime with time_format %s: %i:%i → %s', (timeFormat, hour, minute, expected) => {
+    const formatter = createFormatter({
+      locale: locale({ time_format: timeFormat }),
+      serverTimeZone: SERVER,
+      temperatureUnit: '°F',
+    });
+    expect(spaces(formatter.wallTime(hour, minute))).toBe(expected);
+  });
+
+  it('wallTime never shifts a wall time by the profile or server zone (input_datetime is stored as wall time)', () => {
+    for (const [zone, timeZone] of [
+      ['server', 'Pacific/Kiritimati'],
+      ['server', 'Pacific/Pago_Pago'],
+      ['local', 'UTC'],
+    ] as const) {
+      const formatter = createFormatter({
+        locale: locale({ time_format: '24', time_zone: zone }),
+        serverTimeZone: timeZone,
+        temperatureUnit: '°C',
+      });
+      expect(formatter.wallTime(7, 30), `${zone} ${timeZone}`).toBe('07:30');
+      expect(formatter.wallTime(23, 59), `${zone} ${timeZone}`).toBe('23:59');
+    }
+  });
+
+  it("formats the month-day-year style in the formatter's zone", () => {
+    const formatter = createFormatter({
+      locale: locale({ time_zone: 'server' }),
+      serverTimeZone: 'UTC',
+      temperatureUnit: '°F',
+    });
+    expect(formatter.date(new Date('2025-09-12T12:00:00Z'), 'month-day-year')).toBe('Sep 12, 2025');
+    // Late on the 31st in UTC is already the 1st in Kiritimati (UTC+14): the zone decides the day.
+    const ahead = createFormatter({
+      locale: locale({ time_zone: 'server' }),
+      serverTimeZone: 'Pacific/Kiritimati',
+      temperatureUnit: '°F',
+    });
+    expect(ahead.date(new Date('2025-12-31T12:00:00Z'), 'month-day-year')).toBe('Jan 1, 2026');
+  });
+});
+
 describe('formatDuration', () => {
   it.each([
     [0, '0 min'],

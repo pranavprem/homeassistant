@@ -1,9 +1,12 @@
 /**
- * Generic side-view sedan line art for the Garage & car panel (DESIGN: "minimal silhouette/line art rather than
- * scraping branded car images"). Drawn for this dashboard; it depicts no make or model. A static Lit SVG template
- * stroked with currentColor, so it themes with the panel and can never inject markup.
+ * Vehicle art for the Garage & car panel (DESIGN: "minimal silhouette/line art rather than scraping branded car
+ * images"). `vehicle.model` picks the drawing (§18): 'generic' is the side-view sedan line art below, which depicts no
+ * make or model; 'tesla-model-3' is the filled side profile in vehicle-art-model-3.ts. Both are static Lit SVG
+ * templates, so the art can never inject markup.
  */
 import { html, svg, type TemplateResult } from 'lit';
+import type { VehicleModel } from '../../config/schema.ts';
+import { renderModel3Art } from './vehicle-art-model-3.ts';
 
 /** Body outline, facing right: rear bumper, short deck, fastback glass, roof arc, windscreen, hood and nose, with
  *  both wheel arches cut into the sill. */
@@ -28,8 +31,14 @@ const HUB_RADIUS = 3.6;
 /** Width and height of the drawing in its own units; the panel scales it with CSS. */
 const VEHICLE_ART_VIEWBOX = Object.freeze({ width: 160, height: 60 });
 
-/** The outer <svg> is an html template (Lit renders svg`` only inside an <svg>); the parts are svg templates. */
-export function renderVehicleArt(): TemplateResult {
+/** The drawing for `model`; 'generic' (the default) is unchanged from before models existed. */
+export function renderVehicleArt(model: VehicleModel = 'generic'): TemplateResult {
+  return model === 'tesla-model-3' ? renderModel3Art() : renderGenericArt();
+}
+
+/** The outer <svg> is an html template (Lit renders svg`` only inside an <svg>); the parts are svg templates. Stroked
+ *  with currentColor, so it themes with the panel. */
+function renderGenericArt(): TemplateResult {
   return html`<svg
     class="vehicle-art"
     viewBox="0 0 ${VEHICLE_ART_VIEWBOX.width} ${VEHICLE_ART_VIEWBOX.height}"

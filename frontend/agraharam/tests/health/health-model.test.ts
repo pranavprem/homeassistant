@@ -259,3 +259,58 @@ describe('selectHealth: named monitored inputs only (§4.8)', () => {
     expect(names.join(' ')).not.toMatch(/demo_|\./);
   });
 });
+
+describe('§18: lamp switches are devices; readings and shortcuts are not', () => {
+  const DESK = 'switch.demo_study_desk_lamp';
+  const READING = 'sensor.demo_printer_black_ink';
+  const SHORTCUT = 'script.demo_house_lights_toggle';
+  const base = {
+    rooms: [{ name: 'Study', lights: [LIGHT], switches: [DESK] }],
+    garage: { cover: GARAGE },
+  };
+  const withExtras = configFrom({
+    ...base,
+    shortcuts: { lights_toggle: SHORTCUT },
+    collections: [{ name: 'Printer', entities: [READING, { entity: 'sensor.demo_fridge', attention: { above: 41 } }] }],
+  });
+  const plain = configFrom(base);
+
+  it('lists room switches after the lights, never a reading or a shortcut script', () => {
+    const ids: readonly string[] = healthEntityIds(withExtras);
+    expect(ids).toContain(DESK);
+    expect(ids.indexOf(DESK)).toBe(ids.indexOf(LIGHT) + 1);
+    expect(ids).not.toContain(READING);
+    expect(ids).not.toContain('sensor.demo_fridge');
+    expect(ids).not.toContain(SHORTCUT);
+    expect(healthEntityIds(withExtras)).toEqual(healthEntityIds(plain));
+  });
+
+  it('names a switch with no friendly name "<room> switch", never by its entity ID', () => {
+    const details = selectHealthDetails(testInput(plain, fakeStore([testEntity(DESK, 'on')])));
+    const names = details.monitored.map((device) => device.name);
+    expect(names).toContain('Study switch');
+    expect(names.join(' ')).not.toMatch(/demo_/);
+  });
+
+  it('keeps the headline, facts and problems the same with collections and shortcuts configured', () => {
+    const states = [testEntity(LIGHT, 'on'), testEntity(DESK, 'unavailable'), testEntity(GARAGE, 'closed')];
+    // Readings in trouble must not reach House health: the fridge is far above its limit, the ink is unavailable.
+    const extras = [testEntity(READING, 'unavailable'), testEntity('sensor.demo_fridge', '60')];
+    const plainVm = selectHealth(testInput(plain, fakeStore(states)));
+    const extrasVm = selectHealth(testInput(withExtras, fakeStore([...states, ...extras])));
+    expect(extrasVm).toEqual(plainVm);
+    expect(selectHealthDetails(testInput(withExtras, fakeStore([...states, ...extras])))).toEqual(
+      selectHealthDetails(testInput(plain, fakeStore(states))),
+    );
+  });
+
+  it('counts an unavailable lamp switch as a device not reporting', () => {
+    const vm = selectHealthDetails(
+      testInput(
+        plain,
+        fakeStore([testEntity(LIGHT, 'on'), testEntity(DESK, 'unavailable', { friendly_name: 'Desk lamp' })]),
+      ),
+    );
+    expect(vm.notReporting.map((problem) => problem.name)).toContain('Desk lamp');
+  });
+});

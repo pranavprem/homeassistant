@@ -7,12 +7,12 @@
  * exactly the values `stepValue` produces, so the stepper and the gateway cannot disagree.
  */
 import { isValidEntityId } from '../../config/entity-id.ts';
-import type { SecurityActionRole } from '../../config/schema.ts';
+import { SHORTCUT_ROLES, type SecurityActionRole } from '../../config/schema.ts';
 import { isStepValue, temperatureGrid } from '../../domain/steps.ts';
 import type { HassEntityLike } from '../types.ts';
 import type { ActionKind, ActionRequest } from './types.ts';
 
-type FieldType = 'entity' | 'number' | 'string' | 'boolean' | 'room-index' | 'security-role';
+type FieldType = 'entity' | 'number' | 'string' | 'boolean' | 'room-index' | 'security-role' | 'shortcut-role';
 type FieldSpec = Readonly<Record<string, FieldType>>;
 
 const ENTITY_ONLY: FieldSpec = Object.freeze({ entity: 'entity' });
@@ -23,6 +23,8 @@ const REQUEST_FIELDS: Readonly<Record<ActionKind, FieldSpec>> = Object.freeze({
   'light.turn_on': ENTITY_ONLY,
   'light.turn_off': ENTITY_ONLY,
   'light.set_brightness': Object.freeze({ entity: 'entity', pct: 'number' }),
+  'switch.turn_on': ENTITY_ONLY,
+  'switch.turn_off': ENTITY_ONLY,
   'room.lights_on': Object.freeze({ room: 'room-index' }),
   'room.lights_off': Object.freeze({ room: 'room-index' }),
   'climate.set_temperature': Object.freeze({ entity: 'entity', temperature: 'number' }),
@@ -47,6 +49,7 @@ const REQUEST_FIELDS: Readonly<Record<ActionKind, FieldSpec>> = Object.freeze({
   'media.select_source': Object.freeze({ entity: 'entity', source: 'string' }),
   'security.run': Object.freeze({ role: 'security-role' }),
   'studio_monitors.run': NO_FIELDS,
+  'shortcut.run': Object.freeze({ role: 'shortcut-role' }),
 });
 
 const SECURITY_ROLES: ReadonlySet<string> = new Set<SecurityActionRole>([
@@ -58,6 +61,7 @@ const SECURITY_ROLES: ReadonlySet<string> = new Set<SecurityActionRole>([
   'hold_vacation',
   'prepare_departure',
 ]);
+const SHORTCUT_ROLE_NAMES: ReadonlySet<string> = new Set<string>(SHORTCUT_ROLES);
 
 /** Brightness and fan percentages are whole percents (§7.1). */
 const PERCENT_RANGE = Object.freeze({ min: 1, max: 100 });
@@ -132,7 +136,8 @@ export function argumentsValid(req: ActionRequest, entity: HassEntityLike | unde
     case 'media.select_source':
       return listIncludes(attributes['source_list'], req.source);
     default:
-      // The remaining kinds take no arguments; room indexes and security roles are resolved as targets (step 4).
+      // The remaining kinds take no arguments; room indexes and security and shortcut roles are resolved as targets
+      // (step 4).
       return true;
   }
 }
@@ -165,6 +170,8 @@ function fieldMatches(type: FieldType, value: unknown): boolean {
       return Number.isSafeInteger(value) && (value as number) >= 0;
     case 'security-role':
       return typeof value === 'string' && SECURITY_ROLES.has(value);
+    case 'shortcut-role':
+      return typeof value === 'string' && SHORTCUT_ROLE_NAMES.has(value);
   }
 }
 

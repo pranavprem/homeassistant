@@ -553,6 +553,116 @@ describe('generator: vehicle, rooms and overrides', () => {
   });
 });
 
+/** cf0c182's generated cards for this fixture, pinned by the compatibility snapshot (tests/compat). */
+const CF0C182_CARDS = JSON.parse(
+  readFileSync(new URL('../compat/fixtures/cf0c182-configs.json', import.meta.url), 'utf8'),
+) as { cases: { id: string; input: Card }[] };
+const cf0c182Card = (id: string): Card => {
+  const found = CF0C182_CARDS.cases.find((item) => item.id === id);
+  if (found === undefined) throw new Error(`no cf0c182 case ${id}`);
+  return found.input;
+};
+
+describe('generator: lighting switches (§18, review B2 option a)', () => {
+  const DESK = 'switch.demo_study_desk_lamp';
+  const HALL = 'switch.demo_hall_floor_lamp';
+  const PRIVACY = 'switch.demo_front_gate_privacy';
+  const withoutSwitchGroup = (candidates: Fixture): void => {
+    delete candidates.groups['lighting_switches'];
+  };
+
+  it('the fictional candidates carry a lighting_switches group of switch entities', () => {
+    expect(fixture().groups['lighting_switches']?.map((entry) => entry.entity_id)).toEqual([DESK, HALL]);
+  });
+
+  it('never places a lighting switch on its own: the card equals cf0c182 and each candidate is listed unassigned', () => {
+    const result = generate(fixture());
+    expect(result.card).toEqual(cf0c182Card('generator:candidates.fictional'));
+    const section = result.text.slice(result.text.indexOf('# Unassigned'));
+    expect(section).toContain(`${DESK} (unassigned lighting switch)`);
+    expect(section).toContain(`${HALL} (unassigned lighting switch)`);
+  });
+
+  it('with the example overrides, still equals cf0c182 (switches only where a person places them)', () => {
+    expect(cardOf(fixture(), OVERRIDES_EXAMPLE)).toEqual(
+      cf0c182Card('generator:candidates.fictional+overrides.example'),
+    );
+  });
+
+  it('without a lighting_switches group, the card is cf0c182 and nothing mentions lighting switches', () => {
+    const result = generate(fixture(withoutSwitchGroup));
+    expect(result.card).toEqual(cf0c182Card('generator:candidates.fictional'));
+    expect(result.text).not.toContain('lighting switch');
+  });
+
+  it('binds a placed switch in a mixed room and a switch-only room, still validates, and keeps controls false', () => {
+    const rooms = [
+      { name: 'Study', lights: ['light.demo_lounge_lamp'], switches: [DESK] },
+      { name: 'Hall', switches: [HALL] },
+    ];
+    const card = cardOf(fixture(), { rooms });
+    expect(card.rooms).toEqual(rooms);
+    expect(card.controls).toBe(false);
+    const result = validateConfig(card);
+    expect(result.ok && result.warnings).toEqual([]);
+    expect(result.ok && result.config.bindings.get(DESK as never)).toEqual(['room_switch']);
+    expect(result.ok && result.config.rooms[1]).toEqual({ name: 'Hall', lights: [], switches: [HALL], curtains: [] });
+  });
+
+  it('lists a switch no room places as unassigned, and nowhere else', () => {
+    const rooms = [{ name: 'Study', lights: [], switches: [DESK] }];
+    const result = generate(fixture(), { rooms });
+    const section = result.text.slice(result.text.indexOf('# Unassigned'));
+    expect(section).toContain(`${HALL} (unassigned lighting switch)`);
+    expect(section).not.toContain(`${DESK} (unassigned`);
+    expect(JSON.stringify(result.card)).not.toContain(HALL);
+  });
+
+  it.each([
+    [
+      'a switch that is not a candidate',
+      { rooms: [{ name: 'Study', switches: [DESK, 'switch.demo_typo_lamp'] }] },
+      'overrides.rooms[0].switches[1] is not a lighting switch candidate (groups.lighting_switches)',
+    ],
+    [
+      'a light listed as a switch',
+      { rooms: [{ name: 'Study', switches: ['light.demo_porch'] }] },
+      'overrides.rooms[0].switches[0] is not a lighting switch candidate',
+    ],
+    [
+      'a lighting switch listed as a light',
+      { rooms: [{ name: 'Study', lights: [DESK] }] },
+      'overrides.rooms[0].lights[0] is not a light candidate',
+    ],
+    [
+      'an excluded switch',
+      { exclude: [HALL], rooms: [{ name: 'Hall', switches: [HALL] }] },
+      'overrides.rooms[0].switches[0] is excluded by overrides.exclude',
+    ],
+    [
+      'a camera privacy switch (not a lighting switch candidate)',
+      { rooms: [{ name: 'Gate', switches: [PRIVACY] }] },
+      'overrides.rooms[0].switches[0] is not a lighting switch candidate',
+    ],
+  ])('fails on a room that binds %s, and writes nothing', (_label, overrides, message) => {
+    expect(failure(fixture(), overrides)).toContain(message);
+  });
+
+  it('fails through validateConfig (switch-conflict) when a privacy switch is also offered as a lighting switch', () => {
+    const candidates = fixture(addEntity('lighting_switches', PRIVACY));
+    expect(failure(candidates, { rooms: [{ name: 'Gate', switches: [PRIVACY] }] })).toMatch(
+      /failed validation[\s\S]*rooms\[0\]\.switches\[0\]: switch-conflict/,
+    );
+  });
+
+  it('fails on a lighting switch outside the switch domain through validateConfig (wrong-domain)', () => {
+    const candidates = fixture(addEntity('lighting_switches', 'input_boolean.demo_lamp_helper'));
+    expect(failure(candidates, { rooms: [{ name: 'Study', switches: ['input_boolean.demo_lamp_helper'] }] })).toMatch(
+      /failed validation[\s\S]*rooms\[0\]\.switches\[0\]: wrong-domain/,
+    );
+  });
+});
+
 describe('generator: rendering', () => {
   it('every line before the JSON body is a comment, and stripping them gives the dashboard JSON', () => {
     const { text, dashboard } = generate();

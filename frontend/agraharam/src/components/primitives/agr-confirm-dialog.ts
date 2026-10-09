@@ -66,6 +66,10 @@ function confirmWatchIds(action: ActionRequest, config: ResolvedConfig): EntityI
     const script = config.security?.actions[action.role];
     if (script !== undefined) ids.push(script);
   }
+  if (action.kind === 'shortcut.run') {
+    const script = config.shortcuts[action.role];
+    if (script !== undefined) ids.push(script);
+  }
   if ((action.kind === 'garage.open' || action.kind === 'garage.close') && config.garage) ids.push(config.garage.cover);
   if (config.security) ids.push(config.security.alarm);
   return ids;

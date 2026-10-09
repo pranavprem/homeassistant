@@ -43,6 +43,10 @@
       { "entity_id": "light.demo_kitchen_pendant", "known_in_saved_inventory": true },
       { "entity_id": "light.demo_porch", "known_in_saved_inventory": true }
     ],
+    "lighting_switches": [
+      { "entity_id": "switch.demo_study_desk_lamp", "known_in_saved_inventory": true },
+      { "entity_id": "switch.demo_hall_floor_lamp", "known_in_saved_inventory": true }
+    ],
     "curtains": [
       { "entity_id": "cover.demo_lounge_curtain", "known_in_saved_inventory": true },
       { "entity_id": "cover.demo_study_blind", "known_in_saved_inventory": true }

@@ -10,6 +10,58 @@ export type DemoScenarioId =
 export type SecurityActionRole =
   'disarm_hold' | 'silence_sound' | 'resume_auto' | 'hold_night' | 'hold_away' | 'hold_vacation' | 'prepare_departure';
 
+/** The vehicle drawings the Garage panel offers (§18); 'generic' is the default and draws no make or model. */
+export const VEHICLE_MODELS = Object.freeze(['generic', 'tesla-model-3'] as const);
+export type VehicleModel = (typeof VEHICLE_MODELS)[number];
+
+/**
+ * The whole-house shortcuts (§18). A fixed pair rather than a generic list: a list of any script under any label
+ * would let one tap run anything, and the household needs only these two guarded toggle scripts.
+ */
+export const SHORTCUT_ROLES = Object.freeze(['lights_toggle', 'curtains_toggle'] as const);
+export type ShortcutRole = (typeof SHORTCUT_ROLES)[number];
+
+/**
+ * Group icons a collection may name. Config-local because src/config cannot import src/icons; a unit test asserts
+ * every name is a key of ICONS or CUSTOM_ICONS, and src/model/readings.ts maps CollectionIcon → IconName with a plain
+ * assignment, so a missing icon is also a compile error.
+ */
+export const COLLECTION_ICONS = Object.freeze([
+  'house',
+  'lightbulb',
+  'plug',
+  'printer',
+  'robot-vacuum',
+  'air-vent',
+  'battery',
+  'thermometer',
+  'droplets',
+  'wind',
+  'leaf',
+  'refrigerator',
+  'washing-machine',
+  'car',
+  'heart-pulse',
+  'router',
+  'wifi',
+  'lock',
+  'tv',
+  'clock',
+] as const);
+export type CollectionIcon = (typeof COLLECTION_ICONS)[number];
+
+interface AttentionInput {
+  below?: number;
+  above?: number;
+  equals?: string | string[];
+}
+type CollectionRowInput = string | { entity: string; name?: string; attention?: AttentionInput };
+interface CollectionInput {
+  name: string;
+  icon?: CollectionIcon;
+  entities: CollectionRowInput[];
+}
+
 /** As written in Lovelace YAML. Unknown keys are rejected (except HA-managed keys, see validate). */
 export interface CardConfigInput {
   type: string; // 'custom:agraharam-dashboard'
@@ -26,7 +78,8 @@ export interface CardConfigInput {
   climate?: EntityRefInput[]; // climate.* (controllable)
   air?: EntityRefInput[]; // fan.* purifiers (controllable)
   bed_comfort?: EntityRefInput[]; // climate.* (read-only, never actionable)
-  rooms?: { name: string; lights: string[]; curtains?: string[]; purifier?: string }[];
+  /** `lights` is required unless `switches` (lighting switches only, switch.*) is present. */
+  rooms?: { name: string; lights?: string[]; switches?: string[]; curtains?: string[]; purifier?: string }[];
   vacuums?: { entity: string; name?: string; battery_sensor?: string }[];
   appliances?: { name: string; status_sensor: string; remaining_sensor?: string }[];
   media?: EntityRefInput[]; // media_player.*
@@ -48,6 +101,7 @@ export interface CardConfigInput {
     charger_power?: string;
     session_energy?: string;
     charge_limit_pct?: number; // 50..100, integer
+    model?: VehicleModel; // default 'generic'
   };
   security?: {
     alarm: string; // alarm_control_panel.*
@@ -60,6 +114,8 @@ export interface CardConfigInput {
   };
   studio_monitors_script?: string; // script.*
   calendars?: EntityRefInput[]; // calendar.*
+  shortcuts?: Partial<Record<ShortcutRole, string>>; // script.* only; each always asks for confirmation
+  collections?: CollectionInput[]; // read-only readings, never actionable
 }
 
 export type BindingRole =
@@ -70,6 +126,7 @@ export type BindingRole =
   | 'air'
   | 'bed_comfort'
   | 'room_light'
+  | 'room_switch'
   | 'room_curtain'
   | 'room_purifier'
   | 'vacuum'
@@ -93,7 +150,9 @@ export type BindingRole =
   | 'perimeter'
   | 'security_action'
   | 'studio_monitors'
-  | 'calendar';
+  | 'calendar'
+  | 'house_shortcut'
+  | 'collection';
 
 function freezeDomainLists<K extends string>(
   table: Record<K, readonly string[]>,
@@ -112,6 +171,7 @@ export const DOMAINS_BY_ROLE: Readonly<Record<BindingRole, readonly string[]>> =
   air: ['fan'],
   bed_comfort: ['climate'],
   room_light: ['light'],
+  room_switch: ['switch'],
   room_curtain: ['cover'],
   room_purifier: ['fan'],
   vacuum: ['vacuum'],
@@ -136,25 +196,83 @@ export const DOMAINS_BY_ROLE: Readonly<Record<BindingRole, readonly string[]>> =
   security_action: ['script'],
   studio_monitors: ['script'],
   calendar: ['calendar'],
+  house_shortcut: ['script'],
+  // Read-only readings. Cameras, alarm panels, presence and anything that invites an action (scripts, scenes,
+  // buttons) are left out on purpose: other sections own them, or they are private.
+  collection: [
+    'sensor',
+    'binary_sensor',
+    'number',
+    'select',
+    'light',
+    'switch',
+    'fan',
+    'climate',
+    'vacuum',
+    'cover',
+    'lock',
+    'media_player',
+    'update',
+    'input_text',
+    'input_datetime',
+    'input_boolean',
+    'input_select',
+    'event',
+  ],
 });
 
 /** Declared here (re-exported by src/ha/actions/types.ts) so src/config imports nothing outside itself. */
 export type ActionFamily =
-  'light' | 'room' | 'climate' | 'fan' | 'vacuum' | 'garage' | 'curtain' | 'media' | 'security' | 'studio_monitors';
+  | 'light'
+  | 'switch'
+  | 'room'
+  | 'climate'
+  | 'fan'
+  | 'vacuum'
+  | 'garage'
+  | 'curtain'
+  | 'media'
+  | 'security'
+  | 'studio_monitors'
+  | 'shortcut';
 
-/** Roles that can be targeted by the gateway, grouped by action family. Every other role is read-only. */
+/**
+ * Roles that can be targeted by the gateway, grouped by action family. Every other role is read-only; `collection`
+ * in particular is never listed here, so a reading can never pass the gateway allowlist.
+ */
 export const ACTIONABLE_ROLE_FAMILY: Readonly<Partial<Record<BindingRole, ActionFamily>>> = Object.freeze({
   climate: 'climate',
   air: 'fan',
   room_purifier: 'fan',
   room_light: 'light',
+  room_switch: 'switch',
   room_curtain: 'curtain',
   vacuum: 'vacuum',
   media: 'media',
   garage_cover: 'garage',
   security_action: 'security',
   studio_monitors: 'studio_monitors',
+  house_shortcut: 'shortcut',
 });
+
+/**
+ * A collection row's attention rule (§18). `range`: attention when the raw numeric state is strictly below `below`
+ * or strictly above `above` (the bounds themselves are in range). `equals`: attention when the raw state is exactly
+ * one of `values`.
+ */
+export type AttentionRule =
+  | { readonly kind: 'range'; readonly below?: number; readonly above?: number }
+  | { readonly kind: 'equals'; readonly values: readonly string[] };
+export interface CollectionRow {
+  readonly entity: EntityId;
+  readonly name?: string;
+  readonly attention?: AttentionRule;
+}
+export interface Collection {
+  readonly name: string;
+  readonly icon?: CollectionIcon;
+  readonly rows: readonly CollectionRow[];
+}
 
 export interface Ref {
   readonly entity: EntityId;
@@ -175,6 +293,8 @@ export interface ResolvedConfig {
   readonly rooms: readonly {
     readonly name: string;
     readonly lights: readonly EntityId[];
+    /** Lighting switches (lamps on smart plugs); [] when none are configured. */
+    readonly switches: readonly EntityId[];
     readonly curtains: readonly EntityId[];
     readonly purifier?: EntityId;
   }[];
@@ -206,6 +326,7 @@ export interface ResolvedConfig {
     readonly chargerPower?: EntityId;
     readonly sessionEnergy?: EntityId;
     readonly chargeLimitPct?: number;
+    readonly model: VehicleModel; // default 'generic'
   };
   readonly security?: {
     readonly alarm: EntityId;
@@ -218,6 +339,8 @@ export interface ResolvedConfig {
   };
   readonly studioMonitors?: EntityId;
   readonly calendars: readonly Ref[];
+  readonly shortcuts: Readonly<Partial<Record<ShortcutRole, EntityId>>>; // {} when none are configured
+  readonly collections: readonly Collection[]; // [] when none are configured
   /** Configured entity → roles. Built once, deeply frozen, never extended. It is the ONLY input to the gateway
    *  allowlist. Derived IDs (vacuum battery) live in EntityStore's separate derived set (§4.5). Empty when
    *  demo is true: the root validates demoCardInput(scenario) separately (§4.2 rule 9). */

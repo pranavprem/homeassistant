@@ -49,7 +49,8 @@ type DeviceHealth =
 type HealthState = 'loading' | 'live' | 'paused';
 
 export interface HealthFactVM {
-  readonly key: 'entry-points' | 'devices';
+  /** 'readings' comes from model/readings.ts and never feeds the health headline, devices or problems (§18). */
+  readonly key: 'entry-points' | 'devices' | 'readings';
   /** The emphasized count ("4 of 4"); empty when there is nothing to count. */
   readonly count: string;
   /** The label beside the count, without a final period ("monitored entry points closed"). */
@@ -116,6 +117,8 @@ function monitoredDevices(config: ResolvedConfig, store: StoreView): MonitoredDe
   for (const ref of config.bedComfort) add(ref.entity, ref.name, 'Bed climate');
   for (const room of config.rooms) {
     for (const light of room.lights) add(light, undefined, `${room.name} light`);
+    // Lamp switches are room devices like lights; collection rows and shortcut scripts are not devices (§18).
+    for (const lamp of room.switches) add(lamp, undefined, `${room.name} switch`);
     for (const curtain of room.curtains) add(curtain, undefined, `${room.name} curtain`);
     if (room.purifier !== undefined) add(room.purifier, undefined, `${room.name} purifier`);
   }

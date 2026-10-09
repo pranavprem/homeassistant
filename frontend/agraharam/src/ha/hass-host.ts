@@ -141,6 +141,9 @@ export class HassHost implements HostRuntime {
       connection: () => this.#connectionInfo(),
       connectionGeneration: () => this.#tracker?.generation() ?? 0,
       registry: (id: EntityId) => this.#hass?.entities?.[id],
+      // HA starts hass.entities as null and fills it with the first registry message (§18): until then a switch
+      // cannot be told from a settings switch, so switch controls wait.
+      registryLoaded: () => typeof this.#hass?.entities === 'object' && this.#hass.entities !== null,
       entitiesOnDevice: (deviceId: string) => this.#deviceIndex().get(deviceId) ?? NO_ENTITIES,
       hasService: (domain: string, service: string) => {
         const services = this.#hass?.services[domain];
@@ -265,7 +268,8 @@ export class HassHost implements HostRuntime {
   #deviceIndex(): ReadonlyMap<string, EntityId[]> {
     const registry = this.#hass?.entities;
     if (this.#devices === undefined || this.#devices.registry !== registry) {
-      this.#devices = { registry, byDevice: indexEntitiesByDevice(registry) };
+      // A registry that has not arrived yet (null) has no devices.
+      this.#devices = { registry, byDevice: indexEntitiesByDevice(registry ?? undefined) };
     }
     return this.#devices.byDevice;
   }

@@ -31,18 +31,27 @@ export interface ClockParts {
 } // "5:51", "PM"
 export interface Formatter {
   readonly temperatureUnit: string; // hass.config.unit_system.temperature
+  /** True when HA's own formatEntityState backs entityState(): translated, with registry precision. House readings
+   *  word states themselves only when it is false (demo, tests, older frontends, §18). */
+  readonly translatesStates: boolean;
   entityState(e: HassEntityLike): string; // hass.formatEntityState if present, else fallback
   attribute(e: HassEntityLike, attribute: string): string;
   number(value: number, options?: Intl.NumberFormatOptions): string;
+  /** `text` followed by `unit` with HA's spacing for the profile language: "15%", "15 %" (de), "41 °F", "1,180 ppm". */
+  withUnit(text: string, unit: string): string;
   temperature(value: number, unit: string | undefined): string; // "69°" or "21.5 °C" per locale
   time(value: Date): string;
   hour(value: Date): string; // "7 PM" / "19": forecast cells (locale, 12/24 h, zone)
   hourOfDay(value: Date): number; // 0–23 in the same zone as clock() and date(): the greeting
   dayKey(value: Date): string; // 'YYYY-MM-DD' (Latin digits) in the same zone: day grouping (format.ts helpers)
   clock(value: Date): ClockParts;
-  date(value: Date, style: 'long' | 'weekday-short' | 'month-day'): string;
+  date(value: Date, style: DateStyle): string;
+  /** A wall-clock time with no date and no zone ("7:30 AM" / "07:30"), never shifted: input_datetime times. */
+  wallTime(hour: number, minute: number): string;
   duration(ms: number): string; // "35 min", "1 h 10 min"
 }
+/** "Wednesday, September 30" | "Wed, Sep 30" | "Sep 30" | "Sep 30, 2025". */
+export type DateStyle = 'long' | 'weekday-short' | 'month-day' | 'month-day-year';
 
 export type ForecastType = 'daily' | 'hourly' | 'twice_daily';
 export interface ForecastItem {
@@ -117,6 +126,9 @@ export interface HostReader {
    *  in is current (§9.2). DemoHost: increments on setConnected(false). */
   connectionGeneration(): number;
   registry(id: EntityId): RegistryEntryLike | undefined;
+  /** True once HA has delivered its entity registry (hass.entities is an object, not the initial null). Changes only
+   *  with the 'registry' meta. Until then no switch can be told from a settings switch (§18). DemoHost: always true. */
+  registryLoaded(): boolean;
   entitiesOnDevice(deviceId: string): readonly EntityId[];
   hasService(domain: string, service: string): boolean;
   formatter(): Formatter; // stable until 'locale' meta changes
@@ -132,7 +144,7 @@ export interface HostReader {
   ): Promise<readonly CalendarEventLike[]>;
 }
 
-export type ServiceDomain = 'light' | 'climate' | 'fan' | 'vacuum' | 'cover' | 'media_player' | 'script';
+export type ServiceDomain = 'light' | 'switch' | 'climate' | 'fan' | 'vacuum' | 'cover' | 'media_player' | 'script';
 export interface ServiceCall {
   readonly domain: ServiceDomain;
   readonly service: string;

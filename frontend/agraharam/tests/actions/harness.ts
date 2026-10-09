@@ -18,7 +18,7 @@ import {
 } from '../../src/ha/features.ts';
 import { createFormatter } from '../../src/ha/format.ts';
 import type { ConnectionPhase, HostReader, ServiceCall, ServiceCallResult, ServicePort } from '../../src/ha/host.ts';
-import type { HassEntityLike } from '../../src/ha/types.ts';
+import type { HassEntityLike, RegistryEntryLike } from '../../src/ha/types.ts';
 
 export const IDS = Object.freeze({
   kitchenLight: 'light.demo_kitchen',
@@ -44,7 +44,16 @@ export const IDS = Object.freeze({
   departure: 'script.demo_departure',
   studioMonitors: 'script.demo_studio_monitors',
   frontDoor: 'binary_sensor.demo_front_door',
+  // §18: a mixed room (a light and lighting switches) and the two whole-house shortcut scripts.
+  studyLight: 'light.demo_study_ceiling',
+  deskLamp: 'switch.demo_study_desk_lamp',
+  floorLamp: 'switch.demo_study_floor_lamp',
+  lightsToggle: 'script.demo_house_lights_toggle',
+  curtainsToggle: 'script.demo_house_curtains_toggle',
 });
+
+/** Room indexes in BASE_INPUT. Kitchen and Courtyard stay light-only: they prove light-only rooms are unchanged. */
+export const ROOM = Object.freeze({ kitchen: 0, courtyard: 1, study: 2 });
 
 export const FEATURES = Object.freeze({
   climate: CLIMATE_FEATURE.TARGET_TEMPERATURE,
@@ -69,6 +78,7 @@ export const BASE_INPUT: Readonly<Record<string, unknown>> = Object.freeze({
       purifier: IDS.roomPurifier,
     },
     { name: 'Courtyard', lights: [IDS.courtyardLight] },
+    { name: 'Study', lights: [IDS.studyLight], switches: [IDS.deskLamp, IDS.floorLamp] },
   ],
   vacuums: [{ entity: IDS.vacuum, name: 'Pebble' }],
   media: [{ entity: IDS.speaker, name: 'Lounge speaker' }],
@@ -88,6 +98,7 @@ export const BASE_INPUT: Readonly<Record<string, unknown>> = Object.freeze({
     },
   },
   studio_monitors_script: IDS.studioMonitors,
+  shortcuts: { lights_toggle: IDS.lightsToggle, curtains_toggle: IDS.curtainsToggle },
 });
 
 type StateSpec = readonly [state: string, attributes?: Readonly<Record<string, unknown>>];
@@ -158,6 +169,11 @@ export const BASE_STATES: Readonly<Record<string, StateSpec>> = Object.freeze({
   [IDS.holdVacation]: SCRIPT_IDLE,
   [IDS.departure]: SCRIPT_IDLE,
   [IDS.studioMonitors]: SCRIPT_IDLE,
+  [IDS.studyLight]: ['off', { friendly_name: 'Study ceiling', supported_color_modes: ['onoff'] }],
+  [IDS.deskLamp]: ['off', { friendly_name: 'Desk lamp' }],
+  [IDS.floorLamp]: ['off', { friendly_name: 'Floor lamp' }],
+  [IDS.lightsToggle]: SCRIPT_IDLE,
+  [IDS.curtainsToggle]: SCRIPT_IDLE,
 });
 
 const FIXED_TIME = '2026-09-30T17:21:00.000Z';
@@ -240,6 +256,10 @@ export interface Harness {
   readonly missingServices: Set<string>;
   /** Forces reader.connection().phase regardless of the store (the live socket getter disagreeing). */
   phaseOverride: ConnectionPhase | undefined;
+  /** Whether HA has delivered its entity registry (`hass.entities` non-null, §18 step 5b). Defaults to true. */
+  registryLoaded: boolean;
+  /** Registry entries by entity ID, read by reader.registry() once the registry is loaded (entity_category). */
+  readonly registry: Map<string, RegistryEntryLike>;
   /** Replaces one entity with a new object (optionally with a given context id) and ingests. */
   set(id: string, state: string, attributes?: Readonly<Record<string, unknown>>, contextId?: string): void;
   /** Merges attributes into the current entity (new object) and ingests. */
@@ -299,6 +319,8 @@ export function harness(options: HarnessOptions = {}): Harness {
     temperatureUnit: '°F',
     missingServices: new Set<string>(),
     phaseOverride: undefined as ConnectionPhase | undefined,
+    registryLoaded: true,
+    registry: new Map<string, RegistryEntryLike>(),
   };
 
   const reader: HostReader = {
@@ -306,7 +328,9 @@ export function harness(options: HarnessOptions = {}): Harness {
     store,
     connection: () => ({ phase: world.phaseOverride ?? phaseOf(store) }),
     connectionGeneration: () => 1,
-    registry: () => undefined,
+    // As HassHost: hass.entities is null until the registry arrives, so no entry can be read before then.
+    registry: (id) => (world.registryLoaded ? world.registry.get(id) : undefined),
+    registryLoaded: () => world.registryLoaded,
     entitiesOnDevice: () => [],
     hasService: (domain, service) => !world.missingServices.has(`${domain}.${service}`),
     formatter: () => createFormatter({ temperatureUnit: world.temperatureUnit }),
