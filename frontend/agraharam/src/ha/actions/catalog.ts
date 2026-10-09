@@ -3,8 +3,9 @@
  * service the kind may call, the roles its target must hold, the capability it needs, its state precondition, the
  * data the gateway builds and the predicates that observe the outcome.
  *
- * By construction there is no entry for alarm panels, input helpers, selects, switches, automations or cameras, no
- * script service other than turn_on, and no script data at all (never `variables`). Tests enforce this.
+ * By construction there is no entry for alarm panels, input helpers, selects, automations or cameras, no switch
+ * service other than turn_on and turn_off for room lighting switches (§18), no script service other than turn_on, and
+ * no script data at all (never `variables`). Tests enforce this.
  */
 import type { ActionFamily, BindingRole } from '../../config/schema.ts';
 import { temperatureStep } from '../../domain/steps.ts';
@@ -24,7 +25,7 @@ import type { ActionKind, ActionRequest } from './types.ts';
 type RequestOf<K extends ActionKind> = Extract<ActionRequest, { kind: K }>;
 
 /** Where the gateway resolves the target(s) from: the request's own entity, or a configuration slot. */
-type TargetSource = 'entity' | 'room' | 'garage' | 'security' | 'studio_monitors';
+type TargetSource = 'entity' | 'room' | 'garage' | 'security' | 'studio_monitors' | 'shortcut';
 
 /** §7.1 "Unknown state": `allow` continues the pipeline for a target in state unknown, `deny` stops it. */
 type UnknownStateRule = 'allow' | 'deny';
@@ -58,6 +59,17 @@ export type NotApplicableReason =
   | 'player-off'
   | 'already-running';
 
+/**
+ * One service call a request may make. Room specs make one call per part that has an available target, in this
+ * order, because a ServiceCall has one domain: a room with lights and lighting switches is one light call and one
+ * switch call under one ticket (§18). Single-target specs make exactly one call, their own domain.service.
+ */
+export interface ServicePart {
+  readonly role: BindingRole;
+  readonly domain: ServiceDomain;
+  readonly service: string;
+}
+
 /** What observation predicates may read besides the target's current state. */
 export interface ObservationContext<R extends ActionRequest = ActionRequest> {
   readonly req: R;
@@ -82,6 +94,10 @@ export interface ActionSpec<R extends ActionRequest = ActionRequest> {
   readonly capable?: (entity: HassEntityLike) => boolean;
   /** Covers with these device classes are refused with not-allowed (step 5a). */
   readonly refusedDeviceClasses?: readonly string[];
+  /** Step 5b: switch-domain targets whose registry entity_category is one of these are never switched. */
+  readonly refusedEntityCategories?: readonly string[];
+  /** Target 'room' only: the calls, in order. `domain` and `service` equal parts[0]. */
+  readonly parts?: readonly ServicePart[];
   readonly unknownState: UnknownStateRule;
   /** A rule, or a rule chosen per request: security actions share one spec but only Silence Sound may skip. */
   readonly confirm: ConfirmRule | ((req: R) => ConfirmRule);
@@ -103,6 +119,11 @@ const NO_DATA: Readonly<Record<string, unknown>> = Object.freeze({});
 const noData = (): Readonly<Record<string, unknown>> => NO_DATA;
 
 const GARAGE_LIKE_DEVICE_CLASSES: readonly string[] = Object.freeze(['garage', 'gate', 'door']);
+/**
+ * A plug's child lock, LED or power-on-behaviour switch carries one of these categories; a lamp's power switch has
+ * none. Refused at runtime behind validation, which cannot see the registry (§18).
+ */
+const SETTINGS_ENTITY_CATEGORIES: readonly string[] = Object.freeze(['config', 'diagnostic']);
 const HA_BRIGHTNESS_PER_PERCENT = 2.55;
 const BRIGHTNESS_TOLERANCE_PCT = 2;
 const VOLUME_TOLERANCE = 0.02;
@@ -153,11 +174,32 @@ const scriptPrecondition = onTarget((entity) => unless(entity.state === 'on', 'a
 const garageMoving = (state: string): NotApplicableReason | undefined =>
   state === 'opening' || state === 'closing' ? 'door-moving' : undefined;
 
-/** Deep-freezes the specs, so no code path can widen a role list or a feature mask at runtime. */
+/** Every target that is not already in the requested state. */
+const allTargetsAre =
+  (state: string, reason: NotApplicableReason) =>
+  (targets: readonly HassEntityLike[]): NotApplicableReason | undefined =>
+    unless(
+      targets.every((target) => target.state === state),
+      reason,
+    );
+
+/** A room's calls for one service name: its lights first, then its lighting switches (§18). */
+function roomParts(service: 'turn_on' | 'turn_off'): readonly ServicePart[] {
+  return [
+    { role: 'room_light', domain: 'light', service },
+    { role: 'room_switch', domain: 'switch', service },
+  ];
+}
+
+/** Deep-freezes the specs, so no code path can widen a role list, a feature mask or a call at runtime. */
 function freezeCatalog(catalog: Catalog): Catalog {
   for (const spec of Object.values<ActionSpec<never>>(catalog)) {
     Object.freeze(spec.roles);
     Object.freeze(spec.requires);
+    if (spec.parts !== undefined) {
+      for (const part of spec.parts) Object.freeze(part);
+      Object.freeze(spec.parts);
+    }
     Object.freeze(spec);
   }
   return Object.freeze(catalog);
@@ -210,38 +252,64 @@ export const ACTION_CATALOG: Catalog = freezeCatalog({
       );
     },
   },
-  // Room actions target the room's AVAILABLE lights only; unknown ones are left out of the target (§7.1).
+  // Lighting switches (lamps on smart plugs) in rooms: on and off only, never a settings switch (step 5b).
+  'switch.turn_on': {
+    family: 'switch',
+    target: 'entity',
+    roles: ['room_switch'],
+    domain: 'switch',
+    service: 'turn_on',
+    requires: [],
+    refusedEntityCategories: SETTINGS_ENTITY_CATEGORIES,
+    unknownState: 'allow',
+    confirm: 'never',
+    precondition: onTarget((entity) => unless(entity.state === 'on', 'already-on')),
+    data: noData,
+    confirmed: stateIs('on'),
+  },
+  'switch.turn_off': {
+    family: 'switch',
+    target: 'entity',
+    roles: ['room_switch'],
+    domain: 'switch',
+    service: 'turn_off',
+    requires: [],
+    refusedEntityCategories: SETTINGS_ENTITY_CATEGORIES,
+    unknownState: 'allow',
+    confirm: 'never',
+    precondition: onTarget((entity) => unless(entity.state === 'off', 'already-off')),
+    data: noData,
+    confirmed: stateIs('off'),
+  },
+  // Room actions target the room's AVAILABLE lights and lighting switches only; unknown ones are left out of the
+  // target (§7.1). One call per part with a target, so every lighting item reaches the same desired state.
   'room.lights_on': {
     family: 'room',
     target: 'room',
-    roles: ['room_light'],
+    roles: ['room_light', 'room_switch'],
     domain: 'light',
     service: 'turn_on',
+    parts: roomParts('turn_on'),
     requires: [],
+    refusedEntityCategories: SETTINGS_ENTITY_CATEGORIES,
     unknownState: 'deny',
     confirm: 'never',
-    precondition: (lights) =>
-      unless(
-        lights.every((light) => light.state === 'on'),
-        'all-lights-on',
-      ),
+    precondition: allTargetsAre('on', 'all-lights-on'),
     data: noData,
     confirmed: stateIs('on'),
   },
   'room.lights_off': {
     family: 'room',
     target: 'room',
-    roles: ['room_light'],
+    roles: ['room_light', 'room_switch'],
     domain: 'light',
     service: 'turn_off',
+    parts: roomParts('turn_off'),
     requires: [],
+    refusedEntityCategories: SETTINGS_ENTITY_CATEGORIES,
     unknownState: 'deny',
     confirm: 'never',
-    precondition: (lights) =>
-      unless(
-        lights.every((light) => light.state === 'off'),
-        'all-lights-off',
-      ),
+    precondition: allTargetsAre('off', 'all-lights-off'),
     data: noData,
     confirmed: stateIs('off'),
   },
@@ -566,6 +634,21 @@ export const ACTION_CATALOG: Catalog = freezeCatalog({
     requires: [],
     unknownState: 'deny',
     confirm: 'never',
+    precondition: scriptPrecondition,
+    data: noData,
+    confirmed: scriptRan,
+  },
+  // Whole-house shortcuts run ONLY the script bound to the role, with no data, and ALWAYS confirm: a toggle script's
+  // direction is unknowable, and no configuration can lower this floor (§18).
+  'shortcut.run': {
+    family: 'shortcut',
+    target: 'shortcut',
+    roles: ['house_shortcut'],
+    domain: 'script',
+    service: 'turn_on',
+    requires: [],
+    unknownState: 'deny',
+    confirm: 'always',
     precondition: scriptPrecondition,
     data: noData,
     confirmed: scriptRan,

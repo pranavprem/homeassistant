@@ -110,6 +110,11 @@ export class AgrButton extends LitElement {
   static override styles = [focusRingStyles, visuallyHiddenStyles, pendingSweepStyles, buttonStyles];
 
   @property() label = '';
+  /**
+   * A fuller accessible name when the visible label is short ("Whole-house lights" for "Lights", §18). It must contain
+   * the visible label (WCAG 2.5.3). Unset by default, and then no aria-label is rendered at all.
+   */
+  @property({ attribute: 'accessible-label' }) accessibleLabel = '';
   @property() icon?: IconName;
   /** Stable `data-focus-key` used to restore focus after a layout change (§5.1). */
   @property({ attribute: 'focus-key' }) focusKey = '';
@@ -159,6 +164,7 @@ export class AgrButton extends LitElement {
         data-powered=${this.powered ?? nothing}
         data-phase=${this.status?.phase ?? nothing}
         data-focus-key=${this.focusKey || nothing}
+        aria-label=${this.accessibleLabel || nothing}
         aria-pressed=${this.pressed === undefined ? nothing : String(this.pressed)}
         aria-haspopup=${this.opensDialog ? 'dialog' : nothing}
         aria-disabled=${this.canActivate() ? nothing : 'true'}

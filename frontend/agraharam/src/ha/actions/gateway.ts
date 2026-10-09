@@ -4,7 +4,8 @@
  * confirmation, sticky denial, lock), then becomes one ticket that is confirmed by OBSERVED state, never assumed.
  *
  * Safety properties, each covered by tests/actions/gateway.test.ts:
- * - one accepted request = exactly one invoke; nothing is ever queued, replayed or retried automatically;
+ * - one accepted request = exactly one invoke per planned call (a room with lights and lighting switches: two, one per
+ *   domain, §18; every other request: one); nothing is ever repeated, queued, replayed or retried automatically;
  * - nothing is sent while disconnected, resyncing, in preview, with `controls: false`, after dispose, or for a
  *   gesture whose epoch is stale;
  * - targets, services and data come from the configuration and the catalog, never from the caller;
@@ -12,7 +13,13 @@
  */
 import { domainOf } from '../../config/entity-id.ts';
 import { LIMITS } from '../../config/limits.ts';
-import { ACTIONABLE_ROLE_FAMILY, type ActionFamily, type EntityId, type ResolvedConfig } from '../../config/schema.ts';
+import {
+  ACTIONABLE_ROLE_FAMILY,
+  type ActionFamily,
+  type EntityId,
+  type ResolvedConfig,
+  type ShortcutRole,
+} from '../../config/schema.ts';
 import { alarmDisplayFor, isAlarmSounding } from '../../domain/alarm.ts';
 import { isDefined } from '../../util/defined.ts';
 import { log } from '../../util/log.ts';
@@ -28,10 +35,11 @@ import type {
 } from '../host.ts';
 import { normalizeEntity, type EntityStatus, type NormalizedEntity } from '../normalize.ts';
 import type { HassEntityLike } from '../types.ts';
-import { confirmRuleFor, specFor, type ActionSpec, type ObservationContext } from './catalog.ts';
+import { confirmRuleFor, specFor, type ActionSpec, type ObservationContext, type ServicePart } from './catalog.ts';
 import { redeemConfirmationToken } from './confirmation.ts';
 import { mapRejection, plainText } from './error-map.ts';
 import { INFLIGHT } from './inflight.ts';
+import { aggregateOutcome, type CallResult, type Outcome } from './aggregate.ts';
 import {
   actionMessage,
   stoppedWatchingMessage,
@@ -85,9 +93,15 @@ const MALFORMED_KIND = 'malformed' as ActionKind;
 
 const SECURITY_SUBJECT: ActionSubject = Object.freeze({ name: 'the security controller', plural: false });
 const STUDIO_MONITORS_SUBJECT: ActionSubject = Object.freeze({ name: 'the studio monitors', plural: true });
+/** Fixed in code, like the shortcut labels: a script's own friendly_name never words a whole-house action (§18). */
+const SHORTCUT_SUBJECTS: Readonly<Record<ShortcutRole, ActionSubject>> = Object.freeze({
+  lights_toggle: Object.freeze({ name: 'the whole-house lights script', plural: false }),
+  curtains_toggle: Object.freeze({ name: 'the whole-house curtains script', plural: false }),
+});
 /** Fallback names when neither the configuration nor HA offers one. Never an entity ID. */
 const FAMILY_NOUNS: Readonly<Record<ActionFamily, ActionSubject>> = Object.freeze({
   light: { name: 'this light', plural: false },
+  switch: { name: 'this switch', plural: false },
   room: { name: 'these lights', plural: true },
   climate: { name: 'this thermostat', plural: false },
   fan: { name: 'this fan', plural: false },
@@ -97,6 +111,7 @@ const FAMILY_NOUNS: Readonly<Record<ActionFamily, ActionSubject>> = Object.freez
   media: { name: 'this player', plural: false },
   security: SECURITY_SUBJECT,
   studio_monitors: STUDIO_MONITORS_SUBJECT,
+  shortcut: { name: 'this shortcut', plural: false },
 });
 
 const ENABLED_WITH_CONFIRM: Availability = Object.freeze({ enabled: true, confirm: true });
@@ -107,18 +122,42 @@ let nextTicketId = 1;
 
 type Stage = MessageContext['stage'];
 
+/** One service call of a plan and the targets it addresses. */
+interface PlannedCall {
+  readonly call: ServiceCall;
+  readonly targets: readonly EntityId[];
+}
+
 /** Everything an accepted request needs; built only by the pipeline. */
 interface Plan {
   readonly req: ActionRequest;
   readonly spec: ActionSpec;
   readonly key: ActionKey;
+  /** Every target of every call: locks, sticky denials and observation cover all of them. */
   readonly targets: readonly EntityId[];
   readonly subject: ActionSubject;
   readonly confirm: boolean;
-  readonly call: ServiceCall;
+  /** One call, or for a room one per domain with an available target (lights first, §18), invoked in this order. */
+  readonly calls: readonly PlannedCall[];
   readonly timeoutMs: number;
   readonly temperatureUnit: string;
 }
+
+/** A refusal from steps 4 to 5b, with the context its copy needs. */
+interface AllowlistRefusal {
+  readonly code: ActionErrorCode;
+  readonly extra?: Partial<MessageContext>;
+}
+const REGISTRY_PENDING_REFUSAL: AllowlistRefusal = Object.freeze({
+  code: 'state-unknown',
+  extra: Object.freeze({ registryPending: true }),
+});
+const SETTINGS_SWITCH_REFUSAL: AllowlistRefusal = Object.freeze({
+  code: 'not-allowed',
+  extra: Object.freeze({ settingsSwitch: true }),
+});
+const PENDING_CALL: CallResult = Object.freeze({ state: 'pending' });
+const RESOLVED_CALL: CallResult = Object.freeze({ state: 'resolved' });
 
 /** A precheck failure. `storable` failures become a visible failed ticket unless one is already in flight. */
 interface Blocked {
@@ -134,10 +173,13 @@ interface Ticket {
   readonly plan: Plan;
   /** Target states when the request was accepted (media track and script last_triggered predicates). */
   readonly before: ReadonlyMap<EntityId, HassEntityLike | undefined>;
-  /** The outcome was observed while the call was still pending; it confirms when the call resolves. */
+  /** The outcome was observed while a call was still pending; it confirms when the calls resolve. */
   observedEarly: boolean;
   progressSeen: boolean;
-  contextId: string | undefined;
+  /** One result per planned call, in plan order. */
+  readonly results: CallResult[];
+  /** HA's context id per call, once it resolved (script observation). */
+  readonly contextIds: (string | undefined)[];
   readonly timers: Set<ReturnType<typeof setTimeout>>;
   unobserve: Unsubscribe | undefined;
 }
@@ -335,8 +377,12 @@ class Gateway implements ActionGateway {
     const allowlist = this.#checkAllowlist(req, spec, configured);
     if (allowlist !== undefined) return fail(allowlist.code, allowlist.extra);
 
-    // Step 6: availability. Room actions narrow to their available lights.
-    const gate = this.#gateTargets(spec, configured);
+    // Step 5b: no switch before HA's registry arrives; settings switches never (a room leaves them out).
+    const switchable = this.#switchableTargets(spec, configured);
+    if ('code' in switchable) return fail(switchable.code, switchable.extra);
+
+    // Step 6: availability. Room actions narrow to their available lights and switches.
+    const gate = this.#gateTargets(spec, switchable.targets);
     if ('code' in gate) return fail(gate.code, gate.resyncing === true ? { resyncing: true } : {});
     const { targets, entities } = gate;
 
@@ -351,8 +397,10 @@ class Gateway implements ActionGateway {
     );
     if (!capable) return fail('unsupported');
 
-    // Step 9: HA offers the service.
-    if (!this.#reader.hasService(spec.domain, spec.service)) return fail('service-missing');
+    // Step 9: HA offers every service the request will call. A room with one service missing sends nothing at all,
+    // so it reaches one desired state or none (§18).
+    const calls = planCalls(req, spec, targets);
+    if (calls.some(({ call }) => !this.#reader.hasService(call.domain, call.service))) return fail('service-missing');
 
     // Step 10: arguments.
     const temperatureUnit = this.#reader.formatter().temperatureUnit;
@@ -378,17 +426,8 @@ class Gateway implements ActionGateway {
       return fail('busy');
     }
 
-    const single = spec.target !== 'room';
-    const call: ServiceCall = Object.freeze({
-      domain: spec.domain,
-      service: spec.service,
-      data: Object.freeze({ ...spec.data(req) }),
-      target: Object.freeze({
-        entity_id: single && targets[0] !== undefined ? targets[0] : Object.freeze([...targets]),
-      }),
-    });
     const timeoutMs = ACTION_TIMEOUT_MS[spec.family];
-    return { ok: true, plan: { req, spec, key, targets, subject, confirm, call, timeoutMs, temperatureUnit } };
+    return { ok: true, plan: { req, spec, key, targets, subject, confirm, calls, timeoutMs, temperatureUnit } };
   }
 
   /** Step 4's target lookup: from the request's entity or from the configuration slot, never from the caller. */
@@ -396,8 +435,10 @@ class Gateway implements ActionGateway {
     const config = this.#config;
     switch (req.kind) {
       case 'room.lights_on':
-      case 'room.lights_off':
-        return config.rooms[req.room]?.lights ?? [];
+      case 'room.lights_off': {
+        const room = config.rooms[req.room];
+        return room === undefined ? [] : [...room.lights, ...room.switches];
+      }
       case 'garage.open':
       case 'garage.close':
         return config.garage === undefined ? [] : [config.garage.cover];
@@ -407,17 +448,17 @@ class Gateway implements ActionGateway {
       }
       case 'studio_monitors.run':
         return config.studioMonitors === undefined ? [] : [config.studioMonitors];
+      case 'shortcut.run': {
+        const script = config.shortcuts[req.role];
+        return script === undefined ? [] : [script];
+      }
       default:
         return [req.entity];
     }
   }
 
   /** Steps 4, 5 and 5a. Derived IDs are not in config.bindings, so they can never pass. */
-  #checkAllowlist(
-    req: ActionRequest,
-    spec: ActionSpec,
-    targets: readonly EntityId[],
-  ): { readonly code: ActionErrorCode; readonly extra?: Partial<MessageContext> } | undefined {
+  #checkAllowlist(req: ActionRequest, spec: ActionSpec, targets: readonly EntityId[]): AllowlistRefusal | undefined {
     if (targets.length === 0) return { code: 'not-allowed' };
     for (const target of targets) {
       const roles = this.#config.bindings.get(target) ?? [];
@@ -426,8 +467,14 @@ class Gateway implements ActionGateway {
       const families = new Set(roles.map((role) => ACTIONABLE_ROLE_FAMILY[role]).filter(isDefined));
       if (families.size > 1) return { code: 'not-allowed' };
     }
-    if (req.kind === 'security.run' && !this.#boundToExactlyOneRole(targets[0])) return { code: 'not-allowed' };
-    if (targets.some((target) => domainOf(target) !== spec.domain)) return { code: 'domain-mismatch' };
+    if (req.kind === 'security.run' && !boundToExactlyOneRole(targets[0], this.#config.security?.actions ?? {})) {
+      return { code: 'not-allowed' };
+    }
+    if (req.kind === 'shortcut.run' && !boundToExactlyOneRole(targets[0], this.#config.shortcuts)) {
+      return { code: 'not-allowed' };
+    }
+    const domains = spec.parts === undefined ? checkDomain(spec, targets) : this.#checkParts(spec.parts, targets);
+    if (domains !== undefined) return { code: domains };
     const refused = spec.refusedDeviceClasses;
     if (refused !== undefined) {
       const garageLike = targets.some((target) => {
@@ -445,10 +492,48 @@ class Gateway implements ActionGateway {
     return garage !== undefined && targets.includes(garage) ? 'garage-panel' : 'elsewhere';
   }
 
-  /** §4.2 rule 6 at request time: one script per security role, so Silence Sound can never run a disarm. */
-  #boundToExactlyOneRole(script: EntityId | undefined): boolean {
-    const actions = this.#config.security?.actions ?? {};
-    return script !== undefined && Object.values(actions).filter((bound) => bound === script).length === 1;
+  /**
+   * Steps 4 and 5 for a room (§18): each target belongs to the part of its own domain and must hold that part's role,
+   * so a light can never ride in the switch call or a switch in the light call.
+   */
+  #checkParts(parts: readonly ServicePart[], targets: readonly EntityId[]): ActionErrorCode | undefined {
+    for (const target of targets) {
+      const part = parts.find((candidate) => candidate.domain === domainOf(target));
+      if (part === undefined) return 'domain-mismatch';
+      if (!(this.#config.bindings.get(target) ?? []).includes(part.role)) return 'not-allowed';
+    }
+    return undefined;
+  }
+
+  /**
+   * Step 5b (§18), for switch-domain targets only.
+   *
+   * 1. Until HA has delivered its entity registry (hass.entities starts as null), no switch can be told from a
+   *    settings switch, so a switch, or a room with any switch, is refused with a visible reason. A room's switches
+   *    are never dropped instead: "All off" leaving lamps on is not one desired state. Light-only rooms skip this.
+   *    The gate clears at the first registry delivery ('registry' meta, which re-evaluates every control).
+   * 2. A switch the registry marks as a settings or diagnostic entity (a plug's child lock or LED) is never switched.
+   *    A single switch is refused; a room leaves such switches out of its target, as it does unknown ones, and is
+   *    refused only when nothing else is left. A switch with no registry entry once the registry has loaded (YAML) is
+   *    a lamp as far as anyone can tell, so only positive evidence refuses.
+   */
+  #switchableTargets(
+    spec: ActionSpec,
+    targets: readonly EntityId[],
+  ): { readonly targets: readonly EntityId[] } | AllowlistRefusal {
+    const refused = spec.refusedEntityCategories;
+    if (refused === undefined || !targets.some(isSwitch)) return { targets };
+    if (!this.#reader.registryLoaded()) return REGISTRY_PENDING_REFUSAL;
+    const switchable = targets.filter((target) => !this.#isSettingsSwitch(target, refused));
+    if (switchable.length === targets.length) return { targets };
+    if (spec.target !== 'room' || switchable.length === 0) return SETTINGS_SWITCH_REFUSAL;
+    return { targets: switchable };
+  }
+
+  #isSettingsSwitch(target: EntityId, refused: readonly string[]): boolean {
+    if (!isSwitch(target)) return false;
+    const category = this.#reader.registry(target)?.entity_category;
+    return typeof category === 'string' && refused.includes(category);
   }
 
   /** Step 6: normalized availability. Room actions keep only available lights (unknown ones are left out). */
@@ -500,6 +585,8 @@ class Gateway implements ActionGateway {
         return SECURITY_SUBJECT;
       case 'studio_monitors.run':
         return STUDIO_MONITORS_SUBJECT;
+      case 'shortcut.run':
+        return SHORTCUT_SUBJECTS[req.role];
       default: {
         const [target] = targets;
         if (target === undefined) return FAMILY_NOUNS[spec.family];
@@ -535,7 +622,10 @@ class Gateway implements ActionGateway {
     return status;
   }
 
-  /** Accepted: snapshot `before`, create the pending ticket, lock the targets, invoke ONCE, start the timeout. */
+  /**
+   * Accepted: snapshot `before`, create the pending ticket, lock every target, invoke each planned call ONCE (in plan
+   * order, in this task, with no await between them), start the timeout.
+   */
   #start(plan: Plan): ActionStatus {
     const store = this.#reader.store;
     const startedAt = this.#now();
@@ -548,7 +638,8 @@ class Gateway implements ActionGateway {
       before: new Map(plan.targets.map((target) => [target, store.get(target)])),
       observedEarly: false,
       progressSeen: false,
-      contextId: undefined,
+      results: plan.calls.map(() => PENDING_CALL),
+      contextIds: plan.calls.map(() => undefined),
       timers: new Set(),
       unobserve: undefined,
     };
@@ -556,66 +647,75 @@ class Gateway implements ActionGateway {
     this.#inflight.mark(plan.targets, startedAt + plan.timeoutMs);
     ticket.unobserve = store.subscribe(plan.targets, [], () => this.#observe(ticket));
     this.#notify(ticket.status);
-    this.#invoke(ticket);
+    plan.calls.forEach((planned, index) => this.#invoke(ticket, planned.call, index));
     this.#addTicketTimer(ticket, plan.timeoutMs, () => this.#onTimeout(ticket));
     return ticket.status;
   }
 
-  #invoke(ticket: Ticket): void {
+  #invoke(ticket: Ticket, call: ServiceCall, index: number): void {
     let pending: Promise<ServiceCallResult>;
     try {
-      pending = this.#port.invoke(ticket.plan.call);
+      pending = this.#port.invoke(call);
     } catch (error) {
       pending = Promise.reject(error);
     }
     pending
       .then(
-        (result) => this.#onResolved(ticket, result),
-        (error: unknown) => this.#onRejected(ticket, error),
+        (result) => this.#onResolved(ticket, index, result),
+        (error: unknown) => this.#onRejected(ticket, index, error),
       )
       .catch(() => log.error('action-settle-failed'));
   }
 
-  #onResolved(ticket: Ticket, result: ServiceCallResult | undefined): void {
+  #onResolved(ticket: Ticket, index: number, result: ServiceCallResult | undefined): void {
     if (!isTicketInFlight(ticket.status)) return;
     const contextId = result?.contextId;
-    ticket.contextId = typeof contextId === 'string' && contextId !== '' ? contextId : undefined;
-    if (ticket.observedEarly || this.#outcomeObserved(ticket)) this.#settle(ticket, 'confirmed');
-    else this.#update(ticket, { phase: 'sent' });
+    ticket.contextIds[index] = typeof contextId === 'string' && contextId !== '' ? contextId : undefined;
+    ticket.results[index] = RESOLVED_CALL;
+    this.#applyOutcome(ticket, false);
   }
 
-  #onRejected(ticket: Ticket, error: unknown): void {
+  #onRejected(ticket: Ticket, index: number, error: unknown): void {
     if (!isTicketInFlight(ticket.status)) return;
     const mapped = mapRejection(error);
-    // The outcome was already observed: losing the reply in a dropped connection does not make it uncertain.
-    if (ticket.observedEarly && mapped.code === 'connection-lost') {
-      this.#settle(ticket, 'confirmed');
-      return;
-    }
     if (mapped.code === 'bad-request') log.error('action-bad-request', ticket.plan.req.kind);
     else if (mapped.code === 'unknown') log.warn('action-rejected-unknown', ticket.plan.req.kind);
     if (mapped.code === 'permission-denied') {
-      for (const target of ticket.plan.targets) this.#denied.add(denialKey(ticket.plan.spec.family, target));
+      // Only this call's targets: a denied switch call keeps the room action disabled, never the room's lights.
+      const denied = ticket.plan.calls[index]?.targets ?? [];
+      for (const target of denied) this.#denied.add(denialKey(ticket.plan.spec.family, target));
     }
-    const message = actionMessage(mapped.code, {
-      stage: 'request',
-      kind: ticket.plan.req.kind,
-      subject: ticket.plan.subject,
-      ...(mapped.haMessage !== undefined && { haMessage: mapped.haMessage }),
-    });
-    const actionError: ActionError = Object.freeze({
+    ticket.results[index] = Object.freeze({
+      state: 'rejected',
       code: mapped.code,
-      message,
+      notSent: mapped.notSent,
+      ...(mapped.haMessage !== undefined && { haMessage: mapped.haMessage }),
       ...(mapped.haCode !== undefined && { haCode: mapped.haCode }),
     });
-    this.#settle(ticket, mapped.outcome, actionError);
+    this.#applyOutcome(ticket, false);
   }
 
   /** A call whose outcome was observed while it was pending is confirmed even if HA's reply never arrives. */
   #onTimeout(ticket: Ticket): void {
     if (!isTicketInFlight(ticket.status)) return;
-    if (ticket.observedEarly) this.#settle(ticket, 'confirmed');
-    else this.#settle(ticket, 'uncertain', this.#errorFor(ticket, 'timeout'));
+    this.#applyOutcome(ticket, true);
+  }
+
+  /**
+   * Settles or advances the ticket from its calls' results (aggregate.ts). The outcome holding right now confirms only
+   * a request whose every call resolved, as a resolved call always did; after a lost connection or at the timeout,
+   * only an outcome observed while the calls were out counts, exactly as before multi-call rooms.
+   */
+  #applyOutcome(ticket: Ticket, atTimeout: boolean): void {
+    const allResolved = ticket.results.every((result) => result.state === 'resolved');
+    const observed = ticket.observedEarly || (!atTimeout && allResolved && this.#outcomeObserved(ticket));
+    const outcome = aggregateOutcome(ticket.results, observed, atTimeout);
+    if (!outcome.settled) {
+      if (outcome.phase === 'sent' && ticket.status.phase !== 'sent') this.#update(ticket, { phase: 'sent' });
+      return;
+    }
+    if (outcome.phase === 'confirmed') this.#settle(ticket, 'confirmed');
+    else this.#settle(ticket, outcome.phase, this.#outcomeError(ticket, outcome), outcome.partial);
   }
 
   /** Runs on every store change for the ticket's targets while it is pending or sent. */
@@ -636,7 +736,7 @@ class Gateway implements ActionGateway {
       }
       if (!this.#outcomeObserved(ticket)) return;
       if (ticket.status.phase === 'pending') ticket.observedEarly = true;
-      else this.#settle(ticket, 'confirmed');
+      else this.#applyOutcome(ticket, false);
     } catch {
       log.error('action-observe-failed');
     }
@@ -648,20 +748,40 @@ class Gateway implements ActionGateway {
     return ticket.plan.targets.map((target) => (store.freshSinceResync(target) ? store.get(target) : undefined));
   }
 
+  /** The predicate holds for every target of every call, each read with its own call's context (scripts). */
   #outcomeObserved(ticket: Ticket): boolean {
-    if (!this.#reader.store.isConnected()) return false;
-    const { spec, targets, req, temperatureUnit } = ticket.plan;
-    const entities = this.#liveTargets(ticket);
-    return targets.every((target, index) => {
-      const entity = entities[index];
-      if (entity === undefined) return false;
-      const ctx: ObservationContext = {
-        req,
-        before: ticket.before.get(target),
-        contextId: ticket.contextId,
-        temperatureUnit,
-      };
-      return spec.confirmed(entity, ctx);
+    const store = this.#reader.store;
+    if (!store.isConnected()) return false;
+    const { spec, req, temperatureUnit, calls } = ticket.plan;
+    return calls.every((planned, index) =>
+      planned.targets.every((target) => {
+        const entity = store.freshSinceResync(target) ? store.get(target) : undefined;
+        if (entity === undefined) return false;
+        const ctx: ObservationContext = {
+          req,
+          before: ticket.before.get(target),
+          contextId: ticket.contextIds[index],
+          temperatureUnit,
+        };
+        return spec.confirmed(entity, ctx);
+      }),
+    );
+  }
+
+  /** The error of a settled uncertain or failed outcome, worded for a partly sent request when it was one (§18). */
+  #outcomeError(ticket: Ticket, outcome: Extract<Outcome, { phase: 'uncertain' | 'failed' }>): ActionError {
+    const message = actionMessage(outcome.code, {
+      stage: 'request',
+      kind: ticket.plan.req.kind,
+      subject: ticket.plan.subject,
+      timeoutMs: ticket.plan.timeoutMs,
+      ...(outcome.partial && { partial: true }),
+      ...(outcome.haMessage !== undefined && { haMessage: outcome.haMessage }),
+    });
+    return Object.freeze({
+      code: outcome.code,
+      message,
+      ...(outcome.haCode !== undefined && { haCode: outcome.haCode }),
     });
   }
 
@@ -682,7 +802,7 @@ class Gateway implements ActionGateway {
 
   /** Terminal transition. Locks clear on confirmed and failed (including reversed); an uncertain call may still be
    *  executing, so its lock stays until it expires. */
-  #settle(ticket: Ticket, phase: 'confirmed' | 'uncertain' | 'failed', error?: ActionError): void {
+  #settle(ticket: Ticket, phase: 'confirmed' | 'uncertain' | 'failed', error?: ActionError, partial = false): void {
     const { id, key, kind, startedAt } = ticket.status;
     ticket.status = Object.freeze({
       id,
@@ -692,6 +812,7 @@ class Gateway implements ActionGateway {
       startedAt,
       settledAt: this.#now(),
       ...(error !== undefined && { error }),
+      ...(partial && { partial: true as const }),
     });
     this.#clearTicketTimers(ticket);
     ticket.unobserve?.();
@@ -801,6 +922,57 @@ function genericMessage(code: ActionErrorCode, stage: Stage): string {
 
 function denialKey(family: ActionFamily, target: EntityId): string {
   return `${family}|${target}`;
+}
+
+function isSwitch(target: EntityId): boolean {
+  return domainOf(target) === 'switch';
+}
+
+/** Step 5 for single-target specs: the target is in the spec's own domain. */
+function checkDomain(spec: ActionSpec, targets: readonly EntityId[]): ActionErrorCode | undefined {
+  return targets.some((target) => domainOf(target) !== spec.domain) ? 'domain-mismatch' : undefined;
+}
+
+/**
+ * §4.2 rules 6 and 12b at request time: one script per role, so Silence Sound can never run a disarm and the lights
+ * shortcut can never run the curtains script.
+ */
+function boundToExactlyOneRole(
+  script: EntityId | undefined,
+  roles: Readonly<Partial<Record<string, EntityId>>>,
+): boolean {
+  return script !== undefined && Object.values(roles).filter((bound) => bound === script).length === 1;
+}
+
+/**
+ * The calls for the request's available targets. A single-target spec makes one call naming its one entity. A room
+ * makes one call per part with an available target, in part order (lights, then switches), each naming that part's
+ * targets in configuration order, so a light-only room's call is exactly what it always was.
+ */
+function planCalls(req: ActionRequest, spec: ActionSpec, targets: readonly EntityId[]): readonly PlannedCall[] {
+  const data = Object.freeze({ ...spec.data(req) });
+  if (spec.parts === undefined) {
+    const [single] = targets;
+    const call: ServiceCall = Object.freeze({
+      domain: spec.domain,
+      service: spec.service,
+      data,
+      target: Object.freeze({ entity_id: single ?? Object.freeze([...targets]) }),
+    });
+    return Object.freeze([Object.freeze({ call, targets: Object.freeze([...targets]) })]);
+  }
+  const calls = spec.parts.flatMap((part) => {
+    const partTargets = Object.freeze(targets.filter((target) => domainOf(target) === part.domain));
+    if (partTargets.length === 0) return [];
+    const call: ServiceCall = Object.freeze({
+      domain: part.domain,
+      service: part.service,
+      data,
+      target: Object.freeze({ entity_id: partTargets }),
+    });
+    return [Object.freeze({ call, targets: partTargets })];
+  });
+  return Object.freeze(calls);
 }
 
 /**

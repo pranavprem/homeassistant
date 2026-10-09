@@ -36,6 +36,10 @@ export interface LightCommandDetail {
   readonly entity: EntityId;
   readonly command: 'on' | 'off';
 }
+export interface SwitchCommandDetail {
+  readonly entity: EntityId;
+  readonly command: 'on' | 'off';
+}
 export interface BrightnessDraftDetail {
   readonly entity: EntityId;
   readonly value: number;
@@ -68,6 +72,11 @@ export function vacuumRequest(detail: VacuumCommandDetail): ActionRequest {
 
 export function lightRequest(detail: LightCommandDetail): ActionRequest {
   return { kind: detail.command === 'on' ? 'light.turn_on' : 'light.turn_off', entity: detail.entity };
+}
+
+/** A room's lighting switch (§18): the switch kinds only, never a light kind for a switch entity. */
+export function switchRequest(detail: SwitchCommandDetail): ActionRequest {
+  return { kind: detail.command === 'on' ? 'switch.turn_on' : 'switch.turn_off', entity: detail.entity };
 }
 
 export function curtainRequest(detail: CurtainCommandDetail): ActionRequest {
@@ -184,6 +193,7 @@ declare global {
     'agr-home-room-quick': CustomEvent<RoomQuickDetail>;
     'agr-home-vacuum': CustomEvent<VacuumCommandDetail>;
     'agr-home-light': CustomEvent<LightCommandDetail>;
+    'agr-home-switch': CustomEvent<SwitchCommandDetail>;
     'agr-home-brightness': CustomEvent<BrightnessDraftDetail>;
     'agr-home-curtain': CustomEvent<CurtainCommandDetail>;
   }

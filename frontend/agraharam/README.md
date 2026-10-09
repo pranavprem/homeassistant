@@ -9,6 +9,12 @@ A merge to `main` that changes the bundle publishes a GitHub release through
 `.github/workflows/agraharam.yml`, but nothing is installed in Home Assistant until an admin presses Update in HACS
 (see [Releases](#releases) and [Demo, live, physical and deployment](#demo-live-physical-and-deployment) below).
 
+## Household expansion
+
+See [Household configuration](docs/HOUSEHOLD.md) for read-only grouped readings, lighting-only room switches,
+confirmed whole-house script shortcuts and the optional Tesla Model 3 artwork. All additions are optional;
+existing configurations keep their behaviour and controls remain off by default.
+
 ## Requirements
 
 - Node 24 LTS (see `.nvmrc`; `engines` and `engine-strict` refuse other majors) and npm 11.

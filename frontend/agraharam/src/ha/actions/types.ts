@@ -2,7 +2,7 @@
  * Action gateway contract (§4.7). Every mutation goes through one ActionGateway; callers name an action
  * kind and its arguments, never a domain, service, data payload or script entity ID.
  */
-import type { ActionFamily, EntityId, SecurityActionRole } from '../../config/schema.ts';
+import type { ActionFamily, EntityId, SecurityActionRole, ShortcutRole } from '../../config/schema.ts';
 import type { Unsubscribe } from '../host.ts';
 import type { ConfirmationToken } from './confirmation.ts';
 import { copyActionRequest } from './validate-args.ts';
@@ -11,6 +11,8 @@ export type ActionKind =
   | 'light.turn_on'
   | 'light.turn_off'
   | 'light.set_brightness'
+  | 'switch.turn_on'
+  | 'switch.turn_off'
   | 'room.lights_on'
   | 'room.lights_off'
   | 'climate.set_temperature'
@@ -34,13 +36,15 @@ export type ActionKind =
   | 'media.volume_mute'
   | 'media.select_source'
   | 'security.run'
-  | 'studio_monitors.run';
+  | 'studio_monitors.run'
+  | 'shortcut.run';
 
 /** Callers never pass domain, service, data or script entity IDs. */
 export type ActionRequest =
   | { kind: 'light.turn_on' | 'light.turn_off'; entity: EntityId }
   | { kind: 'light.set_brightness'; entity: EntityId; pct: number }
-  | { kind: 'room.lights_on' | 'room.lights_off'; room: number } // index into config.rooms
+  | { kind: 'switch.turn_on' | 'switch.turn_off'; entity: EntityId } // room lighting switches only
+  | { kind: 'room.lights_on' | 'room.lights_off'; room: number } // index into config.rooms; lights and switches
   | { kind: 'climate.set_temperature'; entity: EntityId; temperature: number }
   | { kind: 'climate.set_hvac_mode'; entity: EntityId; mode: string }
   | { kind: 'fan.turn_on' | 'fan.turn_off'; entity: EntityId }
@@ -54,7 +58,8 @@ export type ActionRequest =
   | { kind: 'media.volume_mute'; entity: EntityId; muted: boolean }
   | { kind: 'media.select_source'; entity: EntityId; source: string }
   | { kind: 'security.run'; role: SecurityActionRole } // script from config only
-  | { kind: 'studio_monitors.run' };
+  | { kind: 'studio_monitors.run' }
+  | { kind: 'shortcut.run'; role: ShortcutRole }; // script from config.shortcuts only
 
 /**
  * A frozen copy of `value`, read once and validated as the gateway's step 1 validates, or undefined when it is not a
@@ -77,7 +82,8 @@ export function newerStatus(a: ActionStatus | undefined, b: ActionStatus | undef
   return b.id > a.id ? b : a;
 }
 
-export type ActionKey = `entity:${string}` | `room:${number}` | 'garage' | 'security' | 'studio_monitors';
+export type ActionKey =
+  `entity:${string}` | `room:${number}` | 'garage' | 'security' | 'studio_monitors' | `shortcut:${ShortcutRole}`;
 export type ActionPhase = 'pending' | 'sent' | 'confirmed' | 'uncertain' | 'failed';
 
 /**
@@ -96,6 +102,9 @@ export function actionKeyFor(req: ActionRequest): ActionKey {
       return 'security';
     case 'studio_monitors.run':
       return 'studio_monitors';
+    case 'shortcut.run':
+      // One key per shortcut: the lights and curtains scripts are independent, unlike the security roles.
+      return `shortcut:${req.role}`;
     default:
       return `entity:${req.entity}`;
   }
@@ -146,6 +155,9 @@ export interface ActionStatus {
   readonly kind: ActionKind;
   readonly phase: ActionPhase;
   readonly progress?: 'moving'; // e.g. garage 'opening' observed while awaiting 'open'
+  /** Uncertain only: a request of several calls (a room with lights and switches) where some went out and some were
+   *  refused, so part of it may have taken effect ("Partly done", §18). */
+  readonly partial?: true;
   readonly error?: ActionError; // failed | uncertain
   /** Monotonic milliseconds (performance.now()), never Date.now(): e2e pins Date with page.clock.setFixedTime,
    *  which would freeze wall-clock durations and in-flight expiry. Diagnostics shows durations only. */
@@ -203,6 +215,7 @@ export interface InflightRegistry {
 
 export const ACTION_TIMEOUT_MS: Readonly<Record<ActionFamily, number>> = Object.freeze({
   light: 10_000,
+  switch: 10_000,
   room: 15_000,
   climate: 20_000,
   fan: 20_000,
@@ -212,6 +225,7 @@ export const ACTION_TIMEOUT_MS: Readonly<Record<ActionFamily, number>> = Object.
   media: 10_000,
   security: 10_000,
   studio_monitors: 10_000,
+  shortcut: 10_000,
 });
 export const CONFIRMED_DISPLAY_MS = 4_000; // confirmed/"Requested" shown, then auto-dismissed
 export const CONFIRM_DIALOG_TIMEOUT_MS = 60_000; // an unanswered confirm dialog cancels itself

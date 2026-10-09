@@ -147,3 +147,29 @@ describe('agr-icon-button', () => {
     expect(paused.native.getAttribute('aria-disabled')).toBe('true');
   });
 });
+
+describe('agr-button accessible-label (§18 S6, review N4)', () => {
+  it('renders no aria-label when no accessible label is set, so the visible text is the name', async () => {
+    const { native } = await mountButton('agr-button', () => undefined);
+    expect(native.hasAttribute('aria-label')).toBe(false);
+  });
+
+  it('sets aria-label from accessible-label, and removes it again when cleared', async () => {
+    const { button, native } = await mountButton('agr-button', (b) => {
+      b.label = 'Lights';
+      b.accessibleLabel = 'Whole-house lights';
+    });
+    expect(native.getAttribute('aria-label')).toBe('Whole-house lights');
+    expect(native.textContent).toContain('Lights');
+    button.accessibleLabel = '';
+    await button.updateComplete;
+    expect(native.hasAttribute('aria-label')).toBe(false);
+  });
+
+  it('reads the accessible-label attribute', async () => {
+    const { native } = await mountButton('agr-button', (b) => {
+      b.setAttribute('accessible-label', 'Whole-house curtains');
+    });
+    expect(native.getAttribute('aria-label')).toBe('Whole-house curtains');
+  });
+});

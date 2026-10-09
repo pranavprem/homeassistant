@@ -157,29 +157,28 @@ export function columnsFor(
  * raised panels never move. Each column keeps its raised panels first and the quiet ones after them, in reference
  * order, so the DOM order still equals the visual order.
  *
- * Among assignments with the same tallest column, the one that leaves Today's column the shortest wins: Today centres
+ * Among assignments within two gaps of the shortest possible tallest column, the one that leaves Today's column
+ * shortest wins. Estimates cannot predict name wrapping; a tiny estimated gain must not pack another quiet panel
+ * under Today while leaving the Home column alone. Ties then choose the shortest tallest column. Today centres
  * its content in any spare height (agr-panel `centered`), where Garage would only gain a blank band under the car.
  */
 function balancedWideColumns(reference: Columns, heights: Readonly<Record<SectionId, number>>): Columns {
   const raised = reference.map((column) => column.filter((id) => !QUIET_SECTIONS.has(id)));
   const quiet = reference.flat().filter((id) => QUIET_SECTIONS.has(id));
   const referenceTallest = tallestColumn(reference, heights);
-  let best = reference;
-  let bestTallest = referenceTallest;
-  let bestTodayColumn = todayColumnHeight(reference, heights);
-  for (const placement of quietPlacements(quiet.length, reference.length)) {
+  const candidates = quietPlacements(quiet.length, reference.length).flatMap((placement) => {
     const columns = raised.map((column) => [...column]);
     placement.forEach((columnIndex, index) => columns[columnIndex]?.push(quiet[index] as SectionId));
-    if (columns.some((column) => column.length === 0)) continue;
-    const tallest = tallestColumn(columns, heights);
-    const todayColumn = todayColumnHeight(columns, heights);
-    if (tallest < bestTallest || (tallest === bestTallest && todayColumn < bestTodayColumn)) {
-      best = columns;
-      bestTallest = tallest;
-      bestTodayColumn = todayColumn;
-    }
-  }
-  return referenceTallest - bestTallest > WIDE_REBALANCE_MIN_GAIN_PX ? best : reference;
+    return columns.some((column) => column.length === 0)
+      ? []
+      : [{ columns, tallest: tallestColumn(columns, heights), today: todayColumnHeight(columns, heights) }];
+  });
+  const minimum = Math.min(...candidates.map((candidate) => candidate.tallest));
+  // Two gaps (32 px) are smaller than one wrapped row; retain the composition on such near-ties (§18).
+  const nearBest = candidates.filter((candidate) => candidate.tallest <= minimum + 2 * COLUMN_GAP_PX);
+  nearBest.sort((a, b) => a.today - b.today || a.tallest - b.tallest);
+  const best = nearBest[0];
+  return best !== undefined && referenceTallest - best.tallest > WIDE_REBALANCE_MIN_GAIN_PX ? best.columns : reference;
 }
 
 /** Every way to place `count` quiet panels on `columns` columns, as one column index per panel. */
@@ -284,7 +283,9 @@ export function emptySections(config: ResolvedConfig): ReadonlySet<SectionId> {
   if (config.weather === undefined) empty.add('today');
   if (config.climate.length + config.air.length + config.bedComfort.length === 0) empty.add('comfort');
   const homeDevices = config.rooms.length + config.vacuums.length + config.appliances.length;
-  if (homeDevices === 0 && config.studioMonitors === undefined) empty.add('home');
+  // The Whole-house shortcuts row is Home content too (§18), as the studio monitors row is.
+  const homeScripts = Object.keys(config.shortcuts).length + (config.studioMonitors === undefined ? 0 : 1);
+  if (homeDevices + homeScripts === 0) empty.add('home');
   return empty;
 }
 

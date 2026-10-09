@@ -7,12 +7,13 @@ import { ACTION_CATALOG } from '../../src/ha/actions/catalog.ts';
 
 const ACTION_KINDS = Object.keys(ACTION_CATALOG);
 
-/** Every `domain.service` pair the catalog can call, de-duplicated. */
+/** Every `domain.service` pair the catalog can call, including each room part (§18), de-duplicated. */
 export const CATALOG_SERVICES = Object.freeze([
   ...new Set(
-    ACTION_KINDS.map((kind) => {
+    ACTION_KINDS.flatMap((kind) => {
       const spec = ACTION_CATALOG[/** @type {keyof typeof ACTION_CATALOG} */ (kind)];
-      return `${spec.domain}.${spec.service}`;
+      const parts = spec.parts ?? [];
+      return [`${spec.domain}.${spec.service}`, ...parts.map((part) => `${part.domain}.${part.service}`)];
     }),
   ),
 ]);

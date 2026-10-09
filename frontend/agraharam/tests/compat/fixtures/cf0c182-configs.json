@@ -1,0 +1,4522 @@
+{
+  "capturedFrom": "cf0c182",
+  "cases": [
+    {
+      "id": "demo-input:normal",
+      "source": "demoCardInput('normal')",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"]
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"]
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "battery_sensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status_sensor": "sensor.demo_dishwasher_status",
+            "remaining_sensor": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate"
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path"
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy_entity": "binary_sensor.demo_courtyard_camera_privacy",
+            "privacy_on_value": "on"
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy_entity": "switch.demo_hall_camera_privacy",
+            "privacy_on_value": "on"
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery_sensor": "sensor.demo_sedan_battery",
+          "range_sensor": "sensor.demo_sedan_range",
+          "charger_status": "sensor.demo_sedan_charging",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "silence_sound": "script.demo_silence_sound",
+            "disarm_hold": "script.demo_disarm_hold",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "controls": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": true,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "bedComfort": [],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"],
+            "curtains": []
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"],
+            "curtains": []
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": []
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "batterySensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status": "sensor.demo_dishwasher_status",
+            "remaining": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy": {
+              "entity": "binary_sensor.demo_courtyard_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy": {
+              "entity": "switch.demo_hall_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery": "sensor.demo_sedan_battery",
+          "range": "sensor.demo_sedan_range",
+          "chargerStatus": "sensor.demo_sedan_charging",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_meera": ["person"],
+          "person.demo_arun": ["person"],
+          "climate.demo_bedroom": ["climate"],
+          "fan.demo_purifier": ["air"],
+          "light.demo_courtyard_lantern": ["room_light"],
+          "light.demo_courtyard_path": ["room_light"],
+          "light.demo_courtyard_steps": ["room_light"],
+          "light.demo_reading_lamp": ["room_light"],
+          "cover.demo_reading_blind": ["room_curtain"],
+          "fan.demo_reading_purifier": ["room_purifier"],
+          "light.demo_kitchen": ["room_light"],
+          "light.demo_workshop": ["room_light"],
+          "vacuum.demo_pebble": ["vacuum"],
+          "sensor.demo_pebble_battery": ["vacuum_battery"],
+          "sensor.demo_dishwasher_status": ["appliance_status"],
+          "sensor.demo_dishwasher_remaining": ["appliance_remaining"],
+          "media_player.demo_living_room": ["media"],
+          "media_player.demo_studio": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "camera.demo_side_path": ["camera"],
+          "camera.demo_courtyard": ["camera"],
+          "binary_sensor.demo_courtyard_camera_privacy": ["camera_privacy"],
+          "camera.demo_hall": ["camera"],
+          "switch.demo_hall_camera_privacy": ["camera_privacy"],
+          "calendar.demo_household": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.demo_sun": ["sun"],
+          "cover.demo_garage": ["garage_cover"],
+          "sensor.demo_sedan_battery": ["vehicle_battery"],
+          "sensor.demo_sedan_range": ["vehicle_range"],
+          "sensor.demo_sedan_charging": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_home": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_security_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door": ["perimeter"],
+          "binary_sensor.demo_back_door": ["perimeter"],
+          "binary_sensor.demo_patio_door": ["perimeter"],
+          "binary_sensor.demo_side_gate": ["perimeter"],
+          "script.demo_disarm_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-input:degraded",
+      "source": "demoCardInput('degraded')",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          },
+          {
+            "entity": "person.demo_kavya",
+            "name": "Kavya"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          },
+          {
+            "entity": "fan.demo_hall_air_mover",
+            "name": "Hall fan"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"]
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"]
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": ["cover.demo_workshop_shutter"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "battery_sensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status_sensor": "sensor.demo_dishwasher_status",
+            "remaining_sensor": "sensor.demo_dishwasher_remaining"
+          },
+          {
+            "name": "Dryer",
+            "status_sensor": "sensor.demo_dryer_status"
+          }
+        ],
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate"
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "privacy_entity": "switch.demo_side_path_camera_privacy",
+            "privacy_on_value": "on"
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy_entity": "binary_sensor.demo_courtyard_camera_privacy",
+            "privacy_on_value": "on"
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy_entity": "switch.demo_hall_camera_privacy",
+            "privacy_on_value": "on"
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery_sensor": "sensor.demo_sedan_battery",
+          "range_sensor": "sensor.demo_sedan_range",
+          "charger_status": "sensor.demo_sedan_charging",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "silence_sound": "script.demo_silence_sound",
+            "disarm_hold": "script.demo_disarm_hold",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "controls": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": true,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          },
+          {
+            "entity": "person.demo_kavya",
+            "name": "Kavya"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          },
+          {
+            "entity": "fan.demo_hall_air_mover",
+            "name": "Hall fan"
+          }
+        ],
+        "bedComfort": [],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"],
+            "curtains": []
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"],
+            "curtains": []
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": ["cover.demo_workshop_shutter"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "batterySensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status": "sensor.demo_dishwasher_status",
+            "remaining": "sensor.demo_dishwasher_remaining"
+          },
+          {
+            "name": "Dryer",
+            "status": "sensor.demo_dryer_status"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "privacy": {
+              "entity": "switch.demo_side_path_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy": {
+              "entity": "binary_sensor.demo_courtyard_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy": {
+              "entity": "switch.demo_hall_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery": "sensor.demo_sedan_battery",
+          "range": "sensor.demo_sedan_range",
+          "chargerStatus": "sensor.demo_sedan_charging",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_meera": ["person"],
+          "person.demo_arun": ["person"],
+          "person.demo_kavya": ["person"],
+          "climate.demo_bedroom": ["climate"],
+          "fan.demo_purifier": ["air"],
+          "fan.demo_hall_air_mover": ["air"],
+          "light.demo_courtyard_lantern": ["room_light"],
+          "light.demo_courtyard_path": ["room_light"],
+          "light.demo_courtyard_steps": ["room_light"],
+          "light.demo_reading_lamp": ["room_light"],
+          "cover.demo_reading_blind": ["room_curtain"],
+          "fan.demo_reading_purifier": ["room_purifier"],
+          "light.demo_kitchen": ["room_light"],
+          "light.demo_workshop": ["room_light"],
+          "cover.demo_workshop_shutter": ["room_curtain"],
+          "vacuum.demo_pebble": ["vacuum"],
+          "sensor.demo_pebble_battery": ["vacuum_battery"],
+          "sensor.demo_dishwasher_status": ["appliance_status"],
+          "sensor.demo_dishwasher_remaining": ["appliance_remaining"],
+          "sensor.demo_dryer_status": ["appliance_status"],
+          "media_player.demo_living_room": ["media"],
+          "media_player.demo_studio": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "camera.demo_side_path": ["camera"],
+          "switch.demo_side_path_camera_privacy": ["camera_privacy"],
+          "camera.demo_courtyard": ["camera"],
+          "binary_sensor.demo_courtyard_camera_privacy": ["camera_privacy"],
+          "camera.demo_hall": ["camera"],
+          "switch.demo_hall_camera_privacy": ["camera_privacy"],
+          "calendar.demo_household": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.demo_sun": ["sun"],
+          "cover.demo_garage": ["garage_cover"],
+          "sensor.demo_sedan_battery": ["vehicle_battery"],
+          "sensor.demo_sedan_range": ["vehicle_range"],
+          "sensor.demo_sedan_charging": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_home": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_security_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door": ["perimeter"],
+          "binary_sensor.demo_back_door": ["perimeter"],
+          "binary_sensor.demo_patio_door": ["perimeter"],
+          "binary_sensor.demo_side_gate": ["perimeter"],
+          "script.demo_disarm_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-input:offline",
+      "source": "demoCardInput('offline')",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"]
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"]
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "battery_sensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status_sensor": "sensor.demo_dishwasher_status",
+            "remaining_sensor": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate"
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path"
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy_entity": "binary_sensor.demo_courtyard_camera_privacy",
+            "privacy_on_value": "on"
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy_entity": "switch.demo_hall_camera_privacy",
+            "privacy_on_value": "on"
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery_sensor": "sensor.demo_sedan_battery",
+          "range_sensor": "sensor.demo_sedan_range",
+          "charger_status": "sensor.demo_sedan_charging",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "silence_sound": "script.demo_silence_sound",
+            "disarm_hold": "script.demo_disarm_hold",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "controls": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": true,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "bedComfort": [],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"],
+            "curtains": []
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"],
+            "curtains": []
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": []
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "batterySensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status": "sensor.demo_dishwasher_status",
+            "remaining": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy": {
+              "entity": "binary_sensor.demo_courtyard_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy": {
+              "entity": "switch.demo_hall_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery": "sensor.demo_sedan_battery",
+          "range": "sensor.demo_sedan_range",
+          "chargerStatus": "sensor.demo_sedan_charging",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_meera": ["person"],
+          "person.demo_arun": ["person"],
+          "climate.demo_bedroom": ["climate"],
+          "fan.demo_purifier": ["air"],
+          "light.demo_courtyard_lantern": ["room_light"],
+          "light.demo_courtyard_path": ["room_light"],
+          "light.demo_courtyard_steps": ["room_light"],
+          "light.demo_reading_lamp": ["room_light"],
+          "cover.demo_reading_blind": ["room_curtain"],
+          "fan.demo_reading_purifier": ["room_purifier"],
+          "light.demo_kitchen": ["room_light"],
+          "light.demo_workshop": ["room_light"],
+          "vacuum.demo_pebble": ["vacuum"],
+          "sensor.demo_pebble_battery": ["vacuum_battery"],
+          "sensor.demo_dishwasher_status": ["appliance_status"],
+          "sensor.demo_dishwasher_remaining": ["appliance_remaining"],
+          "media_player.demo_living_room": ["media"],
+          "media_player.demo_studio": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "camera.demo_side_path": ["camera"],
+          "camera.demo_courtyard": ["camera"],
+          "binary_sensor.demo_courtyard_camera_privacy": ["camera_privacy"],
+          "camera.demo_hall": ["camera"],
+          "switch.demo_hall_camera_privacy": ["camera_privacy"],
+          "calendar.demo_household": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.demo_sun": ["sun"],
+          "cover.demo_garage": ["garage_cover"],
+          "sensor.demo_sedan_battery": ["vehicle_battery"],
+          "sensor.demo_sedan_range": ["vehicle_range"],
+          "sensor.demo_sedan_charging": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_home": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_security_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door": ["perimeter"],
+          "binary_sensor.demo_back_door": ["perimeter"],
+          "binary_sensor.demo_patio_door": ["perimeter"],
+          "binary_sensor.demo_side_gate": ["perimeter"],
+          "script.demo_disarm_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-input:empty",
+      "source": "demoCardInput('empty')",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "weather": "weather.demo_home",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "controls": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": true,
+        "demo": false,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "weather": "weather.demo_home",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "bindings": {
+          "weather.demo_home": ["weather"],
+          "cover.demo_garage": ["garage_cover"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-input:alert",
+      "source": "demoCardInput('alert')",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"]
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"]
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "battery_sensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status_sensor": "sensor.demo_dishwasher_status",
+            "remaining_sensor": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate"
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path"
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy_entity": "binary_sensor.demo_courtyard_camera_privacy",
+            "privacy_on_value": "on"
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy_entity": "switch.demo_hall_camera_privacy",
+            "privacy_on_value": "on"
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery_sensor": "sensor.demo_sedan_battery",
+          "range_sensor": "sensor.demo_sedan_range",
+          "charger_status": "sensor.demo_sedan_charging",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "silence_sound": "script.demo_silence_sound",
+            "disarm_hold": "script.demo_disarm_hold",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "controls": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": true,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "bedComfort": [],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"],
+            "curtains": []
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"],
+            "curtains": []
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": []
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "batterySensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status": "sensor.demo_dishwasher_status",
+            "remaining": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy": {
+              "entity": "binary_sensor.demo_courtyard_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy": {
+              "entity": "switch.demo_hall_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery": "sensor.demo_sedan_battery",
+          "range": "sensor.demo_sedan_range",
+          "chargerStatus": "sensor.demo_sedan_charging",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_meera": ["person"],
+          "person.demo_arun": ["person"],
+          "climate.demo_bedroom": ["climate"],
+          "fan.demo_purifier": ["air"],
+          "light.demo_courtyard_lantern": ["room_light"],
+          "light.demo_courtyard_path": ["room_light"],
+          "light.demo_courtyard_steps": ["room_light"],
+          "light.demo_reading_lamp": ["room_light"],
+          "cover.demo_reading_blind": ["room_curtain"],
+          "fan.demo_reading_purifier": ["room_purifier"],
+          "light.demo_kitchen": ["room_light"],
+          "light.demo_workshop": ["room_light"],
+          "vacuum.demo_pebble": ["vacuum"],
+          "sensor.demo_pebble_battery": ["vacuum_battery"],
+          "sensor.demo_dishwasher_status": ["appliance_status"],
+          "sensor.demo_dishwasher_remaining": ["appliance_remaining"],
+          "media_player.demo_living_room": ["media"],
+          "media_player.demo_studio": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "camera.demo_side_path": ["camera"],
+          "camera.demo_courtyard": ["camera"],
+          "binary_sensor.demo_courtyard_camera_privacy": ["camera_privacy"],
+          "camera.demo_hall": ["camera"],
+          "switch.demo_hall_camera_privacy": ["camera_privacy"],
+          "calendar.demo_household": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.demo_sun": ["sun"],
+          "cover.demo_garage": ["garage_cover"],
+          "sensor.demo_sedan_battery": ["vehicle_battery"],
+          "sensor.demo_sedan_range": ["vehicle_range"],
+          "sensor.demo_sedan_charging": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_home": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_security_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door": ["perimeter"],
+          "binary_sensor.demo_back_door": ["perimeter"],
+          "binary_sensor.demo_patio_door": ["perimeter"],
+          "binary_sensor.demo_side_gate": ["perimeter"],
+          "script.demo_disarm_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-input:loading",
+      "source": "demoCardInput('loading')",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"]
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"]
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "battery_sensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status_sensor": "sensor.demo_dishwasher_status",
+            "remaining_sensor": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate"
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path"
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy_entity": "binary_sensor.demo_courtyard_camera_privacy",
+            "privacy_on_value": "on"
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy_entity": "switch.demo_hall_camera_privacy",
+            "privacy_on_value": "on"
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery_sensor": "sensor.demo_sedan_battery",
+          "range_sensor": "sensor.demo_sedan_range",
+          "charger_status": "sensor.demo_sedan_charging",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "silence_sound": "script.demo_silence_sound",
+            "disarm_hold": "script.demo_disarm_hold",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "controls": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": true,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "bedComfort": [],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"],
+            "curtains": []
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"],
+            "curtains": []
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": []
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "batterySensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status": "sensor.demo_dishwasher_status",
+            "remaining": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy": {
+              "entity": "binary_sensor.demo_courtyard_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy": {
+              "entity": "switch.demo_hall_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery": "sensor.demo_sedan_battery",
+          "range": "sensor.demo_sedan_range",
+          "chargerStatus": "sensor.demo_sedan_charging",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_meera": ["person"],
+          "person.demo_arun": ["person"],
+          "climate.demo_bedroom": ["climate"],
+          "fan.demo_purifier": ["air"],
+          "light.demo_courtyard_lantern": ["room_light"],
+          "light.demo_courtyard_path": ["room_light"],
+          "light.demo_courtyard_steps": ["room_light"],
+          "light.demo_reading_lamp": ["room_light"],
+          "cover.demo_reading_blind": ["room_curtain"],
+          "fan.demo_reading_purifier": ["room_purifier"],
+          "light.demo_kitchen": ["room_light"],
+          "light.demo_workshop": ["room_light"],
+          "vacuum.demo_pebble": ["vacuum"],
+          "sensor.demo_pebble_battery": ["vacuum_battery"],
+          "sensor.demo_dishwasher_status": ["appliance_status"],
+          "sensor.demo_dishwasher_remaining": ["appliance_remaining"],
+          "media_player.demo_living_room": ["media"],
+          "media_player.demo_studio": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "camera.demo_side_path": ["camera"],
+          "camera.demo_courtyard": ["camera"],
+          "binary_sensor.demo_courtyard_camera_privacy": ["camera_privacy"],
+          "camera.demo_hall": ["camera"],
+          "switch.demo_hall_camera_privacy": ["camera_privacy"],
+          "calendar.demo_household": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.demo_sun": ["sun"],
+          "cover.demo_garage": ["garage_cover"],
+          "sensor.demo_sedan_battery": ["vehicle_battery"],
+          "sensor.demo_sedan_range": ["vehicle_range"],
+          "sensor.demo_sedan_charging": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_home": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_security_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door": ["perimeter"],
+          "binary_sensor.demo_back_door": ["perimeter"],
+          "binary_sensor.demo_patio_door": ["perimeter"],
+          "binary_sensor.demo_side_gate": ["perimeter"],
+          "script.demo_disarm_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-input:restricted",
+      "source": "demoCardInput('restricted')",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"]
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"]
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "battery_sensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status_sensor": "sensor.demo_dishwasher_status",
+            "remaining_sensor": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate"
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path"
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy_entity": "binary_sensor.demo_courtyard_camera_privacy",
+            "privacy_on_value": "on"
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy_entity": "switch.demo_hall_camera_privacy",
+            "privacy_on_value": "on"
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery_sensor": "sensor.demo_sedan_battery",
+          "range_sensor": "sensor.demo_sedan_range",
+          "charger_status": "sensor.demo_sedan_charging",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "silence_sound": "script.demo_silence_sound",
+            "disarm_hold": "script.demo_disarm_hold",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "controls": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": true,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "bedComfort": [],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"],
+            "curtains": []
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"],
+            "curtains": []
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": []
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "batterySensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status": "sensor.demo_dishwasher_status",
+            "remaining": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy": {
+              "entity": "binary_sensor.demo_courtyard_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy": {
+              "entity": "switch.demo_hall_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery": "sensor.demo_sedan_battery",
+          "range": "sensor.demo_sedan_range",
+          "chargerStatus": "sensor.demo_sedan_charging",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_meera": ["person"],
+          "person.demo_arun": ["person"],
+          "climate.demo_bedroom": ["climate"],
+          "fan.demo_purifier": ["air"],
+          "light.demo_courtyard_lantern": ["room_light"],
+          "light.demo_courtyard_path": ["room_light"],
+          "light.demo_courtyard_steps": ["room_light"],
+          "light.demo_reading_lamp": ["room_light"],
+          "cover.demo_reading_blind": ["room_curtain"],
+          "fan.demo_reading_purifier": ["room_purifier"],
+          "light.demo_kitchen": ["room_light"],
+          "light.demo_workshop": ["room_light"],
+          "vacuum.demo_pebble": ["vacuum"],
+          "sensor.demo_pebble_battery": ["vacuum_battery"],
+          "sensor.demo_dishwasher_status": ["appliance_status"],
+          "sensor.demo_dishwasher_remaining": ["appliance_remaining"],
+          "media_player.demo_living_room": ["media"],
+          "media_player.demo_studio": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "camera.demo_side_path": ["camera"],
+          "camera.demo_courtyard": ["camera"],
+          "binary_sensor.demo_courtyard_camera_privacy": ["camera_privacy"],
+          "camera.demo_hall": ["camera"],
+          "switch.demo_hall_camera_privacy": ["camera_privacy"],
+          "calendar.demo_household": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.demo_sun": ["sun"],
+          "cover.demo_garage": ["garage_cover"],
+          "sensor.demo_sedan_battery": ["vehicle_battery"],
+          "sensor.demo_sedan_range": ["vehicle_range"],
+          "sensor.demo_sedan_charging": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_home": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_security_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door": ["perimeter"],
+          "binary_sensor.demo_back_door": ["perimeter"],
+          "binary_sensor.demo_patio_door": ["perimeter"],
+          "binary_sensor.demo_side_gate": ["perimeter"],
+          "script.demo_disarm_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-input:starting",
+      "source": "demoCardInput('starting')",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"]
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"]
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "battery_sensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status_sensor": "sensor.demo_dishwasher_status",
+            "remaining_sensor": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate"
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path"
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy_entity": "binary_sensor.demo_courtyard_camera_privacy",
+            "privacy_on_value": "on"
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy_entity": "switch.demo_hall_camera_privacy",
+            "privacy_on_value": "on"
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery_sensor": "sensor.demo_sedan_battery",
+          "range_sensor": "sensor.demo_sedan_range",
+          "charger_status": "sensor.demo_sedan_charging",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "silence_sound": "script.demo_silence_sound",
+            "disarm_hold": "script.demo_disarm_hold",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "controls": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": true,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Bedroom"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          }
+        ],
+        "bedComfort": [],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path", "light.demo_courtyard_steps"],
+            "curtains": []
+          },
+          {
+            "name": "Reading room",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen"],
+            "curtains": []
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": []
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "batterySensor": "sensor.demo_pebble_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status": "sensor.demo_dishwasher_status",
+            "remaining": "sensor.demo_dishwasher_remaining"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "privacy": {
+              "entity": "binary_sensor.demo_courtyard_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy": {
+              "entity": "switch.demo_hall_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery": "sensor.demo_sedan_battery",
+          "range": "sensor.demo_sedan_range",
+          "chargerStatus": "sensor.demo_sedan_charging",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_meera": ["person"],
+          "person.demo_arun": ["person"],
+          "climate.demo_bedroom": ["climate"],
+          "fan.demo_purifier": ["air"],
+          "light.demo_courtyard_lantern": ["room_light"],
+          "light.demo_courtyard_path": ["room_light"],
+          "light.demo_courtyard_steps": ["room_light"],
+          "light.demo_reading_lamp": ["room_light"],
+          "cover.demo_reading_blind": ["room_curtain"],
+          "fan.demo_reading_purifier": ["room_purifier"],
+          "light.demo_kitchen": ["room_light"],
+          "light.demo_workshop": ["room_light"],
+          "vacuum.demo_pebble": ["vacuum"],
+          "sensor.demo_pebble_battery": ["vacuum_battery"],
+          "sensor.demo_dishwasher_status": ["appliance_status"],
+          "sensor.demo_dishwasher_remaining": ["appliance_remaining"],
+          "media_player.demo_living_room": ["media"],
+          "media_player.demo_studio": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "camera.demo_side_path": ["camera"],
+          "camera.demo_courtyard": ["camera"],
+          "binary_sensor.demo_courtyard_camera_privacy": ["camera_privacy"],
+          "camera.demo_hall": ["camera"],
+          "switch.demo_hall_camera_privacy": ["camera_privacy"],
+          "calendar.demo_household": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.demo_sun": ["sun"],
+          "cover.demo_garage": ["garage_cover"],
+          "sensor.demo_sedan_battery": ["vehicle_battery"],
+          "sensor.demo_sedan_range": ["vehicle_range"],
+          "sensor.demo_sedan_charging": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_home": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_security_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door": ["perimeter"],
+          "binary_sensor.demo_back_door": ["perimeter"],
+          "binary_sensor.demo_patio_door": ["perimeter"],
+          "binary_sensor.demo_side_gate": ["perimeter"],
+          "script.demo_disarm_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-input:dense",
+      "source": "demoCardInput('dense')",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          },
+          {
+            "entity": "person.demo_kavya",
+            "name": "Kavya"
+          },
+          {
+            "entity": "person.demo_devi",
+            "name": "Devi"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Primary bedroom heat pump with a long name"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          },
+          {
+            "entity": "fan.demo_study_air_cleaner",
+            "name": "Study air cleaner by the long bookshelf wall"
+          },
+          {
+            "entity": "fan.demo_loft_air_cleaner",
+            "name": "Loft air cleaner"
+          },
+          {
+            "entity": "fan.demo_nursery_air_cleaner",
+            "name": "Nursery air cleaner"
+          }
+        ],
+        "bed_comfort": [
+          {
+            "entity": "climate.demo_bed_left_side",
+            "name": "Bed, left side"
+          },
+          {
+            "entity": "climate.demo_bed_right_side",
+            "name": "Bed, right side"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path"]
+          },
+          {
+            "name": "Reading room and upstairs library",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen", "light.demo_kitchen_counter"]
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": ["cover.demo_workshop_shutter"]
+          },
+          {
+            "name": "Guest suite on the garden level",
+            "lights": ["light.demo_guest_suite"],
+            "curtains": ["cover.demo_guest_curtain"]
+          },
+          {
+            "name": "Veranda",
+            "lights": ["light.demo_veranda"],
+            "curtains": ["cover.demo_veranda_screen"]
+          },
+          {
+            "name": "Entry hall",
+            "lights": ["light.demo_entry_hall"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "battery_sensor": "sensor.demo_pebble_battery"
+          },
+          {
+            "entity": "vacuum.demo_pebble_upstairs",
+            "name": "Pebble upstairs, the second robot for the bedrooms"
+          },
+          {
+            "entity": "vacuum.demo_moss",
+            "name": "Moss",
+            "battery_sensor": "sensor.demo_moss_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status_sensor": "sensor.demo_dishwasher_status",
+            "remaining_sensor": "sensor.demo_dishwasher_remaining"
+          },
+          {
+            "name": "Washing machine in the utility room",
+            "status_sensor": "sensor.demo_washer_status",
+            "remaining_sensor": "sensor.demo_washer_finish"
+          },
+          {
+            "name": "Dryer",
+            "status_sensor": "sensor.demo_dryer_status"
+          },
+          {
+            "name": "Oven",
+            "status_sensor": "sensor.demo_oven_status",
+            "remaining_sensor": "sensor.demo_oven_remaining"
+          }
+        ],
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate"
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path"
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard"
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy_entity": "switch.demo_hall_camera_privacy",
+            "privacy_on_value": "on"
+          },
+          {
+            "entity": "camera.demo_workshop_door",
+            "name": "Workshop door",
+            "thumbnails": false
+          },
+          {
+            "entity": "camera.demo_garden_path",
+            "name": "Garden path along the north wall",
+            "snapshot_interval": 30
+          },
+          {
+            "entity": "camera.demo_kitchen_yard",
+            "name": "Kitchen yard"
+          },
+          {
+            "entity": "camera.demo_upstairs_landing",
+            "name": "Upstairs landing",
+            "privacy_entity": "switch.demo_landing_camera_enabled",
+            "privacy_on_value": "off"
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo long-range touring sedan with a long name",
+          "battery_sensor": "sensor.demo_sedan_battery",
+          "range_sensor": "sensor.demo_sedan_range",
+          "charger_status": "sensor.demo_sedan_charging",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          },
+          {
+            "entity": "media_player.demo_kitchen_speaker",
+            "name": "Kitchen speaker beside the long pantry shelf"
+          },
+          {
+            "entity": "media_player.demo_veranda_speaker",
+            "name": "Veranda speaker"
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          },
+          {
+            "entity": "calendar.demo_club",
+            "name": "Club"
+          }
+        ],
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "silence_sound": "script.demo_silence_sound",
+            "disarm_hold": "script.demo_disarm_hold",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "controls": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": true,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_meera",
+            "name": "Meera"
+          },
+          {
+            "entity": "person.demo_arun",
+            "name": "Arun"
+          },
+          {
+            "entity": "person.demo_kavya",
+            "name": "Kavya"
+          },
+          {
+            "entity": "person.demo_devi",
+            "name": "Devi"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_bedroom",
+            "name": "Primary bedroom heat pump with a long name"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_purifier",
+            "name": "Purifier"
+          },
+          {
+            "entity": "fan.demo_study_air_cleaner",
+            "name": "Study air cleaner by the long bookshelf wall"
+          },
+          {
+            "entity": "fan.demo_loft_air_cleaner",
+            "name": "Loft air cleaner"
+          },
+          {
+            "entity": "fan.demo_nursery_air_cleaner",
+            "name": "Nursery air cleaner"
+          }
+        ],
+        "bedComfort": [
+          {
+            "entity": "climate.demo_bed_left_side",
+            "name": "Bed, left side"
+          },
+          {
+            "entity": "climate.demo_bed_right_side",
+            "name": "Bed, right side"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Courtyard",
+            "lights": ["light.demo_courtyard_lantern", "light.demo_courtyard_path"],
+            "curtains": []
+          },
+          {
+            "name": "Reading room and upstairs library",
+            "lights": ["light.demo_reading_lamp"],
+            "curtains": ["cover.demo_reading_blind"],
+            "purifier": "fan.demo_reading_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen", "light.demo_kitchen_counter"],
+            "curtains": []
+          },
+          {
+            "name": "Workshop",
+            "lights": ["light.demo_workshop"],
+            "curtains": ["cover.demo_workshop_shutter"]
+          },
+          {
+            "name": "Guest suite on the garden level",
+            "lights": ["light.demo_guest_suite"],
+            "curtains": ["cover.demo_guest_curtain"]
+          },
+          {
+            "name": "Veranda",
+            "lights": ["light.demo_veranda"],
+            "curtains": ["cover.demo_veranda_screen"]
+          },
+          {
+            "name": "Entry hall",
+            "lights": ["light.demo_entry_hall"],
+            "curtains": []
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_pebble",
+            "name": "Pebble",
+            "batterySensor": "sensor.demo_pebble_battery"
+          },
+          {
+            "entity": "vacuum.demo_pebble_upstairs",
+            "name": "Pebble upstairs, the second robot for the bedrooms"
+          },
+          {
+            "entity": "vacuum.demo_moss",
+            "name": "Moss",
+            "batterySensor": "sensor.demo_moss_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Dishwasher",
+            "status": "sensor.demo_dishwasher_status",
+            "remaining": "sensor.demo_dishwasher_remaining"
+          },
+          {
+            "name": "Washing machine in the utility room",
+            "status": "sensor.demo_washer_status",
+            "remaining": "sensor.demo_washer_finish"
+          },
+          {
+            "name": "Dryer",
+            "status": "sensor.demo_dryer_status"
+          },
+          {
+            "name": "Oven",
+            "status": "sensor.demo_oven_status",
+            "remaining": "sensor.demo_oven_remaining"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_living_room",
+            "name": "Living room"
+          },
+          {
+            "entity": "media_player.demo_studio",
+            "name": "Studio"
+          },
+          {
+            "entity": "media_player.demo_kitchen_speaker",
+            "name": "Kitchen speaker beside the long pantry shelf"
+          },
+          {
+            "entity": "media_player.demo_veranda_speaker",
+            "name": "Veranda speaker"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_courtyard",
+            "name": "Courtyard",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_hall",
+            "name": "Hall",
+            "privacy": {
+              "entity": "switch.demo_hall_camera_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_workshop_door",
+            "name": "Workshop door",
+            "thumbnails": false,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_garden_path",
+            "name": "Garden path along the north wall",
+            "thumbnails": true,
+            "snapshotIntervalMs": 30000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_kitchen_yard",
+            "name": "Kitchen yard",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_upstairs_landing",
+            "name": "Upstairs landing",
+            "privacy": {
+              "entity": "switch.demo_landing_camera_enabled",
+              "onValue": "off"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_household",
+            "name": "Household"
+          },
+          {
+            "entity": "calendar.demo_club",
+            "name": "Club"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.demo_sun",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo long-range touring sedan with a long name",
+          "battery": "sensor.demo_sedan_battery",
+          "range": "sensor.demo_sedan_range",
+          "chargerStatus": "sensor.demo_sedan_charging",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_security_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door",
+              "name": "Front door"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door",
+              "name": "Back door"
+            },
+            {
+              "entity": "binary_sensor.demo_patio_door",
+              "name": "Patio door"
+            },
+            {
+              "entity": "binary_sensor.demo_side_gate",
+              "name": "Side gate"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_meera": ["person"],
+          "person.demo_arun": ["person"],
+          "person.demo_kavya": ["person"],
+          "person.demo_devi": ["person"],
+          "climate.demo_bedroom": ["climate"],
+          "fan.demo_purifier": ["air"],
+          "fan.demo_study_air_cleaner": ["air"],
+          "fan.demo_loft_air_cleaner": ["air"],
+          "fan.demo_nursery_air_cleaner": ["air"],
+          "climate.demo_bed_left_side": ["bed_comfort"],
+          "climate.demo_bed_right_side": ["bed_comfort"],
+          "light.demo_courtyard_lantern": ["room_light"],
+          "light.demo_courtyard_path": ["room_light"],
+          "light.demo_reading_lamp": ["room_light"],
+          "cover.demo_reading_blind": ["room_curtain"],
+          "fan.demo_reading_purifier": ["room_purifier"],
+          "light.demo_kitchen": ["room_light"],
+          "light.demo_kitchen_counter": ["room_light"],
+          "light.demo_workshop": ["room_light"],
+          "cover.demo_workshop_shutter": ["room_curtain"],
+          "light.demo_guest_suite": ["room_light"],
+          "cover.demo_guest_curtain": ["room_curtain"],
+          "light.demo_veranda": ["room_light"],
+          "cover.demo_veranda_screen": ["room_curtain"],
+          "light.demo_entry_hall": ["room_light"],
+          "vacuum.demo_pebble": ["vacuum"],
+          "sensor.demo_pebble_battery": ["vacuum_battery"],
+          "vacuum.demo_pebble_upstairs": ["vacuum"],
+          "vacuum.demo_moss": ["vacuum"],
+          "sensor.demo_moss_battery": ["vacuum_battery"],
+          "sensor.demo_dishwasher_status": ["appliance_status"],
+          "sensor.demo_dishwasher_remaining": ["appliance_remaining"],
+          "sensor.demo_washer_status": ["appliance_status"],
+          "sensor.demo_washer_finish": ["appliance_remaining"],
+          "sensor.demo_dryer_status": ["appliance_status"],
+          "sensor.demo_oven_status": ["appliance_status"],
+          "sensor.demo_oven_remaining": ["appliance_remaining"],
+          "media_player.demo_living_room": ["media"],
+          "media_player.demo_studio": ["media"],
+          "media_player.demo_kitchen_speaker": ["media"],
+          "media_player.demo_veranda_speaker": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "camera.demo_side_path": ["camera"],
+          "camera.demo_courtyard": ["camera"],
+          "camera.demo_hall": ["camera"],
+          "switch.demo_hall_camera_privacy": ["camera_privacy"],
+          "camera.demo_workshop_door": ["camera"],
+          "camera.demo_garden_path": ["camera"],
+          "camera.demo_kitchen_yard": ["camera"],
+          "camera.demo_upstairs_landing": ["camera"],
+          "switch.demo_landing_camera_enabled": ["camera_privacy"],
+          "calendar.demo_household": ["calendar"],
+          "calendar.demo_club": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.demo_sun": ["sun"],
+          "cover.demo_garage": ["garage_cover"],
+          "sensor.demo_sedan_battery": ["vehicle_battery"],
+          "sensor.demo_sedan_range": ["vehicle_range"],
+          "sensor.demo_sedan_charging": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_home": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_security_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door": ["perimeter"],
+          "binary_sensor.demo_back_door": ["perimeter"],
+          "binary_sensor.demo_patio_door": ["perimeter"],
+          "binary_sensor.demo_side_gate": ["perimeter"],
+          "script.demo_disarm_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-mode:normal",
+      "source": "{ demo: true, demo_scenario: 'normal' }",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true,
+        "demo_scenario": "normal"
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-mode:degraded",
+      "source": "{ demo: true, demo_scenario: 'degraded' }",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true,
+        "demo_scenario": "degraded"
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "degraded",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-mode:offline",
+      "source": "{ demo: true, demo_scenario: 'offline' }",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true,
+        "demo_scenario": "offline"
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "offline",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-mode:empty",
+      "source": "{ demo: true, demo_scenario: 'empty' }",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true,
+        "demo_scenario": "empty"
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "empty",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-mode:alert",
+      "source": "{ demo: true, demo_scenario: 'alert' }",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true,
+        "demo_scenario": "alert"
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "alert",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-mode:loading",
+      "source": "{ demo: true, demo_scenario: 'loading' }",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true,
+        "demo_scenario": "loading"
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "loading",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-mode:restricted",
+      "source": "{ demo: true, demo_scenario: 'restricted' }",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true,
+        "demo_scenario": "restricted"
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "restricted",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-mode:starting",
+      "source": "{ demo: true, demo_scenario: 'starting' }",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true,
+        "demo_scenario": "starting"
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "starting",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "demo-mode:dense",
+      "source": "{ demo: true, demo_scenario: 'dense' }",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true,
+        "demo_scenario": "dense"
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "dense",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "install/dashboard.example.yaml#0",
+      "source": "install/dashboard.example.yaml",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": false,
+        "controls": false,
+        "diagnostics": false,
+        "people": [
+          "person.demo_asha",
+          {
+            "entity": "person.demo_ravi",
+            "name": "Ravi"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.sun",
+        "climate": ["climate.demo_hallway"],
+        "air": [
+          {
+            "entity": "fan.demo_bedroom_purifier",
+            "name": "Bedroom purifier"
+          }
+        ],
+        "bed_comfort": ["climate.demo_bed_left"],
+        "rooms": [
+          {
+            "name": "Lounge",
+            "lights": ["light.demo_lounge_lamp", "light.demo_lounge_ceiling"],
+            "curtains": ["cover.demo_lounge_curtain"],
+            "purifier": "fan.demo_lounge_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen_pendant"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_upstairs",
+            "name": "Upstairs vacuum",
+            "battery_sensor": "sensor.demo_upstairs_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Washer",
+            "status_sensor": "sensor.demo_washer_current_status",
+            "remaining_sensor": "sensor.demo_washer_remaining_time"
+          }
+        ],
+        "media": ["media_player.demo_lounge"],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "privacy_entity": "switch.demo_front_gate_privacy",
+            "privacy_on_value": "on",
+            "snapshot_interval": 10
+          },
+          {
+            "entity": "camera.demo_nursery",
+            "name": "Nursery",
+            "thumbnails": false,
+            "live": false
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "thumbnails": true,
+            "snapshot_interval": 60
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery_sensor": "sensor.demo_sedan_battery_level",
+          "range_sensor": "sensor.demo_sedan_battery_range",
+          "charger_status": "binary_sensor.demo_sedan_charger_status",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_suggested_mode",
+          "commissioning": "input_boolean.demo_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": ["binary_sensor.demo_front_door", "cover.demo_garage"],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "calendars": ["calendar.demo_family"]
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": false,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_asha"
+          },
+          {
+            "entity": "person.demo_ravi",
+            "name": "Ravi"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_hallway"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_bedroom_purifier",
+            "name": "Bedroom purifier"
+          }
+        ],
+        "bedComfort": [
+          {
+            "entity": "climate.demo_bed_left"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Lounge",
+            "lights": ["light.demo_lounge_lamp", "light.demo_lounge_ceiling"],
+            "curtains": ["cover.demo_lounge_curtain"],
+            "purifier": "fan.demo_lounge_purifier"
+          },
+          {
+            "name": "Kitchen",
+            "lights": ["light.demo_kitchen_pendant"],
+            "curtains": []
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_upstairs",
+            "name": "Upstairs vacuum",
+            "batterySensor": "sensor.demo_upstairs_battery"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Washer",
+            "status": "sensor.demo_washer_current_status",
+            "remaining": "sensor.demo_washer_remaining_time"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_lounge"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "privacy": {
+              "entity": "switch.demo_front_gate_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_nursery",
+            "name": "Nursery",
+            "thumbnails": false,
+            "snapshotIntervalMs": 10000,
+            "live": false
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side path",
+            "thumbnails": true,
+            "snapshotIntervalMs": 60000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_family"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.sun",
+        "garage": {
+          "cover": "cover.demo_garage",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery": "sensor.demo_sedan_battery_level",
+          "range": "sensor.demo_sedan_battery_range",
+          "chargerStatus": "binary_sensor.demo_sedan_charger_status",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_home",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_suggested_mode",
+          "commissioning": "input_boolean.demo_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door"
+            },
+            {
+              "entity": "cover.demo_garage"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_asha": ["person"],
+          "person.demo_ravi": ["person"],
+          "climate.demo_hallway": ["climate"],
+          "fan.demo_bedroom_purifier": ["air"],
+          "climate.demo_bed_left": ["bed_comfort"],
+          "light.demo_lounge_lamp": ["room_light"],
+          "light.demo_lounge_ceiling": ["room_light"],
+          "cover.demo_lounge_curtain": ["room_curtain"],
+          "fan.demo_lounge_purifier": ["room_purifier"],
+          "light.demo_kitchen_pendant": ["room_light"],
+          "vacuum.demo_upstairs": ["vacuum"],
+          "sensor.demo_upstairs_battery": ["vacuum_battery"],
+          "sensor.demo_washer_current_status": ["appliance_status"],
+          "sensor.demo_washer_remaining_time": ["appliance_remaining"],
+          "media_player.demo_lounge": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "switch.demo_front_gate_privacy": ["camera_privacy"],
+          "camera.demo_nursery": ["camera"],
+          "camera.demo_side_path": ["camera"],
+          "calendar.demo_family": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.sun": ["sun"],
+          "cover.demo_garage": ["garage_cover", "perimeter"],
+          "sensor.demo_sedan_battery_level": ["vehicle_battery"],
+          "sensor.demo_sedan_battery_range": ["vehicle_range"],
+          "binary_sensor.demo_sedan_charger_status": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_home": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door": ["perimeter"],
+          "script.demo_disarm_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "install/dashboard.demo.yaml#0",
+      "source": "install/dashboard.demo.yaml",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": true
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": false,
+        "demo": true,
+        "people": [],
+        "climate": [],
+        "air": [],
+        "bedComfort": [],
+        "rooms": [],
+        "vacuums": [],
+        "appliances": [],
+        "media": [],
+        "cameras": [],
+        "calendars": [],
+        "bindings": {}
+      },
+      "warnings": []
+    },
+    {
+      "id": "generator:candidates.fictional",
+      "source": "generatePrivateConfig(candidates.fictional.json)",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": false,
+        "controls": false,
+        "people": ["person.demo_asha", "person.demo_ravi"],
+        "weather": "weather.demo_home",
+        "sun": "sun.sun",
+        "climate": ["climate.demo_hallway"],
+        "air": ["fan.demo_bedroom_purifier", "fan.demo_study_purifier"],
+        "bed_comfort": ["climate.demo_bed_left"],
+        "rooms": [
+          {
+            "name": "Lights",
+            "lights": ["light.demo_lounge_lamp", "light.demo_kitchen_pendant", "light.demo_porch"],
+            "curtains": ["cover.demo_lounge_curtain", "cover.demo_study_blind"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_upstairs"
+          },
+          {
+            "entity": "vacuum.demo_downstairs"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Demo Washer",
+            "status_sensor": "sensor.demo_washer_current_status",
+            "remaining_sensor": "sensor.demo_washer_remaining_time"
+          },
+          {
+            "name": "Demo Dryer",
+            "status_sensor": "sensor.demo_dryer_current_status"
+          }
+        ],
+        "media": ["media_player.demo_lounge", "media_player.demo_kitchen_speaker"],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front Gate",
+            "privacy_entity": "switch.demo_front_gate_privacy",
+            "privacy_on_value": "on",
+            "thumbnails": true,
+            "live": false
+          },
+          {
+            "entity": "camera.demo_nursery",
+            "name": "Nursery",
+            "privacy_entity": "input_boolean.demo_nursery_privacy",
+            "privacy_on_value": "off",
+            "thumbnails": true,
+            "live": false
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side Path",
+            "thumbnails": false,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_driveway",
+            "name": "Driveway",
+            "thumbnails": false,
+            "live": true
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage_door"
+        },
+        "vehicle": {
+          "name": "Demo Sedan",
+          "battery_sensor": "sensor.demo_sedan_battery_level",
+          "range_sensor": "sensor.demo_sedan_battery_range",
+          "charger_status": "binary_sensor.demo_sedan_charger_status",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy"
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_house",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            "binary_sensor.demo_front_door_contact",
+            "binary_sensor.demo_back_door_contact",
+            "cover.demo_garage_door"
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_and_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "calendars": ["calendar.demo_family"]
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": false,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_asha"
+          },
+          {
+            "entity": "person.demo_ravi"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_hallway"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_bedroom_purifier"
+          },
+          {
+            "entity": "fan.demo_study_purifier"
+          }
+        ],
+        "bedComfort": [
+          {
+            "entity": "climate.demo_bed_left"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Lights",
+            "lights": ["light.demo_lounge_lamp", "light.demo_kitchen_pendant", "light.demo_porch"],
+            "curtains": ["cover.demo_lounge_curtain", "cover.demo_study_blind"]
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_upstairs"
+          },
+          {
+            "entity": "vacuum.demo_downstairs"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Demo Washer",
+            "status": "sensor.demo_washer_current_status",
+            "remaining": "sensor.demo_washer_remaining_time"
+          },
+          {
+            "name": "Demo Dryer",
+            "status": "sensor.demo_dryer_current_status"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_lounge"
+          },
+          {
+            "entity": "media_player.demo_kitchen_speaker"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front Gate",
+            "privacy": {
+              "entity": "switch.demo_front_gate_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": false
+          },
+          {
+            "entity": "camera.demo_nursery",
+            "name": "Nursery",
+            "privacy": {
+              "entity": "input_boolean.demo_nursery_privacy",
+              "onValue": "off"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": false
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side Path",
+            "thumbnails": false,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_driveway",
+            "name": "Driveway",
+            "thumbnails": false,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_family"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.sun",
+        "garage": {
+          "cover": "cover.demo_garage_door",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo Sedan",
+          "battery": "sensor.demo_sedan_battery_level",
+          "range": "sensor.demo_sedan_battery_range",
+          "chargerStatus": "binary_sensor.demo_sedan_charger_status",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy"
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_house",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door_contact"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door_contact"
+            },
+            {
+              "entity": "cover.demo_garage_door"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_and_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_asha": ["person"],
+          "person.demo_ravi": ["person"],
+          "climate.demo_hallway": ["climate"],
+          "fan.demo_bedroom_purifier": ["air"],
+          "fan.demo_study_purifier": ["air"],
+          "climate.demo_bed_left": ["bed_comfort"],
+          "light.demo_lounge_lamp": ["room_light"],
+          "light.demo_kitchen_pendant": ["room_light"],
+          "light.demo_porch": ["room_light"],
+          "cover.demo_lounge_curtain": ["room_curtain"],
+          "cover.demo_study_blind": ["room_curtain"],
+          "vacuum.demo_upstairs": ["vacuum"],
+          "vacuum.demo_downstairs": ["vacuum"],
+          "sensor.demo_washer_current_status": ["appliance_status"],
+          "sensor.demo_washer_remaining_time": ["appliance_remaining"],
+          "sensor.demo_dryer_current_status": ["appliance_status"],
+          "media_player.demo_lounge": ["media"],
+          "media_player.demo_kitchen_speaker": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "switch.demo_front_gate_privacy": ["camera_privacy"],
+          "camera.demo_nursery": ["camera"],
+          "input_boolean.demo_nursery_privacy": ["camera_privacy"],
+          "camera.demo_side_path": ["camera"],
+          "camera.demo_driveway": ["camera"],
+          "calendar.demo_family": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.sun": ["sun"],
+          "cover.demo_garage_door": ["garage_cover", "perimeter"],
+          "sensor.demo_sedan_battery_level": ["vehicle_battery"],
+          "sensor.demo_sedan_battery_range": ["vehicle_range"],
+          "binary_sensor.demo_sedan_charger_status": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_house": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door_contact": ["perimeter"],
+          "binary_sensor.demo_back_door_contact": ["perimeter"],
+          "script.demo_disarm_and_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "generator:candidates.fictional+overrides.example",
+      "source": "generatePrivateConfig(candidates.fictional.json, overrides.example.json)",
+      "input": {
+        "type": "custom:agraharam-dashboard",
+        "demo": false,
+        "controls": false,
+        "people": ["person.demo_asha", "person.demo_ravi"],
+        "weather": "weather.demo_home",
+        "sun": "sun.sun",
+        "climate": ["climate.demo_hallway"],
+        "air": ["fan.demo_bedroom_purifier", "fan.demo_study_purifier"],
+        "bed_comfort": ["climate.demo_bed_left"],
+        "rooms": [
+          {
+            "name": "Lounge",
+            "lights": ["light.demo_lounge_lamp"],
+            "curtains": ["cover.demo_lounge_curtain"]
+          },
+          {
+            "name": "Study",
+            "lights": [],
+            "curtains": ["cover.demo_study_blind"],
+            "purifier": "fan.demo_study_purifier"
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_upstairs",
+            "battery_sensor": "sensor.demo_upstairs_battery"
+          },
+          {
+            "entity": "vacuum.demo_downstairs"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Demo Washer",
+            "status_sensor": "sensor.demo_washer_current_status",
+            "remaining_sensor": "sensor.demo_washer_remaining_time"
+          },
+          {
+            "name": "Demo Dryer",
+            "status_sensor": "sensor.demo_dryer_current_status"
+          }
+        ],
+        "media": ["media_player.demo_lounge", "media_player.demo_kitchen_speaker"],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "privacy_entity": "switch.demo_front_gate_privacy",
+            "privacy_on_value": "on",
+            "thumbnails": true,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_nursery",
+            "name": "Nursery",
+            "privacy_entity": "input_boolean.demo_nursery_privacy",
+            "privacy_on_value": "off",
+            "thumbnails": true,
+            "live": false
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side Path",
+            "thumbnails": true,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_driveway",
+            "name": "Driveway",
+            "thumbnails": false,
+            "live": true
+          }
+        ],
+        "garage": {
+          "cover": "cover.demo_garage_door"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery_sensor": "sensor.demo_sedan_battery_level",
+          "range_sensor": "sensor.demo_sedan_battery_range",
+          "charger_status": "binary_sensor.demo_sedan_charger_status",
+          "charger_power": "sensor.demo_sedan_charger_power",
+          "session_energy": "sensor.demo_sedan_session_energy",
+          "charge_limit_pct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_house",
+          "policy": "input_select.demo_security_policy",
+          "suggested_mode": "sensor.demo_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "health_text": "input_text.demo_security_health",
+          "perimeter": [
+            "binary_sensor.demo_front_door_contact",
+            "binary_sensor.demo_back_door_contact",
+            "cover.demo_garage_door"
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_and_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studio_monitors_script": "script.demo_studio_monitors",
+        "calendars": ["calendar.demo_family"]
+      },
+      "resolved": {
+        "title": "Agraharam",
+        "demoScenario": "normal",
+        "diagnostics": false,
+        "controls": false,
+        "demo": false,
+        "people": [
+          {
+            "entity": "person.demo_asha"
+          },
+          {
+            "entity": "person.demo_ravi"
+          }
+        ],
+        "climate": [
+          {
+            "entity": "climate.demo_hallway"
+          }
+        ],
+        "air": [
+          {
+            "entity": "fan.demo_bedroom_purifier"
+          },
+          {
+            "entity": "fan.demo_study_purifier"
+          }
+        ],
+        "bedComfort": [
+          {
+            "entity": "climate.demo_bed_left"
+          }
+        ],
+        "rooms": [
+          {
+            "name": "Lounge",
+            "lights": ["light.demo_lounge_lamp"],
+            "curtains": ["cover.demo_lounge_curtain"]
+          },
+          {
+            "name": "Study",
+            "lights": [],
+            "curtains": ["cover.demo_study_blind"],
+            "purifier": "fan.demo_study_purifier"
+          }
+        ],
+        "vacuums": [
+          {
+            "entity": "vacuum.demo_upstairs",
+            "batterySensor": "sensor.demo_upstairs_battery"
+          },
+          {
+            "entity": "vacuum.demo_downstairs"
+          }
+        ],
+        "appliances": [
+          {
+            "name": "Demo Washer",
+            "status": "sensor.demo_washer_current_status",
+            "remaining": "sensor.demo_washer_remaining_time"
+          },
+          {
+            "name": "Demo Dryer",
+            "status": "sensor.demo_dryer_current_status"
+          }
+        ],
+        "media": [
+          {
+            "entity": "media_player.demo_lounge"
+          },
+          {
+            "entity": "media_player.demo_kitchen_speaker"
+          }
+        ],
+        "cameras": [
+          {
+            "entity": "camera.demo_front_gate",
+            "name": "Front gate",
+            "privacy": {
+              "entity": "switch.demo_front_gate_privacy",
+              "onValue": "on"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_nursery",
+            "name": "Nursery",
+            "privacy": {
+              "entity": "input_boolean.demo_nursery_privacy",
+              "onValue": "off"
+            },
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": false
+          },
+          {
+            "entity": "camera.demo_side_path",
+            "name": "Side Path",
+            "thumbnails": true,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          },
+          {
+            "entity": "camera.demo_driveway",
+            "name": "Driveway",
+            "thumbnails": false,
+            "snapshotIntervalMs": 10000,
+            "live": true
+          }
+        ],
+        "calendars": [
+          {
+            "entity": "calendar.demo_family"
+          }
+        ],
+        "weather": "weather.demo_home",
+        "sun": "sun.sun",
+        "garage": {
+          "cover": "cover.demo_garage_door",
+          "name": "Garage"
+        },
+        "vehicle": {
+          "name": "Demo sedan",
+          "battery": "sensor.demo_sedan_battery_level",
+          "range": "sensor.demo_sedan_battery_range",
+          "chargerStatus": "binary_sensor.demo_sedan_charger_status",
+          "chargerPower": "sensor.demo_sedan_charger_power",
+          "sessionEnergy": "sensor.demo_sedan_session_energy",
+          "chargeLimitPct": 80
+        },
+        "security": {
+          "alarm": "alarm_control_panel.demo_house",
+          "policy": "input_select.demo_security_policy",
+          "suggested": "sensor.demo_suggested_mode",
+          "commissioning": "input_boolean.demo_security_commissioning",
+          "healthText": "input_text.demo_security_health",
+          "perimeter": [
+            {
+              "entity": "binary_sensor.demo_front_door_contact"
+            },
+            {
+              "entity": "binary_sensor.demo_back_door_contact"
+            },
+            {
+              "entity": "cover.demo_garage_door"
+            }
+          ],
+          "actions": {
+            "disarm_hold": "script.demo_disarm_and_hold",
+            "silence_sound": "script.demo_silence_sound",
+            "resume_auto": "script.demo_resume_auto",
+            "hold_night": "script.demo_hold_night",
+            "hold_away": "script.demo_hold_away",
+            "hold_vacation": "script.demo_hold_vacation",
+            "prepare_departure": "script.demo_prepare_departure"
+          }
+        },
+        "studioMonitors": "script.demo_studio_monitors",
+        "bindings": {
+          "person.demo_asha": ["person"],
+          "person.demo_ravi": ["person"],
+          "climate.demo_hallway": ["climate"],
+          "fan.demo_bedroom_purifier": ["air"],
+          "fan.demo_study_purifier": ["air", "room_purifier"],
+          "climate.demo_bed_left": ["bed_comfort"],
+          "light.demo_lounge_lamp": ["room_light"],
+          "cover.demo_lounge_curtain": ["room_curtain"],
+          "cover.demo_study_blind": ["room_curtain"],
+          "vacuum.demo_upstairs": ["vacuum"],
+          "sensor.demo_upstairs_battery": ["vacuum_battery"],
+          "vacuum.demo_downstairs": ["vacuum"],
+          "sensor.demo_washer_current_status": ["appliance_status"],
+          "sensor.demo_washer_remaining_time": ["appliance_remaining"],
+          "sensor.demo_dryer_current_status": ["appliance_status"],
+          "media_player.demo_lounge": ["media"],
+          "media_player.demo_kitchen_speaker": ["media"],
+          "camera.demo_front_gate": ["camera"],
+          "switch.demo_front_gate_privacy": ["camera_privacy"],
+          "camera.demo_nursery": ["camera"],
+          "input_boolean.demo_nursery_privacy": ["camera_privacy"],
+          "camera.demo_side_path": ["camera"],
+          "camera.demo_driveway": ["camera"],
+          "calendar.demo_family": ["calendar"],
+          "weather.demo_home": ["weather"],
+          "sun.sun": ["sun"],
+          "cover.demo_garage_door": ["garage_cover", "perimeter"],
+          "sensor.demo_sedan_battery_level": ["vehicle_battery"],
+          "sensor.demo_sedan_battery_range": ["vehicle_range"],
+          "binary_sensor.demo_sedan_charger_status": ["vehicle_charger_status"],
+          "sensor.demo_sedan_charger_power": ["vehicle_charger_power"],
+          "sensor.demo_sedan_session_energy": ["vehicle_session_energy"],
+          "alarm_control_panel.demo_house": ["alarm"],
+          "input_select.demo_security_policy": ["policy"],
+          "sensor.demo_suggested_mode": ["suggested_mode"],
+          "input_boolean.demo_security_commissioning": ["commissioning"],
+          "input_text.demo_security_health": ["health_text"],
+          "binary_sensor.demo_front_door_contact": ["perimeter"],
+          "binary_sensor.demo_back_door_contact": ["perimeter"],
+          "script.demo_disarm_and_hold": ["security_action"],
+          "script.demo_silence_sound": ["security_action"],
+          "script.demo_resume_auto": ["security_action"],
+          "script.demo_hold_night": ["security_action"],
+          "script.demo_hold_away": ["security_action"],
+          "script.demo_hold_vacation": ["security_action"],
+          "script.demo_prepare_departure": ["security_action"],
+          "script.demo_studio_monitors": ["studio_monitors"]
+        }
+      },
+      "warnings": []
+    }
+  ]
+}

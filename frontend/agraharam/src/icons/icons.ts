@@ -4,6 +4,8 @@
  * IconNode exports. A component that needs another icon adds it here, so the bundle carries only listed icons.
  */
 import {
+  AirVent,
+  Battery,
   BatteryCharging,
   BedDouble,
   BellOff,
@@ -13,6 +15,7 @@ import {
   CameraOff,
   Car,
   Check,
+  ChevronDown,
   CircleAlert,
   CircleCheck,
   CircleQuestionMark,
@@ -35,6 +38,7 @@ import {
   EyeOff,
   Fan,
   Flame,
+  HeartPulse,
   House,
   Info,
   Leaf,
@@ -52,7 +56,10 @@ import {
   PlugZap,
   Plus,
   Power,
+  Printer,
   Refrigerator,
+  Router,
+  Search,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -178,4 +185,12 @@ export const ICONS = Object.freeze({
   'door-open': DoorOpen,
   'door-closed': DoorClosed,
   'circle-check': CircleCheck,
+  // House readings (§18): collection group icons, plus the drawer's search field and group disclosure chevron.
+  printer: Printer,
+  'air-vent': AirVent,
+  battery: Battery,
+  'heart-pulse': HeartPulse,
+  router: Router,
+  search: Search,
+  'chevron-down': ChevronDown,
 }) satisfies Readonly<Record<string, IconNode>>;

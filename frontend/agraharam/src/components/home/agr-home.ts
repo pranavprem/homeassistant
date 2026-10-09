@@ -1,7 +1,7 @@
 /**
- * Home panel (§5.1, §6.2.1): room chips (at most six, lit rooms first), at most two vacuum rows, active
- * appliances with idle ones collapsed into a count, and the studio monitors. "All rooms and devices" opens the home
- * drawer when anything is left out.
+ * Home panel (§5.1, §6.2.1, §18): room chips (at most six, lit rooms first), the Whole-house shortcuts row, at most
+ * two vacuum rows, active appliances with idle ones collapsed into a count, and the studio monitors. "All rooms and
+ * devices" opens the home drawer when anything is left out.
  *
  * The section holds the ActionController; chips and rows are leaves that emit intent events. It subscribes to every
  * Home entity plus CONTROL_META (Availability depends on services, user and registry) and 'clock' (appliance finish
@@ -10,15 +10,23 @@
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit';
 import { property } from 'lit/decorators.js';
 import { ActionController } from '../../ha/actions/action-controller.ts';
-import { ENABLED, type ActionRequest, type Availability } from '../../ha/actions/types.ts';
+import type { ShortcutRole } from '../../config/schema.ts';
+import {
+  ENABLED,
+  newerStatus,
+  type ActionRequest,
+  type ActionStatus,
+  type Availability,
+} from '../../ha/actions/types.ts';
 import { CONTROL_META, EntityController } from '../../ha/entity-controller.ts';
 import type { MetaKind } from '../../ha/host.ts';
-import { STUDIO_MONITORS_COPY } from '../../model/action-copy.ts';
+import { SHORTCUT_COPY, STUDIO_MONITORS_COPY } from '../../model/action-copy.ts';
 import {
   homeActionKeys,
   homeEntityIds,
   selectHome,
   type HomeOverviewVM,
+  type HomeShortcutVM,
   type HomeStudioMonitorsVM,
 } from '../../model/home.ts';
 import { renderIcon } from '../../icons/render-icon.ts';
@@ -100,15 +108,23 @@ export class AgrHome extends LitElement {
       .studio-action {
         flex: none;
       }
-      /* Beside the text button in a narrow panel the name wraps rather than truncating ("Studio monit…"). */
-      .studio-label {
+      /* Beside the text buttons in a narrow panel the name wraps rather than truncating ("Studio monit…"). */
+      .studio-label,
+      .shortcut-label {
         overflow-wrap: break-word;
       }
-      .studio-status[data-phase='uncertain'] {
+      .studio-status[data-phase='uncertain'],
+      .shortcut-status[data-phase='uncertain'] {
         color: var(--agr-brass-ink);
       }
-      .studio-status[data-phase='failed'] {
+      .studio-status[data-phase='failed'],
+      .shortcut-status[data-phase='failed'] {
         color: var(--agr-danger);
+      }
+      .shortcut-actions {
+        display: flex;
+        flex: none;
+        gap: var(--agr-space-2);
       }
       .notice {
         margin: 0;
@@ -162,6 +178,11 @@ export class AgrHome extends LitElement {
     performFromEvent(this, this.#actions, this.#tickets, STUDIO_MONITORS_REQUEST, event);
   });
 
+  /** Always routed through the confirm dialog: the shortcut's availability asks for confirmation (§18). */
+  readonly #onShortcut = contained('home-shortcut-failed', (role: ShortcutRole, event: Event) => {
+    performFromEvent(this, this.#actions, this.#tickets, { kind: 'shortcut.run', role }, event);
+  });
+
   readonly #onDismiss = contained('home-dismiss-failed', (event: CustomEvent<ControlNote>) => {
     event.stopPropagation();
     dismissNote(event.detail, this.#actions, this.#tickets);
@@ -193,8 +214,9 @@ export class AgrHome extends LitElement {
         @agr-home-vacuum=${this.#onVacuum}
         @agr-dismiss-note=${this.#onDismiss}
       >
-        ${notice === undefined ? nothing : html`<p class="notice t-meta">${notice}</p>`} ${this.#renderRooms(vm)}
-        ${this.#renderDevices(vm)}
+        ${notice === undefined ? nothing : html`<p class="notice t-meta">${notice}</p>`}
+        ${vm.registryNotice === undefined ? nothing : html`<p class="notice t-meta">${vm.registryNotice}</p>`}
+        ${this.#renderRooms(vm)} ${this.#renderDevices(vm)}
         <agr-control-notes .notes=${this.#notes(services, vm)} focus-key-prefix="home"></agr-control-notes>
         ${this.#renderAll(vm)}
       </div>`,
@@ -237,12 +259,67 @@ export class AgrHome extends LitElement {
     </ul>`;
   }
 
-  /** Vacuums, then appliances and the studio monitors, as one list of flat rows with no gap between its parts. */
+  /**
+   * The Whole-house shortcuts (lighting, so next to the room chips), vacuums, then appliances and the studio monitors,
+   * as one list of flat rows with no gap between its parts.
+   */
   #renderDevices(vm: HomeOverviewVM): TemplateResult | typeof nothing {
+    const shortcuts = vm.shortcuts === undefined ? nothing : this.#renderShortcuts(vm.shortcuts.buttons);
     const vacuums = this.#renderVacuums(vm);
     const rows = this.#renderRows(vm);
-    if (vacuums === nothing && rows === nothing) return nothing;
-    return html`<div class="devices">${vacuums}${rows}</div>`;
+    if (shortcuts === nothing && vacuums === nothing && rows === nothing) return nothing;
+    return html`<div class="devices">${shortcuts}${vacuums}${rows}</div>`;
+  }
+
+  /**
+   * One device row: the label, and one button per configured shortcut. A script reports no state, so the second line
+   * is the newest shortcut ticket's progress, named by its button ("Lights: Requested"), or nothing visible at rest.
+   */
+  #renderShortcuts(buttons: readonly HomeShortcutVM[]): TemplateResult {
+    const latest = this.#latestShortcutTicket(buttons);
+    const statusText = latest === undefined ? undefined : rowStatusText(latest.status);
+    return html`<div class="rows shortcuts">
+      <div class="device-row">
+        <span class="well" aria-hidden="true">${renderIcon('house')}</span>
+        <div class="text">
+          <span class="t-body shortcut-label">${SHORTCUT_COPY.label}</span>
+          ${
+            latest === undefined || statusText === undefined
+              ? html`<span class="visually-hidden">${SHORTCUT_COPY.consequence}</span>`
+              : html`<span class="shortcut-status t-meta ellipsis" data-phase=${latest.status.phase}
+                  >${latest.label}: ${statusText}</span
+                >`
+          }
+        </div>
+        <div class="shortcut-actions" role="group" aria-label=${SHORTCUT_COPY.groupLabel}>
+          ${buttons.map(
+            (button) =>
+              html`<agr-button
+                label=${button.label}
+                accessible-label=${button.accessibleLabel}
+                focus-key=${`home:shortcut:${button.role}`}
+                reason-display="hidden"
+                opens-dialog
+                .availability=${button.availability}
+                @agr-activate=${(event: Event) => this.#onShortcut(button.role, event)}
+              ></agr-button>`,
+          )}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /** The newest ticket across the shortcut buttons, with the label of the button it belongs to. */
+  #latestShortcutTicket(
+    buttons: readonly HomeShortcutVM[],
+  ): { readonly label: string; readonly status: ActionStatus } | undefined {
+    let latest: { readonly label: string; readonly status: ActionStatus } | undefined;
+    for (const button of buttons) {
+      const status = this.#tickets.current(`shortcut:${button.role}`, button.pending);
+      if (status !== undefined && newerStatus(latest?.status, status) === status)
+        latest = { label: button.label, status };
+    }
+    return latest;
   }
 
   #renderVacuums(vm: HomeOverviewVM): TemplateResult | typeof nothing {
@@ -310,6 +387,7 @@ export class AgrHome extends LitElement {
   #availabilities(vm: HomeOverviewVM): (Availability | undefined)[] {
     return [
       ...vm.rooms.map((room) => room.quickToggle?.availability),
+      ...(vm.shortcuts?.buttons ?? []).map((button) => button.availability),
       ...vm.vacuums.flatMap((vacuum) => [vacuum.start, vacuum.pause, vacuum.returnHome]),
       vm.studioMonitors?.availability,
     ];
@@ -322,6 +400,10 @@ export class AgrHome extends LitElement {
   #notes(services: DashboardServices, vm: HomeOverviewVM): readonly ControlNote[] {
     const subjects: NoteSubject[] = [
       ...services.config.rooms.map((room, index) => ({ key: `room:${index}` as const, name: `${room.name} lights` })),
+      ...(vm.shortcuts?.buttons ?? []).map((button) => ({
+        key: `shortcut:${button.role}` as const,
+        name: button.accessibleLabel,
+      })),
       ...vm.vacuums.map((vacuum) => ({ key: `entity:${vacuum.key}` as const, name: vacuum.name })),
       ...(vm.studioMonitors === undefined
         ? []

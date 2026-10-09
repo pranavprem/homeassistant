@@ -21,7 +21,8 @@ export type DrawerRequest =
   | { id: 'household' }
   | { id: 'diagnostics' }
   | { id: 'cameras' }
-  | { id: 'camera'; entity: EntityId };
+  | { id: 'camera'; entity: EntityId }
+  | { id: 'readings' };
 export interface OpenDrawerDetail {
   readonly request: DrawerRequest;
   readonly trigger: HTMLElement;
@@ -64,6 +65,7 @@ export const DRAWER_TAGS: Readonly<Record<Exclude<DrawerRequest['id'], 'camera'>
   household: 'agr-household-drawer',
   diagnostics: 'agr-diagnostics-drawer',
   cameras: 'agr-cameras-drawer',
+  readings: 'agr-readings-drawer',
 });
 
 declare global {

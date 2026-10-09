@@ -5,7 +5,9 @@ import {
   actionMessage,
   GARAGE_TICKET_COPY,
   NOT_APPLICABLE_COPY,
+  REGISTRY_PENDING_COPY,
   SECURITY_TICKET_COPY,
+  SETTINGS_SWITCH_COPY,
   stoppedWatchingMessage,
   type ActionSubject,
   type MessageContext,
@@ -152,6 +154,60 @@ describe('actionMessage', () => {
   it('says a disposed gateway stopped watching, not that the call failed', () => {
     expect(stoppedWatchingMessage({ name: 'the garage door', plural: false })).toBe(
       "The garage door hadn't confirmed when the dashboard stopped watching. It may still respond. Check it before trying again.",
+    );
+  });
+});
+
+describe('§18 copy: partial outcomes, settings switches and the registry-pending gate', () => {
+  const STUDY: ActionSubject = { name: 'the Study lights', plural: true };
+  const partial = (code: ActionErrorCode, extra: Partial<MessageContext> = {}) =>
+    actionMessage(code, { stage: 'request', kind: 'room.lights_on', subject: STUDY, partial: true, ...extra });
+
+  it('words a partial outcome by why the rest failed, and never says nothing changed', () => {
+    expect(partial('permission-denied')).toBe(
+      "Some of the Study lights may have switched, but your Home Assistant user can't control the rest. Check the room before trying again.",
+    );
+    expect(partial('disconnected')).toBe(
+      "Some of the Study lights may have switched, but the rest wasn't sent because Home Assistant disconnected. Check the room before trying again.",
+    );
+    expect(partial('rejected', { haMessage: 'Plug is offline.' })).toBe(
+      "Some of the Study lights may have switched, but Home Assistant didn't accept the rest (Plug is offline). Check the room before trying again.",
+    );
+    expect(partial('device-error')).toBe(
+      "Some of the Study lights may have switched, but Home Assistant didn't accept the rest. Check the room before trying again.",
+    );
+    for (const code of ALL_CODES) {
+      const text = partial(code, { haMessage: 'x' });
+      expect(text, code).not.toMatch(/nothing/i);
+      expect(text, code).toMatch(/^Some of the Study lights may have switched, but /);
+    }
+  });
+
+  it('without partial, the same codes keep their standard copy (single-call requests are unchanged)', () => {
+    expect(actionMessage('disconnected', { stage: 'request', subject: STUDY })).not.toMatch(/^Some of/);
+    expect(actionMessage('rejected', { stage: 'request', subject: STUDY, haMessage: 'No.' })).toBe(
+      "Home Assistant didn't accept the request: No.",
+    );
+  });
+
+  it('names a settings switch as such, and leaves the other not-allowed copy alone', () => {
+    expect(actionMessage('not-allowed', ctx({ settingsSwitch: true }))).toBe(SETTINGS_SWITCH_COPY);
+    expect(SETTINGS_SWITCH_COPY).toBe("This is a settings switch, not a lamp, so it can't be switched from here.");
+    expect(actionMessage('not-allowed', ctx())).toBe(
+      "This control isn't set up for Reading lamp in the dashboard configuration.",
+    );
+  });
+
+  it('words the registry-pending refusal for a switch and for a room, and keeps state-unknown otherwise', () => {
+    expect(actionMessage('state-unknown', ctx({ registryPending: true }))).toBe(
+      "Waiting for Home Assistant's device list before switching Reading lamp.",
+    );
+    expect(actionMessage('state-unknown', { stage: 'evaluate', subject: LIGHTS, registryPending: true })).toBe(
+      "Waiting for Home Assistant's device list before switching the Kitchen lights.",
+    );
+    expect(REGISTRY_PENDING_COPY.notice).toBe("Lamp switches are waiting for Home Assistant's device list.");
+    expect(actionMessage('state-unknown', ctx())).toBe(
+      "Reading lamp hasn't reported its state, so this control is paused until it does.",
     );
   });
 });

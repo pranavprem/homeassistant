@@ -174,3 +174,11 @@ describe('DemoHost (§4.4, §10.1)', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe('DemoHost registry (§18)', () => {
+  it('has its fixture registry from the start in every scenario, so demo switches never wait for it', () => {
+    for (const scenario of ['normal', 'dense', 'degraded', 'loading'] as const) {
+      expect(host(scenario).reader.registryLoaded(), scenario).toBe(true);
+    }
+  });
+});

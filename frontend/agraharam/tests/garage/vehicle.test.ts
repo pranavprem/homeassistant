@@ -31,6 +31,13 @@ function text(root: ShadowRoot): string {
 }
 
 describe('agr-vehicle (read-only telemetry)', () => {
+  it('renders the selected Model 3 artwork while keeping the generic default', async () => {
+    const selected = await mountVehicle({ ...CHARGING, model: 'tesla-model-3' });
+    expect(selected.querySelector('svg[data-model="tesla-model-3"]')).not.toBeNull();
+    const legacy = await mountVehicle(CHARGING);
+    expect(legacy.querySelector('svg')?.hasAttribute('data-model')).toBe(false);
+  });
+
   it('shows name, battery, range, the charge limit and the charger line', async () => {
     const root = await mountVehicle(CHARGING);
     const content = text(root);

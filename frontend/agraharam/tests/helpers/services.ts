@@ -32,6 +32,8 @@ export function fakeReader(store: StoreView, phase: () => ConnectionPhase = () =
     connection: () => ({ phase: phase() }),
     connectionGeneration: () => 1,
     registry: () => undefined,
+    // HA's entity registry has arrived (§18 registry-pending gate); tests of the gate override this.
+    registryLoaded: () => true,
     entitiesOnDevice: () => [],
     hasService: () => true,
     formatter: () => createFormatter({ temperatureUnit: '°F' }),

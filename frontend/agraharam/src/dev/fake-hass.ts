@@ -15,6 +15,9 @@
  *   and the snapshot, because hajs's new entity subscription starts with it.
  * - While the socket is down nothing reaches hass.states, and service calls queue and are sent on the next socket,
  *   exactly the hajs gap HassHost's live-socket guard closes.
+ * - The entity registry (§18): the frontend starts hass with `entities: null` and fills it from its first registry
+ *   message. With `registryPending`, every push carries null until `deliverRegistry()`; by default it is there from
+ *   the first push, as on a page whose registry arrived before the card.
  *
  * Import boundary (§10.3): only src/demo/{fixture-types,scenarios,simulate}.ts, src/config/* and type-only modules.
  */
@@ -35,6 +38,8 @@ interface FakeHassOptions {
   readonly latencyMs?: readonly [number, number];
   readonly random?: () => number;
   readonly darkMode?: boolean;
+  /** Deliver `entities: null` until deliverRegistry(), as the real frontend does before its first registry message. */
+  readonly registryPending?: boolean;
 }
 
 /** The extra members real hass has; recorded as spies so any indirect use shows up. */
@@ -173,6 +178,7 @@ export class FakeHass {
   #awaitingSnapshot = false;
   #connected = true;
   #darkMode: boolean;
+  #registryDelivered: boolean;
   #hass: FakeHassObject;
   #snapshotTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -181,6 +187,7 @@ export class FakeHass {
     this.scenario = assembleScenario(scenario, fixtureClock(now()));
     this.connection = new FakeConnection(this.calls, this.scenario.forecasts);
     this.#darkMode = options.darkMode ?? false;
+    this.#registryDelivered = options.registryPending !== true;
     this.#registry = Object.freeze(Object.fromEntries(this.scenario.registry.map((entry) => [entry.entity_id, entry])));
     this.#services = simulatedServiceRegistry(this.scenario.spec.missingServices);
     this.#user = Object.freeze({ id: 'demo-user', is_admin: this.scenario.spec.user.is_admin });
@@ -226,6 +233,17 @@ export class FakeHass {
     const current = this.#devices.states[id];
     if (current === undefined) return;
     this.#devices.put(withState(current, state, attributes));
+  }
+
+  /**
+   * The frontend's first registry message: `_updateHass({ entities })`. A new hass with the registry and the SAME
+   * states reference, so it is never a new states map: it cannot clear an armed resync barrier, which the real
+   * frontend's registry update never does either.
+   */
+  deliverRegistry(): void {
+    if (this.#registryDelivered) return;
+    this.#registryDelivered = true;
+    this.#push();
   }
 
   /** A new hass identity with nothing changed, like HA's empty `_updateHass({})` after a token refresh. */
@@ -299,7 +317,7 @@ export class FakeHass {
     const spec = this.scenario.spec;
     return Object.freeze({
       states: this.#delivered,
-      entities: this.#registry,
+      entities: this.#registryDelivered ? this.#registry : null,
       services: this.#services,
       connected: this.#connected,
       connection: this.connection,

@@ -5,6 +5,35 @@
  */
 import { css } from 'lit';
 
+/**
+ * The Model 3 drawing's paint (vehicle-art-model-3.ts, §18). The car is black in both themes; decorative, so these are
+ * not text colours. The dark theme's edge is a rim light that keeps the silhouette against the dark surface.
+ */
+const lightVehicleTokens = css`
+  --agr-vehicle-paint: #1b1d19;
+  --agr-vehicle-edge: #1b1d19;
+  --agr-vehicle-glass: #3d4442;
+  --agr-vehicle-sheen: rgb(255 255 255 / 0.22);
+  --agr-vehicle-seam: rgb(255 255 255 / 0.1);
+  --agr-vehicle-tyre: #121310;
+  --agr-vehicle-rim: #8e9389;
+  --agr-vehicle-lamp: #e9e6da;
+  --agr-vehicle-tail: #4a3f3d;
+  --agr-vehicle-shadow: rgb(44 48 41 / 0.2);
+`;
+const darkVehicleTokens = css`
+  --agr-vehicle-paint: #0c0d0b;
+  --agr-vehicle-edge: #7f8375;
+  --agr-vehicle-glass: #2a302f;
+  --agr-vehicle-sheen: rgb(255 255 255 / 0.16);
+  --agr-vehicle-seam: rgb(255 255 255 / 0.08);
+  --agr-vehicle-tyre: #070806;
+  --agr-vehicle-rim: #6f7469;
+  --agr-vehicle-lamp: #d9d6c8;
+  --agr-vehicle-tail: #5a4c49;
+  --agr-vehicle-shadow: rgb(0 0 0 / 0.45);
+`;
+
 /** The dark theme's values, shared by the explicit dark theme and the pre-hass system fallback. */
 const darkTokens = css`
   color-scheme: dark;
@@ -37,6 +66,7 @@ const darkTokens = css`
   /* A modest dimming for real camera feeds; the demo stills bring their own night palette (simulate.ts). */
   --agr-media-filter: brightness(0.82) saturate(0.85);
   --agr-letterbox: var(--agr-canvas);
+  ${darkVehicleTokens}
 `;
 
 export const tokenStyles = css`
@@ -79,6 +109,7 @@ export const tokenStyles = css`
     color-scheme: light; /* native range inputs, scrollbars, dialog defaults */
     /* Olive is the household accent; plum is reserved for media (agr-slider tone="media"). */
     accent-color: var(--agr-olive);
+    ${lightVehicleTokens}
   }
   :host([data-theme='dark']) {
     /* follows hass.themes.darkMode */

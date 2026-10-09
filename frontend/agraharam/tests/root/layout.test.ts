@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BREAKPOINTS, HYSTERESIS_PX, layoutFor, PANEL_CQ } from '../../src/styles/breakpoints.ts';
 import { validateConfig } from '../../src/config/validate.ts';
 import { demoCardInput } from '../../src/demo/configs.ts';
+import { DEMO_SCENARIO_IDS } from '../../src/demo/scenarios.ts';
 import { panelHeightEstimates, PANEL_HEIGHT_TARGET_PX } from '../../src/model/budget.ts';
 import {
   columnsFor,
@@ -13,6 +14,7 @@ import {
   slackAllowances,
   stretchedSections,
   visibleSections,
+  WIDE_COLUMNS,
   type MeasuredColumn,
   type SectionId,
 } from '../../src/styles/layout.ts';
@@ -133,12 +135,24 @@ describe('column membership (§6.2, §16.10)', () => {
   it('wide rebalancing applies to the dense demo, whose Home holds the whole overview budget', () => {
     const dense = validateConfig(demoCardInput('dense'));
     if (!dense.ok) throw new Error('the dense demo config must validate');
-    const columns = columnsFor('wide', visibleSections(dense.config), panelHeightEstimates(dense.config));
-    expect(columns[0]).not.toContain('health');
+    const estimates = panelHeightEstimates(dense.config);
+    const columns = columnsFor('wide', visibleSections(dense.config), estimates);
+    // Raised panels never move; a near-tie keeps Today uncluttered and a quiet panel under Home.
     expect(columns.map((column) => column.filter((id) => id !== 'upcoming' && id !== 'health'))).toEqual([
       ['home'],
       ['today', 'comfort', 'media'],
       ['cameras', 'garage'],
+    ]);
+    expect(columns[0]?.filter((id) => id === 'upcoming' || id === 'health')).toHaveLength(1);
+    const tallest = (cols: readonly (readonly string[])[]) =>
+      Math.max(...cols.map((column) => column.reduce((sum, id) => sum + estimates[id as SectionId], 0)));
+    expect(tallest(columns)).toBeLessThanOrEqual(tallest(WIDE_COLUMNS));
+    // §18: shortcuts grow Home to 720 px and collections grow House to 176 px. A 16 px estimated gain
+    // must not pack House under Today: wrapped text makes that column much taller in the browser.
+    expect(columns).toEqual([
+      ['home', 'health'],
+      ['today', 'comfort', 'media'],
+      ['cameras', 'garage', 'upcoming'],
     ]);
   });
 
@@ -196,6 +210,21 @@ describe('column membership (§6.2, §16.10)', () => {
     expect([...emptySections(normal.config)]).toEqual([]);
   });
 
+  it('counts a Home with only whole-house shortcuts (or only studio monitors) as content, and an empty Home as empty (§18)', () => {
+    expect(emptySections(configFrom({})).has('home')).toBe(true);
+    expect(
+      emptySections(configFrom({ shortcuts: { lights_toggle: 'script.demo_house_lights_toggle' } })).has('home'),
+    ).toBe(false);
+    expect(
+      emptySections(configFrom({ shortcuts: { curtains_toggle: 'script.demo_house_curtains_toggle' } })).has('home'),
+    ).toBe(false);
+    expect(emptySections(configFrom({ studio_monitors_script: 'script.demo_monitors' })).has('home')).toBe(false);
+    // Collections live in House health, so they never make Home non-empty.
+    expect(
+      emptySections(configFrom({ collections: [{ name: 'Car', entities: ['sensor.demo_odometer'] }] })).has('home'),
+    ).toBe(true);
+  });
+
   it('shows optional panels only when configured', () => {
     expect([...visibleSections(configFrom({}))].sort()).toEqual(['comfort', 'health', 'home', 'today']);
     const full = configFrom({
@@ -234,14 +263,76 @@ describe('panel height estimates for medium balancing (§16.10)', () => {
     expect(panelHeightEstimates(homeConfig(4, 1, 1, false)).home).toBe(base - 49);
   });
 
-  it('changes only Home; every other panel keeps its target', () => {
+  it('one Whole-house shortcuts row counts as one more device row, whichever shortcuts are configured (§18)', () => {
+    const base = panelHeightEstimates(homeConfig(4, 1, 1, true)).home;
+    const withShortcuts = (shortcuts: Record<string, string>) =>
+      panelHeightEstimates(
+        configFrom({
+          rooms: Array.from({ length: 4 }, (_, index) => ({ name: `Room ${index}`, lights: [`light.demo_l${index}`] })),
+          vacuums: [{ entity: 'vacuum.demo_v0' }],
+          appliances: [{ name: 'Appliance 0', status_sensor: 'sensor.demo_a0' }],
+          studio_monitors_script: 'script.demo_monitors',
+          shortcuts,
+        }),
+      ).home;
+    expect(withShortcuts({ lights_toggle: 'script.demo_house_lights' })).toBe(base + 49);
+    expect(
+      withShortcuts({ lights_toggle: 'script.demo_house_lights', curtains_toggle: 'script.demo_house_curtains' }),
+    ).toBe(base + 49);
+  });
+
+  it('room switches add no height: chips are capped and counts sit inside them (§18)', () => {
+    const lightOnly = panelHeightEstimates(homeConfig(4, 1, 1, true)).home;
+    const withSwitches = configFrom({
+      rooms: Array.from({ length: 4 }, (_, index) => ({
+        name: `Room ${index}`,
+        lights: [`light.demo_l${index}`],
+        switches: [`switch.demo_s${index}`],
+      })),
+      vacuums: [{ entity: 'vacuum.demo_v0' }],
+      appliances: [{ name: 'Appliance 0', status_sensor: 'sensor.demo_a0' }],
+      studio_monitors_script: 'script.demo_monitors',
+    });
+    expect(panelHeightEstimates(withSwitches).home).toBe(lightOnly);
+  });
+
+  it('House health grows by the 40 px readings fact only when collections are configured (§18)', () => {
+    expect(panelHeightEstimates(configFrom({})).health).toBe(PANEL_HEIGHT_TARGET_PX.health);
+    const withReadings = configFrom({ collections: [{ name: 'Printer', entities: ['sensor.demo_ink'] }] });
+    expect(panelHeightEstimates(withReadings).health).toBe(PANEL_HEIGHT_TARGET_PX.health + 40);
+    const manyGroups = configFrom({
+      collections: Array.from({ length: 12 }, (_, index) => ({
+        name: `Group ${index}`,
+        entities: [`sensor.demo_g${index}`],
+      })),
+    });
+    expect(panelHeightEstimates(manyGroups).health).toBe(PANEL_HEIGHT_TARGET_PX.health + 40);
+  });
+
+  it('Home changes with rooms, vacuums, appliances and shortcuts, health with collections only; every other panel keeps its target', () => {
+    // Deliberate §18 update (review Q1): this test was "changes only Home".
+    for (const scenario of DEMO_SCENARIO_IDS) {
+      const result = validateConfig(demoCardInput(scenario));
+      if (!result.ok) throw new Error(`the ${scenario} demo config must validate`);
+      const estimates = panelHeightEstimates(result.config);
+      for (const id of NARROW_ORDER.filter((panel) => panel !== 'home' && panel !== 'health')) {
+        expect(estimates[id], `${scenario} ${id}`).toBe(PANEL_HEIGHT_TARGET_PX[id]);
+      }
+      const readings = result.config.collections.length > 0 ? 40 : 0;
+      expect(estimates.health, `${scenario} health`).toBe(PANEL_HEIGHT_TARGET_PX.health + readings);
+    }
     const dense = validateConfig(demoCardInput('dense'));
     if (!dense.ok) throw new Error('the dense demo config must validate');
-    const estimates = panelHeightEstimates(dense.config);
-    for (const id of NARROW_ORDER.filter((panel) => panel !== 'home')) {
-      expect(estimates[id], id).toBe(PANEL_HEIGHT_TARGET_PX[id]);
-    }
-    expect(estimates.home).toBeGreaterThan(PANEL_HEIGHT_TARGET_PX.home);
+    expect(panelHeightEstimates(dense.config).home).toBeGreaterThan(PANEL_HEIGHT_TARGET_PX.home);
+  });
+
+  it('normal (the 1440×900 hard-gate reference) has no shortcuts or collections, so its estimates are unchanged', () => {
+    const normal = validateConfig(demoCardInput('normal'));
+    if (!normal.ok) throw new Error('the normal demo config must validate');
+    expect(normal.config.shortcuts).toEqual({});
+    expect(normal.config.collections).toEqual([]);
+    expect(panelHeightEstimates(normal.config).health).toBe(PANEL_HEIGHT_TARGET_PX.health);
+    expect(panelHeightEstimates(normal.config).home).toBe(PANEL_HEIGHT_TARGET_PX.home);
   });
 });
 

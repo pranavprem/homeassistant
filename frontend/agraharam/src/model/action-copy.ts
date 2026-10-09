@@ -8,7 +8,7 @@
  * Buttons use sentence case (§16.13). Night, Away and Vacation are the controller's protection modes and Auto its
  * policy, so they keep their capitals, as in the consequence lines ("Requests Night protection").
  */
-import type { SecurityActionRole } from '../config/schema.ts';
+import type { SecurityActionRole, ShortcutRole } from '../config/schema.ts';
 import { isArmedOrArming, isKnownAlarmState, type AlarmDisplay } from '../domain/alarm.ts';
 import type { ActionKind, ActionPhase, ActionRequest, ActionStatus } from '../ha/actions/types.ts';
 import type { Tone } from './display.ts';
@@ -23,7 +23,9 @@ interface TicketPhaseCopy {
 }
 
 /** Scripts report "Requested", never "Done": the UI cannot know what a script did (§8.2). */
-const SCRIPT_KINDS: ReadonlySet<ActionKind> = new Set(['security.run', 'studio_monitors.run']);
+const SCRIPT_KINDS: ReadonlySet<ActionKind> = new Set(['security.run', 'studio_monitors.run', 'shortcut.run']);
+/** A room action of which only part went out (§18); never "No response yet", which would hide that part went out. */
+const PARTLY_DONE = 'Partly done';
 const TICKET_TONES: Readonly<Record<ActionPhase, Tone>> = Object.freeze({
   pending: 'muted',
   sent: 'muted',
@@ -53,6 +55,7 @@ export function isScriptAction(kind: ActionKind): boolean {
 
 /** The word a control shows beside itself while its ticket is open: "Sending", "Done", "No response yet", … */
 export function ticketShortText(status: ActionStatus): string {
+  if (status.partial === true) return PARTLY_DONE;
   if (status.phase !== 'confirmed') return SHORT_TEXT[status.phase];
   return isScriptAction(status.kind) ? 'Requested' : 'Done';
 }
@@ -199,6 +202,56 @@ export const STUDIO_MONITORS_COPY = Object.freeze({
   consequence: 'Switches both monitors together.',
 });
 
+interface ShortcutButtonCopy {
+  /** The short visible text; the row's "Whole house" label gives it context. */
+  readonly label: string;
+  /** The button's accessible name and the live region's subject; the confirm title names the same thing. */
+  readonly accessibleLabel: string;
+  readonly confirm: ConfirmCopy;
+}
+
+interface ShortcutCopy {
+  readonly label: string;
+  readonly groupLabel: string;
+  readonly consequence: string;
+  readonly buttons: Readonly<Record<ShortcutRole, ShortcutButtonCopy>>;
+}
+
+/**
+ * The Whole-house row (§18). Labels are fixed in code, never configured, so a button can never describe a script as
+ * something else. The confirm label names the verb ("Toggle lights") where the one-row button cannot.
+ */
+export const SHORTCUT_COPY: ShortcutCopy = Object.freeze({
+  label: 'Whole house',
+  groupLabel: 'Whole house shortcuts',
+  consequence: "Each button runs the household's whole-house script after you confirm.",
+  buttons: {
+    lights_toggle: {
+      label: 'Lights',
+      accessibleLabel: 'Whole-house lights',
+      confirm: {
+        title: 'Toggle the whole-house lights?',
+        body: [
+          "Runs the household's whole-house lights script. The script decides which lights turn on or off; this dashboard can't tell in advance.",
+        ],
+        confirmLabel: 'Toggle lights',
+      },
+    },
+    curtains_toggle: {
+      label: 'Curtains',
+      accessibleLabel: 'Whole-house curtains',
+      confirm: {
+        title: 'Toggle the whole-house curtains?',
+        body: [
+          "Runs the household's whole-house curtains script. Curtains and blinds across the house may open or close; this dashboard can't tell in advance which way.",
+          'Make sure nothing is in the way of a moving curtain.',
+        ],
+        confirmLabel: 'Toggle curtains',
+      },
+    },
+  },
+});
+
 const DEPARTURE_HINT = 'To leave without setting it off, use Prepare garage departure in Security first.';
 const ALARM_UNAVAILABLE_LINE =
   "The alarm state isn't available right now. Opening the garage may set it off if the house is armed.";
@@ -211,6 +264,8 @@ export function confirmCopyFor(action: ActionRequest, context: ConfirmContext): 
   switch (action.kind) {
     case 'security.run':
       return SECURITY_ACTION_COPY[action.role].confirm;
+    case 'shortcut.run':
+      return SHORTCUT_COPY.buttons[action.role].confirm;
     case 'garage.close':
       return GARAGE_CONFIRM.close;
     case 'garage.open':

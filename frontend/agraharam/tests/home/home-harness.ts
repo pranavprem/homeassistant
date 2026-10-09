@@ -14,7 +14,7 @@ import { connectionToken, EntityStore } from '../../src/ha/entity-store.ts';
 import { createFormatter } from '../../src/ha/format.ts';
 import type { ConnectionPhase, HostReader, ServiceCall, ServiceCallResult, ServicePort } from '../../src/ha/host.ts';
 import { createStatusBoard } from '../../src/ha/status-board.ts';
-import type { ConfigLike, HassEntityLike } from '../../src/ha/types.ts';
+import type { ConfigLike, HassEntityLike, RegistryEntryLike } from '../../src/ha/types.ts';
 import { settle } from '../helpers/dom.ts';
 
 export type Attributes = Readonly<Record<string, unknown>>;
@@ -74,6 +74,10 @@ export interface HomeWorldOptions {
   readonly states: Readonly<Record<string, StateSpec>>;
   readonly haState?: ConfigLike['state'];
   readonly preview?: boolean;
+  /** Registry entries (entity_category for settings switches). */
+  readonly registry?: readonly RegistryEntryLike[];
+  /** Start with HA's entity registry not yet delivered (`hass.entities` null), as on every page load (§18). */
+  readonly registryPending?: boolean;
 }
 
 export interface HomeWorld {
@@ -87,6 +91,8 @@ export interface HomeWorld {
   setConnected(connected: boolean): void;
   /** The root's minute ticker (§9.1): a 'clock' meta change with no entity change. */
   tick(): void;
+  /** HA's first registry message: `hass.entities` becomes a new non-null object, so the 'registry' meta fires. */
+  deliverRegistry(): void;
 }
 
 export function homeConfig(input: Readonly<Record<string, unknown>>): ResolvedConfig {
@@ -108,6 +114,10 @@ export function homeWorld(options: HomeWorldOptions): HomeWorld {
   const haState = options.haState ?? 'RUNNING';
   const services = Object.freeze({});
   const user = Object.freeze({ id: 'demo-user', is_admin: true });
+  const entries = new Map((options.registry ?? []).map((entry) => [entry.entity_id, entry]));
+  /** Stands in for hass.entities: null until delivered, then a new identity (the 'registry' meta token). */
+  let registryToken: Readonly<Record<string, RegistryEntryLike>> | null =
+    options.registryPending === true ? null : Object.freeze(Object.fromEntries(entries));
   const ingest = (): void => {
     store.ingest({
       states,
@@ -117,7 +127,7 @@ export function homeWorld(options: HomeWorldOptions): HomeWorld {
         connection: connectionToken(connected, false, haState),
         locale: [undefined, undefined, undefined, undefined],
         theme: false,
-        registry: undefined,
+        registry: registryToken ?? undefined,
         services,
         user,
       },
@@ -129,7 +139,8 @@ export function homeWorld(options: HomeWorldOptions): HomeWorld {
     store,
     connection: () => ({ phase: phaseOf(store), haState }),
     connectionGeneration: () => 1,
-    registry: () => undefined,
+    registry: (id) => registryToken?.[id],
+    registryLoaded: () => registryToken !== null,
     entitiesOnDevice: () => [],
     hasService: () => true,
     formatter: () => createFormatter({ temperatureUnit: '°F' }),
@@ -174,6 +185,10 @@ export function homeWorld(options: HomeWorldOptions): HomeWorld {
     },
     tick() {
       store.tick();
+    },
+    deliverRegistry() {
+      registryToken = Object.freeze(Object.fromEntries(entries));
+      ingest();
     },
   };
 }

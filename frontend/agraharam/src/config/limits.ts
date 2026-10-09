@@ -6,6 +6,7 @@ export const LIMITS = {
   bed_comfort: 4,
   rooms: 12,
   lightsPerRoom: 20,
+  switchesPerRoom: 8,
   curtainsPerRoom: 6,
   vacuums: 6,
   appliances: 10,
@@ -13,6 +14,12 @@ export const LIMITS = {
   cameras: 8,
   perimeter: 16,
   calendars: 4,
+  // Readings (§18): bounded, so the drawer stays a curated list rather than a wall of entities.
+  collections: 12,
+  collectionRows: 32,
+  collectionNameChars: 40,
+  attentionValues: 8,
+  attentionValueChars: 60,
   nameChars: 60,
   titleChars: 40,
 } as const;

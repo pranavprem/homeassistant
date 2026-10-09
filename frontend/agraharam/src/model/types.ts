@@ -2,7 +2,7 @@
  * View-model contract (§4.8). All VMs are readonly plain data built by pure selectors
  * `select<Section>(input): <Section>VM`; the input is a SelectorInput plus section-specific controller state.
  */
-import type { BindingRole, EntityId, ResolvedConfig, SecurityActionRole } from '../config/schema.ts';
+import type { BindingRole, EntityId, ResolvedConfig, SecurityActionRole, VehicleModel } from '../config/schema.ts';
 import type { ConfigIssue } from '../config/validate.ts';
 import type { AlarmDisplay } from '../domain/alarm.ts';
 import type {
@@ -168,6 +168,15 @@ export interface LightVM {
   readonly brightness?: { readonly availability: Availability };
   readonly pending?: ActionStatus;
 }
+/** A room's lighting switch (a lamp on a smart plug, §18): on and off only, no brightness. */
+export interface SwitchVM {
+  readonly key: EntityId;
+  readonly name: string;
+  readonly status: EntityStatus;
+  readonly on: boolean | null;
+  readonly toggle: Availability;
+  readonly pending?: ActionStatus;
+}
 export interface CurtainVM {
   readonly key: EntityId;
   readonly name: string;
@@ -187,6 +196,7 @@ export interface RoomVM {
   readonly lightsUnavailable: number;
   readonly quickToggle?: { readonly next: 'on' | 'off'; readonly availability: Availability };
   readonly lights: readonly LightVM[];
+  readonly switches: readonly SwitchVM[];
   readonly curtains: readonly CurtainVM[];
   readonly purifier?: AirTileVM;
   readonly pending?: ActionStatus;
@@ -252,6 +262,7 @@ export interface GarageDoorVM {
   readonly pending?: ActionStatus;
 }
 export interface VehicleVM {
+  readonly model?: VehicleModel;
   readonly name: string;
   readonly battery: Display;
   readonly batteryPct: number | null;

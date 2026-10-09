@@ -22,6 +22,9 @@ export interface RegistryEntryLike {
   readonly name?: string | null;
   readonly hidden?: boolean;
   readonly display_precision?: number;
+  /** Integrations usually set it for settings and diagnostic entities (a plug's child lock, an LED switch); absent for
+   *  a primary entity. The gateway never switches a `config` or `diagnostic` switch from the dashboard (§18). */
+  readonly entity_category?: 'config' | 'diagnostic' | null;
 }
 export interface LocaleLike {
   readonly language: string;
@@ -53,7 +56,8 @@ export interface ConnectionLike {
 }
 export interface HassLike {
   readonly states: Readonly<Record<string, HassEntityLike>>;
-  readonly entities?: Readonly<Record<string, RegistryEntryLike>>;
+  /** null until the frontend receives its first entity registry message (frontend 20260826.7 connection-mixin). */
+  readonly entities?: Readonly<Record<string, RegistryEntryLike>> | null;
   readonly services: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   readonly connected: boolean;
   readonly connection: ConnectionLike;

@@ -190,7 +190,7 @@ export class AgrVehicle extends LitElement {
     const vm = this.vm;
     if (vm === undefined) return nothing;
     return html`<div class="vehicle">
-      <div class="art">${renderVehicleArt()}</div>
+      <div class="art">${renderVehicleArt(vm.model)}</div>
       <div class="readings">
         <p class="name t-strong">${vm.name}</p>
         <div class="levels">

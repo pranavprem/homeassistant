@@ -31,6 +31,15 @@ export interface MessageContext {
    * is the configured garage cover (the Garage panel moves it, behind its confirmation), 'elsewhere' otherwise.
    */
   readonly garageLikeCover?: GarageLikeCover;
+  /** A settings or diagnostic switch (registry entity_category) was asked to switch (§4.7 step 5b, §18). */
+  readonly settingsSwitch?: boolean;
+  /** HA has not delivered its entity registry yet, so no switch can be told from a settings switch (step 5b). */
+  readonly registryPending?: boolean;
+  /**
+   * A request of several calls where some went out and the rest did not (§18): the message must never claim that
+   * nothing changed. `code` then names why the rest failed.
+   */
+  readonly partial?: boolean;
 }
 
 /** Used when a request is malformed or names nothing configured, so there is no friendly name to show. */
@@ -94,6 +103,17 @@ export const GARAGE_LIKE_COVER_COPY: Readonly<Record<GarageLikeCover, string>> =
   'garage-panel': 'This garage door is moved from the Garage panel, which asks for confirmation first.',
   elsewhere: "Garage, gate and door covers can't be moved from this dashboard.",
 });
+/**
+ * Step 5b.1 (§18): until HA has delivered its entity registry, a switch cannot be told from a settings switch, so
+ * switch controls, and room actions in rooms with switches, wait. `control` words the disabled reason; `notice` is the
+ * one line a panel shows when that is the reason its controls are disabled.
+ */
+export const REGISTRY_PENDING_COPY = Object.freeze({
+  control: (name: string): string => `Waiting for Home Assistant's device list before switching ${name}.`,
+  notice: "Lamp switches are waiting for Home Assistant's device list.",
+});
+/** Step 5b.2: a plug's settings switch (child lock, LED) listed in a room is never switched from the dashboard. */
+export const SETTINGS_SWITCH_COPY = "This is a settings switch, not a lamp, so it can't be switched from here.";
 export const GARAGE_STATE_UNKNOWN_COPY =
   "The garage door hasn't reported its position, so it can't be moved from here.";
 /** A disposed gateway stops watching; the call itself may still complete. */
@@ -117,7 +137,28 @@ function verbs(subject: ActionSubject): {
 
 /** The message for an error code in context. Always starts with a capital letter. */
 export function actionMessage(code: ActionErrorCode, ctx: MessageContext): string {
-  return capitalize(rawMessage(code, ctx));
+  return capitalize(ctx.partial === true ? partialMessage(code, ctx) : rawMessage(code, ctx));
+}
+
+/**
+ * Part of a room action went out and the rest did not (§18). Some lighting may have switched, so the copy never says
+ * nothing changed; it says why the rest failed and asks for a look before trying again.
+ */
+function partialMessage(code: ActionErrorCode, ctx: MessageContext): string {
+  return `Some of ${ctx.subject.name} may have switched, but ${partialClause(code, ctx)}. Check the room before trying again.`;
+}
+
+function partialClause(code: ActionErrorCode, ctx: MessageContext): string {
+  switch (code) {
+    case 'permission-denied':
+      return "your Home Assistant user can't control the rest";
+    case 'disconnected':
+      return "the rest wasn't sent because Home Assistant disconnected";
+    default:
+      return ctx.haMessage === undefined
+        ? "Home Assistant didn't accept the rest"
+        : `Home Assistant didn't accept the rest (${withoutFinalPeriod(ctx.haMessage)})`;
+  }
 }
 
 /** The message shown when the gateway stopped watching an unsettled ticket (dispose). */
@@ -137,6 +178,7 @@ function rawMessage(code: ActionErrorCode, ctx: MessageContext): string {
       return 'Controls are turned off in the dashboard configuration.';
     case 'not-allowed':
       if (ctx.garageLikeCover !== undefined) return GARAGE_LIKE_COVER_COPY[ctx.garageLikeCover];
+      if (ctx.settingsSwitch === true) return SETTINGS_SWITCH_COPY;
       return `This control isn't set up for ${name} in the dashboard configuration.`;
     case 'domain-mismatch':
       return `This control isn't set up for ${name} in the dashboard configuration.`;
@@ -147,6 +189,7 @@ function rawMessage(code: ActionErrorCode, ctx: MessageContext): string {
       return `${name} ${v.is} unavailable right now.`;
     case 'state-unknown':
       if (isGarage(ctx.kind)) return GARAGE_STATE_UNKNOWN_COPY;
+      if (ctx.registryPending === true) return REGISTRY_PENDING_COPY.control(name);
       return `${name} ${v.has}n't reported ${v.its} state, so this control is paused until ${v.it} ${v.does}.`;
     case 'not-applicable':
       return ctx.notApplicable === undefined ? 'Not available right now.' : NOT_APPLICABLE_COPY[ctx.notApplicable];

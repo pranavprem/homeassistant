@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { SecurityActionRole } from '../../src/config/schema.ts';
+import { SHORTCUT_ROLES, type SecurityActionRole } from '../../src/config/schema.ts';
 import type { ActionKind, ActionStatus } from '../../src/ha/actions/types.ts';
 import {
   confirmCopyFor,
   GARAGE_BUTTON_LABELS,
   SECURITY_ACTION_COPY,
+  SHORTCUT_COPY,
   STUDIO_MONITORS_COPY,
   ticketPhaseCopy,
   ticketShortText,
@@ -121,5 +122,67 @@ describe('ticket copy: one wording for every section (§7.2)', () => {
     expect(
       (['pending', 'sent', 'confirmed', 'uncertain', 'failed'] as const).map((phase) => ticketShortText(ticket(phase))),
     ).toEqual(['Sending', 'Waiting for a response', 'Done', 'No response yet', 'Not done']);
+  });
+});
+
+describe('§18 shortcut and room copy', () => {
+  /** Shortcut copy ignores the context; garage Open is the only action that reads it. */
+  const NO_DEPARTURE = { departureConfigured: false } as const;
+  const ticket = (phase: ActionStatus['phase'], kind: ActionKind, partial?: true): ActionStatus => ({
+    id: 1,
+    key: kind === 'shortcut.run' ? 'shortcut:lights_toggle' : 'room:0',
+    kind,
+    phase,
+    startedAt: 0,
+    ...(partial !== undefined && { partial }),
+  });
+
+  it('has fixed copy for exactly the two shortcut roles, never configurable', () => {
+    expect(Object.keys(SHORTCUT_COPY.buttons).sort()).toEqual([...SHORTCUT_ROLES].sort());
+    expect(SHORTCUT_COPY).toMatchObject({
+      label: 'Whole house',
+      groupLabel: 'Whole house shortcuts',
+      consequence: "Each button runs the household's whole-house script after you confirm.",
+    });
+    expect(Object.isFrozen(SHORTCUT_COPY)).toBe(true);
+  });
+
+  it.each(SHORTCUT_ROLES)(
+    '%s: the accessible name contains the visible text, and the confirm title contains the accessible name (S6)',
+    (role) => {
+      const copy = SHORTCUT_COPY.buttons[role];
+      expect(copy.accessibleLabel.toLowerCase()).toContain(copy.label.toLowerCase());
+      expect(copy.confirm.title.toLowerCase()).toContain(copy.accessibleLabel.toLowerCase());
+      expect(confirmCopyFor({ kind: 'shortcut.run', role }, NO_DEPARTURE)).toEqual(copy.confirm);
+    },
+  );
+
+  it('words both confirmations as the design does, with the curtain safety line', () => {
+    expect(confirmCopyFor({ kind: 'shortcut.run', role: 'lights_toggle' }, NO_DEPARTURE)).toEqual({
+      title: 'Toggle the whole-house lights?',
+      body: [
+        "Runs the household's whole-house lights script. The script decides which lights turn on or off; this dashboard can't tell in advance.",
+      ],
+      confirmLabel: 'Toggle lights',
+    });
+    expect(confirmCopyFor({ kind: 'shortcut.run', role: 'curtains_toggle' }, NO_DEPARTURE)).toEqual({
+      title: 'Toggle the whole-house curtains?',
+      body: [
+        "Runs the household's whole-house curtains script. Curtains and blinds across the house may open or close; this dashboard can't tell in advance which way.",
+        'Make sure nothing is in the way of a moving curtain.',
+      ],
+      confirmLabel: 'Toggle curtains',
+    });
+  });
+
+  it('says "Requested" for a confirmed shortcut, never "Done" (a script reports no outcome)', () => {
+    expect(ticketShortText(ticket('confirmed', 'shortcut.run'))).toBe('Requested');
+    expect(ticketPhaseCopy(ticket('confirmed', 'shortcut.run'), 'Whole-house lights').text).toBe('Requested');
+  });
+
+  it('says "Partly done" for a partial room outcome, and the usual words otherwise', () => {
+    expect(ticketShortText(ticket('uncertain', 'room.lights_on', true))).toBe('Partly done');
+    expect(ticketShortText(ticket('uncertain', 'room.lights_on'))).toBe('No response yet');
+    expect(ticketShortText(ticket('confirmed', 'room.lights_on'))).toBe('Done');
   });
 });

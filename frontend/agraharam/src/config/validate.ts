@@ -7,14 +7,23 @@ import { domainOf, isValidEntityId } from './entity-id.ts';
 import { LIMITS } from './limits.ts';
 import {
   ACTIONABLE_ROLE_FAMILY,
+  COLLECTION_ICONS,
   DOMAINS_BY_ROLE,
+  SHORTCUT_ROLES,
+  VEHICLE_MODELS,
   type ActionFamily,
+  type AttentionRule,
   type BindingRole,
+  type Collection,
+  type CollectionIcon,
+  type CollectionRow,
   type DemoScenarioId,
   type EntityId,
   type Ref,
   type ResolvedConfig,
   type SecurityActionRole,
+  type ShortcutRole,
+  type VehicleModel,
 } from './schema.ts';
 
 type ConfigIssueCode =
@@ -31,6 +40,7 @@ type ConfigIssueCode =
   | 'duplicate-actionable'
   | 'duplicate-security-script'
   | 'curtain-conflict'
+  | 'switch-conflict'
   | 'ignored-in-demo'
   | 'demo-config-invalid'; // produced by the root only (rule 9), never by validateConfig
 export interface ConfigIssue {
@@ -48,7 +58,14 @@ const DEFAULT_SCENARIO: DemoScenarioId = 'normal';
 const DEFAULT_PRIVACY_ON_VALUE = 'on';
 const SNAPSHOT_INTERVAL_S = { min: 5, max: 600, fallback: 10 } as const;
 const CHARGE_LIMIT_PCT = { min: 50, max: 100 } as const;
+const DEFAULT_VEHICLE_MODEL: VehicleModel = 'generic';
 const MS_PER_SECOND = 1000;
+/** Range rules compare numeric readings, which only these domains report (rule 15d). */
+const RANGE_RULE_DOMAINS: ReadonlySet<string> = new Set(['sensor', 'number']);
+/** These domains' state is a time, which an equals rule can never sensibly match (rule 15g). */
+const TIME_STATE_DOMAINS: ReadonlySet<string> = new Set(['event', 'input_datetime']);
+/** Readings in these states always count as unavailable, so an equals rule must not name them (rule 15f). */
+const ALWAYS_UNAVAILABLE_STATES: ReadonlySet<string> = new Set(['unknown', 'unavailable']);
 /** Unknown keys within this edit distance of an allowed key get a "did you mean" hint (rule 2). */
 const MAX_SUGGESTION_DISTANCE = 2;
 /** Offending values are quoted in messages, shortened so a pasted blob cannot flood the error panel. */
@@ -102,9 +119,11 @@ const TOP_LEVEL_KEYS = [
   'security',
   'studio_monitors_script',
   'calendars',
+  'shortcuts',
+  'collections',
 ] as const;
 const REF_KEYS = ['entity', 'name'] as const;
-const ROOM_KEYS = ['name', 'lights', 'curtains', 'purifier'] as const;
+const ROOM_KEYS = ['name', 'lights', 'switches', 'curtains', 'purifier'] as const;
 const VACUUM_KEYS = ['entity', 'name', 'battery_sensor'] as const;
 const APPLIANCE_KEYS = ['name', 'status_sensor', 'remaining_sensor'] as const;
 const CAMERA_KEYS = [
@@ -125,6 +144,7 @@ const VEHICLE_KEYS = [
   'charger_power',
   'session_energy',
   'charge_limit_pct',
+  'model',
 ] as const;
 const SECURITY_KEYS = [
   'alarm',
@@ -135,6 +155,9 @@ const SECURITY_KEYS = [
   'perimeter',
   'actions',
 ] as const;
+const COLLECTION_KEYS = ['name', 'icon', 'entities'] as const;
+const ROW_KEYS = ['entity', 'name', 'attention'] as const;
+const ATTENTION_KEYS = ['below', 'above', 'equals'] as const;
 
 type Mapping = Readonly<Record<string, unknown>>;
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -166,7 +189,7 @@ export function validateConfig(input: unknown): ValidationResult {
   };
   const parts = readBindings(c, input);
   checkDuplicateActionable(c);
-  checkCurtainConflicts(c);
+  checkControlConflicts(c);
   if (demo) return demoResult(c, input, settings);
   if (c.issues.length > 0) return failure(c.issues);
   const config: ResolvedConfig = {
@@ -235,6 +258,8 @@ function emptyBindings(): BindingParts {
     media: [],
     cameras: [],
     calendars: [],
+    shortcuts: {},
+    collections: [],
   };
 }
 
@@ -250,6 +275,8 @@ function readBindings(c: Collector, input: Mapping): BindingParts {
     media: readList(c, input, 'media', LIMITS.media, (v, p) => readRef(c, v, p, 'media')),
     cameras: readList(c, input, 'cameras', LIMITS.cameras, (v, p) => readCamera(c, v, p)),
     calendars: readList(c, input, 'calendars', LIMITS.calendars, (v, p) => readRef(c, v, p, 'calendar')),
+    shortcuts: readShortcuts(c, input['shortcuts']),
+    collections: readCollections(c, input),
   };
   const weather = readOptionalEntity(c, input, 'weather', '', 'weather');
   if (weather) parts.weather = weather;
@@ -273,9 +300,13 @@ function readRoom(c: Collector, value: unknown, path: string): ResolvedConfig['r
   const room = readMapping(c, value, path, ROOM_KEYS);
   if (!room) return undefined;
   const name = readRequiredName(c, room, 'name', path);
-  const lights = readRequiredList(c, room, 'lights', path, LIMITS.lightsPerRoom, (v, p) =>
-    readEntity(c, v, p, 'room_light'),
-  );
+  const readLight = (v: unknown, p: string): EntityId | undefined => readEntity(c, v, p, 'room_light');
+  // Rule 11c: a room lit only by switched lamps needs no `lights` key; every other room still requires it.
+  const lights =
+    room['switches'] === undefined
+      ? readRequiredList(c, room, 'lights', path, LIMITS.lightsPerRoom, readLight)
+      : readList(c, room, 'lights', LIMITS.lightsPerRoom, readLight, path);
+  const switches = readRoomSwitches(c, room, path);
   const curtains = readList(
     c,
     room,
@@ -286,7 +317,37 @@ function readRoom(c: Collector, value: unknown, path: string): ResolvedConfig['r
   );
   const purifier = readOptionalEntity(c, room, 'purifier', path, 'room_purifier');
   if (name === undefined || lights === undefined) return undefined;
-  return { name, lights, curtains, ...(purifier && { purifier }) };
+  return { name, lights, switches, curtains, ...(purifier && { purifier }) };
+}
+
+/** Rules 11a and 11b: switch entities only, at most LIMITS.switchesPerRoom, each listed once in the room. */
+function readRoomSwitches(c: Collector, room: Mapping, path: string): EntityId[] {
+  const seen = new Set<EntityId>();
+  return readList(
+    c,
+    room,
+    'switches',
+    LIMITS.switchesPerRoom,
+    (v, p) => listedOnce(c, seen, readEntity(c, v, p, 'room_switch'), p, 'this room'),
+    path,
+  );
+}
+
+/** `entity` the first time it is seen in one list; a repeat is an `invalid-value` issue at `path`, and undefined. */
+function listedOnce(
+  c: Collector,
+  seen: Set<EntityId>,
+  entity: EntityId | undefined,
+  path: string,
+  where: string,
+): EntityId | undefined {
+  if (entity === undefined) return undefined;
+  if (seen.has(entity)) {
+    addIssue(c, path, 'invalid-value', `${entity} is already listed in ${where}.`);
+    return undefined;
+  }
+  seen.add(entity);
+  return entity;
 }
 
 function readVacuum(c: Collector, value: unknown, path: string): ResolvedConfig['vacuums'][number] | undefined {
@@ -366,6 +427,7 @@ function readVehicle(c: Collector, value: unknown): ResolvedConfig['vehicle'] {
   const chargerPower = readOptionalEntity(c, vehicle, 'charger_power', path, 'vehicle_charger_power');
   const sessionEnergy = readOptionalEntity(c, vehicle, 'session_energy', path, 'vehicle_session_energy');
   const chargeLimitPct = readInteger(c, vehicle, 'charge_limit_pct', path, CHARGE_LIMIT_PCT);
+  const model = readVehicleModel(c, vehicle, path);
   if (name === undefined || !battery || !range) return undefined;
   return {
     name,
@@ -375,7 +437,18 @@ function readVehicle(c: Collector, value: unknown): ResolvedConfig['vehicle'] {
     ...(chargerPower && { chargerPower }),
     ...(sessionEnergy && { sessionEnergy }),
     ...(chargeLimitPct !== undefined && { chargeLimitPct }),
+    model,
   };
+}
+
+/** Rule 13: exactly one of VEHICLE_MODELS; anything else is refused, never coerced to the generic drawing. */
+function readVehicleModel(c: Collector, vehicle: Mapping, path: string): VehicleModel {
+  const value = vehicle['model'];
+  if (value === undefined) return DEFAULT_VEHICLE_MODEL;
+  const model = VEHICLE_MODELS.find((id) => id === value);
+  if (model !== undefined) return model;
+  addIssue(c, join(path, 'model'), 'invalid-value', `expected ${orList(VEHICLE_MODELS)}, got ${quote(value)}.`);
+  return DEFAULT_VEHICLE_MODEL;
 }
 
 function readSecurity(c: Collector, value: unknown): ResolvedConfig['security'] {
@@ -404,29 +477,245 @@ function readSecurity(c: Collector, value: unknown): ResolvedConfig['security'] 
 
 /** Rules 5 and 6: script entities only, and one script per role, so Silence Sound can never name a disarm script. */
 function readSecurityActions(c: Collector, value: unknown): Partial<Record<SecurityActionRole, EntityId>> {
+  return readRoleScripts(c, value, 'security.actions', SECURITY_ROLES, 'security_action', (script, earlier) => ({
+    code: 'duplicate-security-script',
+    detail: `${script} is already bound to ${earlier}. Each security role needs its own script.`,
+  }));
+}
+
+/**
+ * Rules 12a and 12b: only the two fixed shortcut roles, script entities only, and one script per role, so the lights
+ * button can never run the curtains script. Rule 4 separately refuses a shortcut that is also a security or studio
+ * monitors script (another action family).
+ */
+function readShortcuts(c: Collector, value: unknown): Partial<Record<ShortcutRole, EntityId>> {
+  return readRoleScripts(c, value, 'shortcuts', SHORTCUT_ROLES, 'house_shortcut', (script, earlier, path) => ({
+    code: 'duplicate-actionable',
+    detail: `${script} is already the ${earlier} shortcut (${join(path, earlier)}). Each shortcut needs its own script.`,
+  }));
+}
+
+/**
+ * A mapping from fixed role names to script entities. A script named under a second role is reported through
+ * `duplicate` and left out, so one script can never answer to two roles.
+ */
+function readRoleScripts<R extends string>(
+  c: Collector,
+  value: unknown,
+  path: string,
+  roles: readonly R[],
+  bindingRole: BindingRole,
+  duplicate: (
+    script: EntityId,
+    earlier: R,
+    path: string,
+  ) => { readonly code: ConfigIssueCode; readonly detail: string },
+): Partial<Record<R, EntityId>> {
   if (value === undefined) return {};
-  const path = 'security.actions';
-  const actions = readMapping(c, value, path, SECURITY_ROLES);
-  if (!actions) return {};
-  const resolved: Partial<Record<SecurityActionRole, EntityId>> = {};
-  const roleByScript = new Map<EntityId, SecurityActionRole>();
-  for (const role of SECURITY_ROLES) {
-    const script = readOptionalEntity(c, actions, role, path, 'security_action');
+  const mapping = readMapping(c, value, path, roles);
+  if (!mapping) return {};
+  const resolved: Partial<Record<R, EntityId>> = {};
+  const roleByScript = new Map<EntityId, R>();
+  for (const role of roles) {
+    const script = readOptionalEntity(c, mapping, role, path, bindingRole);
     if (!script) continue;
     const earlier = roleByScript.get(script);
     if (earlier !== undefined) {
-      addIssue(
-        c,
-        join(path, role),
-        'duplicate-security-script',
-        `${script} is already bound to ${earlier}. Each security role needs its own script.`,
-      );
+      const issue = duplicate(script, earlier, path);
+      addIssue(c, join(path, role), issue.code, issue.detail);
       continue;
     }
     roleByScript.set(script, role);
     resolved[role] = script;
   }
   return resolved;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Collections (rules 14 and 15): read-only readings, bound under the `collection` role only
+
+function readCollections(c: Collector, input: Mapping): Collection[] {
+  // Group names are unique case-insensitively, so the drawer never shows two indistinguishable headings.
+  const names = new Set<string>();
+  return readList(c, input, 'collections', LIMITS.collections, (v, p) => readCollection(c, v, p, names));
+}
+
+function readCollection(c: Collector, value: unknown, path: string, names: Set<string>): Collection | undefined {
+  const group = readMapping(c, value, path, COLLECTION_KEYS);
+  if (!group) return undefined;
+  const name = readRequiredName(c, group, 'name', path, LIMITS.collectionNameChars);
+  if (name !== undefined) {
+    const folded = name.toLowerCase();
+    if (names.has(folded)) {
+      addIssue(c, join(path, 'name'), 'invalid-value', `another collection is already named ${quote(name)}.`);
+    }
+    names.add(folded);
+  }
+  const icon = readCollectionIcon(c, group, path);
+  const rows = readCollectionRows(c, group, path);
+  if (name === undefined || rows === undefined) return undefined;
+  return { name, ...(icon !== undefined && { icon }), rows };
+}
+
+function readCollectionIcon(c: Collector, group: Mapping, path: string): CollectionIcon | undefined {
+  const value = group['icon'];
+  if (value === undefined) return undefined;
+  const icon = COLLECTION_ICONS.find((name) => name === value);
+  if (icon === undefined) {
+    addIssue(
+      c,
+      join(path, 'icon'),
+      'invalid-value',
+      `expected one of ${COLLECTION_ICONS.join(', ')}, got ${quote(value)}.`,
+    );
+  }
+  return icon;
+}
+
+/** Rules 14d and 14e: 1 to LIMITS.collectionRows rows, each entity once per group (repeats across groups are fine). */
+function readCollectionRows(c: Collector, group: Mapping, path: string): CollectionRow[] | undefined {
+  const seen = new Set<EntityId>();
+  const rows = readRequiredList(c, group, 'entities', path, LIMITS.collectionRows, (v, p) =>
+    readCollectionRow(c, v, p, seen),
+  );
+  if (Array.isArray(group['entities']) && group['entities'].length === 0) {
+    addIssue(c, join(path, 'entities'), 'invalid-value', 'add at least one entity.');
+  }
+  return rows;
+}
+
+/** A row is an entity ID, or a mapping with the entity, an optional short name and an optional attention rule. */
+function readCollectionRow(c: Collector, value: unknown, path: string, seen: Set<EntityId>): CollectionRow | undefined {
+  if (typeof value === 'string') {
+    const entity = listedOnce(c, seen, readEntity(c, value, path, 'collection'), path, 'this collection');
+    return entity === undefined ? undefined : { entity };
+  }
+  const row = readMapping(c, value, path, ROW_KEYS);
+  if (!row) return undefined;
+  const entityPath = join(path, 'entity');
+  const entity = listedOnce(
+    c,
+    seen,
+    readRequiredEntity(c, row, 'entity', path, 'collection'),
+    entityPath,
+    'this collection',
+  );
+  const name = readOptionalName(c, row, 'name', path, LIMITS.collectionNameChars);
+  const attention =
+    row['attention'] === undefined ? undefined : readAttention(c, row['attention'], join(path, 'attention'), entity);
+  if (entity === undefined) return undefined;
+  return { entity, ...(name !== undefined && { name }), ...(attention !== undefined && { attention }) };
+}
+
+/**
+ * Rule 15. `below` and `above` are strict (the bounds themselves are in range) and compare the raw numeric state in
+ * the entity's own unit; `equals` compares the raw state exactly. Domain checks run only when the row's entity is
+ * valid, because an invalid entity is already an issue of its own.
+ */
+function readAttention(
+  c: Collector,
+  value: unknown,
+  path: string,
+  entity: EntityId | undefined,
+): AttentionRule | undefined {
+  const attention = readMapping(c, value, path, ATTENTION_KEYS);
+  if (!attention) return undefined;
+  const hasRange = attention['below'] !== undefined || attention['above'] !== undefined;
+  const hasEquals = attention['equals'] !== undefined;
+  if (!hasRange && !hasEquals) {
+    addIssue(c, path, 'required', 'set below, above or equals.');
+    return undefined;
+  }
+  if (hasRange && hasEquals) {
+    addIssue(c, path, 'invalid-value', 'use either equals, or below and above.');
+    return undefined;
+  }
+  const domain = entity === undefined ? undefined : domainOf(entity);
+  return hasRange ? readRangeRule(c, attention, path, domain) : readEqualsRule(c, attention, path, domain);
+}
+
+function readRangeRule(
+  c: Collector,
+  attention: Mapping,
+  path: string,
+  domain: string | undefined,
+): AttentionRule | undefined {
+  const issues = c.issues.length;
+  const below = readFiniteNumber(c, attention, 'below', path);
+  const above = readFiniteNumber(c, attention, 'above', path);
+  if (below !== undefined && above !== undefined && below >= above) {
+    addIssue(c, path, 'invalid-value', 'below must be less than above. Readings from below to above are in range.');
+  }
+  if (domain !== undefined && !RANGE_RULE_DOMAINS.has(domain)) {
+    addIssue(c, path, 'invalid-value', `below and above compare numeric readings; for a ${domain} entity use equals.`);
+  }
+  if (c.issues.length > issues || (below === undefined && above === undefined)) return undefined;
+  return { kind: 'range', ...(below !== undefined && { below }), ...(above !== undefined && { above }) };
+}
+
+function readEqualsRule(
+  c: Collector,
+  attention: Mapping,
+  path: string,
+  domain: string | undefined,
+): AttentionRule | undefined {
+  const equalsPath = join(path, 'equals');
+  if (domain !== undefined && TIME_STATE_DOMAINS.has(domain)) {
+    addIssue(c, equalsPath, 'invalid-value', "equals can't match a time; this row shows the time only.");
+    return undefined;
+  }
+  const value = attention['equals'];
+  if (!Array.isArray(value)) {
+    const single = readAttentionValue(c, value, equalsPath);
+    return single === undefined ? undefined : { kind: 'equals', values: [single] };
+  }
+  if (value.length === 0) {
+    addIssue(c, equalsPath, 'invalid-value', 'add at least one value.');
+    return undefined;
+  }
+  const issues = c.issues.length;
+  const seen = new Set<string>();
+  const values = readArray(c, value, equalsPath, LIMITS.attentionValues, (item, p) => {
+    const text = readAttentionValue(c, item, p);
+    if (text === undefined) return undefined;
+    if (seen.has(text)) {
+      addIssue(c, p, 'invalid-value', `${quote(text)} is already listed.`);
+      return undefined;
+    }
+    seen.add(text);
+    return text;
+  });
+  return values === undefined || c.issues.length > issues ? undefined : { kind: 'equals', values };
+}
+
+/** Rules 15e and 15f: one raw state to match, as text. YAML reads a bare on/off as a boolean, so say how to quote it. */
+function readAttentionValue(c: Collector, value: unknown, path: string): string | undefined {
+  if (typeof value === 'boolean') {
+    addIssue(c, path, 'wrong-type', "expected text; write 'on' or 'off' in quotes.");
+    return undefined;
+  }
+  if (typeof value !== 'string') {
+    addIssue(c, path, 'wrong-type', `expected text, got ${quote(value)}.`);
+    return undefined;
+  }
+  if (value === '') {
+    addIssue(c, path, 'invalid-value', 'must not be empty.');
+    return undefined;
+  }
+  if (value.length > LIMITS.attentionValueChars) {
+    addIssue(c, path, 'too-long', `at most ${LIMITS.attentionValueChars} characters, got ${value.length}.`);
+    return undefined;
+  }
+  if (ALWAYS_UNAVAILABLE_STATES.has(value)) {
+    addIssue(
+      c,
+      path,
+      'invalid-value',
+      'unknown and unavailable readings are always counted as unavailable; leave them out.',
+    );
+    return undefined;
+  }
+  return value;
 }
 
 /** Rule 4: an entity may be controlled from one action family only; read-only roles may overlap freely. */
@@ -450,30 +739,59 @@ function checkDuplicateActionable(c: Collector): void {
   }
 }
 
-/** What a curtain must never also be, and how the message names it (rule 4a). */
-const CURTAIN_CONFLICTS: Readonly<Partial<Record<BindingRole, string>>> = Object.freeze({
-  garage_cover: 'the garage door',
-  perimeter: 'a monitored entry point',
-});
+/**
+ * What a control acting without confirmation must never also be (rules 4a and 4b): for each such control role, the
+ * roles it conflicts with (each describing itself from its config path), the issue code and the consequence line.
+ */
+interface ControlConflict {
+  readonly code: ConfigIssueCode;
+  readonly conflicts: Readonly<Partial<Record<BindingRole, (path: string) => string>>>;
+  readonly consequence: string;
+}
+const CONTROL_CONFLICTS: readonly (readonly [BindingRole, ControlConflict])[] = Object.freeze([
+  [
+    'room_curtain',
+    {
+      code: 'curtain-conflict',
+      conflicts: { garage_cover: () => 'the garage door', perimeter: () => 'a monitored entry point' },
+      consequence: "Curtain controls move without confirmation, so it can't also be a curtain.",
+    },
+  ],
+  [
+    'room_switch',
+    {
+      code: 'switch-conflict',
+      // The conflicting use sits at cameras[n].privacy_entity; the message names the camera, cameras[n].
+      conflicts: { camera_privacy: (path) => `the privacy switch for ${path.slice(0, path.lastIndexOf('.'))}` },
+      consequence: "Room switches toggle without confirmation, so it can't also be a room switch.",
+    },
+  ],
+]);
 
 /**
  * Rule 4a: a curtain control moves its cover at once, without confirmation, so the garage door or a monitored entry
  * point (security.perimeter) must never also be a room curtain. The garage case is also `duplicate-actionable`; the
  * perimeter case is not, because perimeter is read-only. The gateway's device_class refusal (§4.7 step 5a) stays as
  * the runtime backstop for a garage, gate or door cover listed only as a curtain.
+ *
+ * Rule 4b: a room switch toggles at once, so a camera's privacy switch must never also be one; otherwise "All on"
+ * for a room could turn a camera's privacy off. Camera privacy is read-only, so rule 4 cannot catch this.
  */
-function checkCurtainConflicts(c: Collector): void {
+function checkControlConflicts(c: Collector): void {
   for (const [entity, uses] of c.uses) {
-    const conflict = uses.find((use) => CURTAIN_CONFLICTS[use.role] !== undefined);
-    if (conflict === undefined) continue;
-    for (const use of uses) {
-      if (use.role !== 'room_curtain') continue;
-      addIssue(
-        c,
-        use.path,
-        'curtain-conflict',
-        `${entity} is ${CURTAIN_CONFLICTS[conflict.role]} (${conflict.path}). Curtain controls move without confirmation, so it can't also be a curtain.`,
-      );
+    for (const [controlRole, rule] of CONTROL_CONFLICTS) {
+      const conflict = uses.find((use) => rule.conflicts[use.role] !== undefined);
+      const describe = conflict === undefined ? undefined : rule.conflicts[conflict.role];
+      if (conflict === undefined || describe === undefined) continue;
+      for (const use of uses) {
+        if (use.role !== controlRole) continue;
+        addIssue(
+          c,
+          use.path,
+          rule.code,
+          `${entity} is ${describe(conflict.path)} (${conflict.path}). ${rule.consequence}`,
+        );
+      }
     }
   }
 }
@@ -675,16 +993,43 @@ function readName(c: Collector, value: unknown, path: string, maxChars: number):
   return trimmed;
 }
 
-function readOptionalName(c: Collector, from: Mapping, key: string, path: string): string | undefined {
-  return readName(c, from[key], join(path, key), LIMITS.nameChars);
+function readOptionalName(
+  c: Collector,
+  from: Mapping,
+  key: string,
+  path: string,
+  maxChars: number = LIMITS.nameChars,
+): string | undefined {
+  return readName(c, from[key], join(path, key), maxChars);
 }
 
-function readRequiredName(c: Collector, from: Mapping, key: string, path: string): string | undefined {
+function readRequiredName(
+  c: Collector,
+  from: Mapping,
+  key: string,
+  path: string,
+  maxChars: number = LIMITS.nameChars,
+): string | undefined {
   if (from[key] === undefined) {
     addIssue(c, join(path, key), 'required', 'required.');
     return undefined;
   }
-  return readOptionalName(c, from, key, path);
+  return readOptionalName(c, from, key, path, maxChars);
+}
+
+/** Rule 15b: a YAML number. `.nan` and `.inf` parse as numbers but can never be a limit, so they are refused. */
+function readFiniteNumber(c: Collector, from: Mapping, key: string, path: string): number | undefined {
+  const value = from[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number') {
+    addIssue(c, join(path, key), 'wrong-type', `expected a number, got ${quote(value)}.`);
+    return undefined;
+  }
+  if (!Number.isFinite(value)) {
+    addIssue(c, join(path, key), 'invalid-value', 'expected a finite number.');
+    return undefined;
+  }
+  return value;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -706,9 +1051,13 @@ function isMapping(value: unknown): value is Mapping {
 
 /** "a person", "a switch, binary_sensor or input_boolean", "an alarm_control_panel". */
 function describeDomains(domains: readonly string[]): string {
-  const listed =
-    domains.length === 1 ? (domains[0] ?? '') : `${domains.slice(0, -1).join(', ')} or ${domains[domains.length - 1]}`;
+  const listed = orList(domains);
   return `${/^[aeiou]/.test(listed) ? 'an' : 'a'} ${listed}`;
+}
+
+/** "a", "a or b", "a, b or c". */
+function orList(items: readonly string[]): string {
+  return items.length === 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`;
 }
 
 function quote(value: unknown): string {

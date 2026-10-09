@@ -84,6 +84,27 @@ export const ROWS: Readonly<Record<ActionKind, Row>> = {
     observe: (h) => h.patch(IDS.kitchenLight, { brightness: 102 }, 'on'),
     timeoutMs: 10_000,
   },
+  'switch.turn_on': {
+    req: { kind: 'switch.turn_on', entity: e(IDS.deskLamp) },
+    call: { domain: 'switch', service: 'turn_on', data: {}, entity_id: IDS.deskLamp },
+    confirm: false,
+    notApplicable: { states: { [IDS.deskLamp]: ['on'] }, message: 'Already on' },
+    unknown: 'allow',
+    unknownTargets: [IDS.deskLamp],
+    observe: (h) => h.patch(IDS.deskLamp, {}, 'on'),
+    timeoutMs: 10_000,
+  },
+  'switch.turn_off': {
+    req: { kind: 'switch.turn_off', entity: e(IDS.deskLamp) },
+    ready: { [IDS.deskLamp]: ['on', { friendly_name: 'Desk lamp' }] },
+    call: { domain: 'switch', service: 'turn_off', data: {}, entity_id: IDS.deskLamp },
+    confirm: false,
+    notApplicable: { states: { [IDS.deskLamp]: ['off'] }, message: 'Already off' },
+    unknown: 'allow',
+    unknownTargets: [IDS.deskLamp],
+    observe: (h) => h.patch(IDS.deskLamp, {}, 'off'),
+    timeoutMs: 10_000,
+  },
   'room.lights_on': {
     req: { kind: 'room.lights_on', room: 0 },
     call: { domain: 'light', service: 'turn_on', data: {}, entity_id: [IDS.kitchenLight, IDS.kitchenStrip] },
@@ -481,6 +502,18 @@ export const ROWS: Readonly<Record<ActionKind, Row>> = {
     unknown: 'deny',
     unknownTargets: [IDS.holdAway],
     observe: (h) => h.patch(IDS.holdAway, { last_triggered: '2026-09-30T17:22:00.000Z' }),
+    timeoutMs: 10_000,
+  },
+  'shortcut.run': {
+    req: { kind: 'shortcut.run', role: 'lights_toggle' },
+    call: { domain: 'script', service: 'turn_on', data: {}, entity_id: IDS.lightsToggle },
+    // A floor no configuration can lower (§18): the direction of a toggle script is unknowable in advance.
+    confirm: true,
+    notApplicable: { states: { [IDS.lightsToggle]: ['on'] }, message: 'Already running' },
+    unknown: 'deny',
+    unknownTargets: [IDS.lightsToggle],
+    // Observed as security.run is: the script reports a new run.
+    observe: (h) => h.patch(IDS.lightsToggle, { last_triggered: '2026-09-30T17:22:00.000Z' }),
     timeoutMs: 10_000,
   },
   'studio_monitors.run': {
