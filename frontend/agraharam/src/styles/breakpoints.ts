@@ -8,6 +8,12 @@
  * 256 px panel content box, where room chips split words and the panels turned into tall, thin columns.
  */
 export const BREAKPOINTS = { wide: 1080, medium: 700 } as const;
+/**
+ * VIEWPORT width from which drawers are side sheets on the inline end; below it they are bottom sheets (agr-drawer,
+ * styles/shared.ts). A drawer's own content that adapts to the sheet uses this same viewport query, never a container
+ * query on slotted content, which WebKit resolves differently.
+ */
+export const SIDE_SHEET_MIN_PX = 720;
 /** Step down only below (bp − 16), so a scrollbar appearing or a sidebar animating cannot make the layout flap. */
 export const HYSTERESIS_PX = 16;
 export type LayoutMode = 'wide' | 'medium' | 'narrow';
@@ -36,6 +42,9 @@ export const PANEL_CQ = {
   // Two comfort tiles side by side stack their values below this: each tile is then under comfortTileStacked.
   comfortPairStacked: 428,
   metricsShortLabels: 320, // below this Today's metrics use their short labels, so the row never wraps
+  // Below this Today's header (the Offline pill, the sun time and Details) no longer fits on one line: the words
+  // "Sunset" and "Sunrise" become visually hidden and Details becomes a 44 px icon button (AIRSPACE.md §8).
+  todayHeaderCompact: 340,
   // Below this "4 of 4 monitored entry points closed" no longer fits beside House health's well and Details button
   // (1440×900 with the sidebar collapsed is 388), so every label sits under its count.
   healthFactsStacked: 388,

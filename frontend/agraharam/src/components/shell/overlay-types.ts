@@ -22,7 +22,10 @@ export type DrawerRequest =
   | { id: 'diagnostics' }
   | { id: 'cameras' }
   | { id: 'camera'; entity: EntityId }
-  | { id: 'readings' };
+  | { id: 'readings' }
+  /** `select`: the aircraft (its validated ICAO hex) whose row opens expanded, if it is still listed. */
+  | { id: 'sky'; select?: string }
+  | { id: 'weather' };
 export interface OpenDrawerDetail {
   readonly request: DrawerRequest;
   readonly trigger: HTMLElement;
@@ -66,6 +69,8 @@ export const DRAWER_TAGS: Readonly<Record<Exclude<DrawerRequest['id'], 'camera'>
   diagnostics: 'agr-diagnostics-drawer',
   cameras: 'agr-cameras-drawer',
   readings: 'agr-readings-drawer',
+  sky: 'agr-sky-drawer',
+  weather: 'agr-weather-drawer',
 });
 
 declare global {

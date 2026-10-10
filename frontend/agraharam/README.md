@@ -15,6 +15,14 @@ See [Household configuration](docs/HOUSEHOLD.md) for read-only grouped readings,
 confirmed whole-house script shortcuts and the optional Tesla Model 3 artwork. All additions are optional;
 existing configurations keep their behaviour and controls remain off by default.
 
+## Sky (optional)
+
+See [Sky (airspace)](docs/AIRSPACE.md) for the optional, read-only Sky panel: aircraft near the home from one
+collector sensor (set up through [collector/README.md](collector/README.md)), with a radar and aircraft list in its
+drawer. Without `airspace` there is no Sky panel and the layout is unchanged. Today also gains a read-only "Weather
+details" drawer. Preview Sky with `?scenario=sky`. Live sky data and screenshots of it can reveal where the home
+is, so keep them private.
+
 ## Requirements
 
 - Node 24 LTS (see `.nvmrc`; `engines` and `engine-strict` refuse other majors) and npm 11.
@@ -115,7 +123,7 @@ style leaking into the card shows up.
 
 | Control               | What it does                                                                                       |
 | --------------------- | -------------------------------------------------------------------------------------------------- |
-| Scenario              | One of the nine fictional scenarios (`normal`, `degraded`, `offline`, …)                           |
+| Scenario              | One of the ten fictional scenarios (`normal`, `degraded`, `offline`, …, `sky`)                     |
 | Theme, Sidebar        | Light or dark; sidebar expanded or collapsed                                                       |
 | Host                  | `demo` (the card's own DemoHost) or `fake-hass` (live mode against FakeHass)                       |
 | Disconnect, Reconnect | fake-hass only; reconnect follows HA's two-step order (400 ms snapshot delay)                      |

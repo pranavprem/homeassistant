@@ -12,6 +12,7 @@ const SECTION_TAGS = [
   'agr-media',
   'agr-upcoming',
   'agr-health',
+  'agr-sky',
 ];
 
 function demoServices(theme: DashboardServices['theme']): DashboardServices {

@@ -81,6 +81,7 @@ const DEMO_SCENARIOS: readonly DemoScenarioId[] = [
   'restricted',
   'starting',
   'dense',
+  'sky',
 ];
 const SECURITY_ROLES: readonly SecurityActionRole[] = [
   'disarm_hold',
@@ -121,6 +122,7 @@ const TOP_LEVEL_KEYS = [
   'calendars',
   'shortcuts',
   'collections',
+  'airspace',
 ] as const;
 const REF_KEYS = ['entity', 'name'] as const;
 const ROOM_KEYS = ['name', 'lights', 'switches', 'curtains', 'purifier'] as const;
@@ -158,6 +160,7 @@ const SECURITY_KEYS = [
 const COLLECTION_KEYS = ['name', 'icon', 'entities'] as const;
 const ROW_KEYS = ['entity', 'name', 'attention'] as const;
 const ATTENTION_KEYS = ['below', 'above', 'equals'] as const;
+const AIRSPACE_KEYS = ['entity'] as const;
 
 type Mapping = Readonly<Record<string, unknown>>;
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -290,6 +293,8 @@ function readBindings(c: Collector, input: Mapping): BindingParts {
   if (security) parts.security = security;
   const studioMonitors = readOptionalEntity(c, input, 'studio_monitors_script', '', 'studio_monitors');
   if (studioMonitors) parts.studioMonitors = studioMonitors;
+  const airspace = readAirspace(c, input['airspace']);
+  if (airspace) parts.airspace = airspace;
   return parts;
 }
 
@@ -413,6 +418,18 @@ function readGarage(c: Collector, value: unknown): ResolvedConfig['garage'] {
   const cover = readRequiredEntity(c, garage, 'cover', 'garage', 'garage_cover');
   const name = readOptionalName(c, garage, 'name', 'garage') ?? DEFAULT_GARAGE_NAME;
   return cover ? { cover, name } : undefined;
+}
+
+/**
+ * Airspace §4: a mapping with exactly `entity`, a sensor.* bound under the read-only `airspace` role. When the key is
+ * absent nothing is added, so the resolved config of every existing card is unchanged (no `airspace` key at all).
+ */
+function readAirspace(c: Collector, value: unknown): ResolvedConfig['airspace'] {
+  if (value === undefined) return undefined;
+  const airspace = readMapping(c, value, 'airspace', AIRSPACE_KEYS);
+  if (!airspace) return undefined;
+  const entity = readRequiredEntity(c, airspace, 'entity', 'airspace', 'airspace');
+  return entity ? { entity } : undefined;
 }
 
 function readVehicle(c: Collector, value: unknown): ResolvedConfig['vehicle'] {

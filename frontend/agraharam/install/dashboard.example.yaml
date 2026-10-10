@@ -108,3 +108,8 @@ views:
         studio_monitors_script: script.demo_studio_monitors
         calendars:
           - calendar.demo_family
+        # Optional, read-only Sky panel (docs/AIRSPACE.md): the collector's one sensor. Add it only once the collector
+        # publishes, with the entity ID HA actually shows; no controls are needed. Remove it before a HACS downgrade,
+        # because older releases reject the key.
+        # airspace:
+        #   entity: sensor.demo_sky_airspace

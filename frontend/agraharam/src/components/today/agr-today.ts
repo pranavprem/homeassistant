@@ -2,8 +2,12 @@
  * Today (§9.2): the visual anchor of the dashboard. A large editorial temperature with its condition and the day's
  * high and low, sunset or sunrise in the panel header, a quiet metrics row, and a modest forecast strip.
  *
+ * The header also carries a "Details" button that opens the weather details drawer (AIRSPACE.md §8): read-only
+ * navigation, so it is always enabled, never gated by controls, preview or permissions. In a narrow panel the header
+ * compacts (PANEL_CQ.todayHeaderCompact): the sun item keeps its glyph and time, and Details becomes an icon button.
+ *
  * Reads only: the weather and sun entities through the store, and the forecast through ForecastController
- * (weather/subscribe_forecast). It renders no controls and makes no service calls.
+ * (weather/subscribe_forecast). It makes no service calls.
  */
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit';
 import { property } from 'lit/decorators.js';
@@ -16,6 +20,8 @@ import { ABSENT_GLYPH, displayText } from '../../model/display.ts';
 import { FORECAST_NOTES, selectToday } from '../../model/today.ts';
 import type { MetricVM, TodayVM } from '../../model/types.ts';
 import {
+  focusRingStyles,
+  headerActionStyles,
   hyphenationDeclarations,
   numStyles,
   sectionHostStyles,
@@ -28,10 +34,12 @@ import { PANEL_CQ } from '../../styles/breakpoints.ts';
 import { HERO_LINE_HEIGHT, typographyStyles } from '../../styles/typography.ts';
 import { defineOnce } from '../../util/define.ts';
 import { isDefined } from '../../util/defined.ts';
-import { log } from '../../util/log.ts';
+import { contained, log } from '../../util/log.ts';
+import { suppressKeyRepeat } from '../primitives/control-helpers.ts';
 import '../primitives/agr-empty-state.ts';
 import '../primitives/agr-panel.ts';
 import type { DashboardServices } from '../services.ts';
+import { requestDrawer } from '../shell/overlay-types.ts';
 import './agr-forecast-strip.ts';
 import { panelPill } from '../shared/paused.ts';
 import { selectorInput } from '../shared/selector-input.ts';
@@ -41,6 +49,10 @@ const HEADING_ID = 'agr-today-heading';
 const TODAY_META: readonly MetaKind[] = Object.freeze(['connection', 'locale', 'clock']);
 const HERO_ICON_SIZE = 44;
 const SUN_ICON_SIZE = 16;
+const DETAILS_ICON_SIZE = 18;
+const DETAILS_FOCUS_KEY = 'today:details';
+/** The button's name in both header layouts; it contains the visible word "Details" (WCAG 2.5.3). */
+const DETAILS_LABEL = 'Weather details';
 /** The narrowest condition column kept beside the hero number before the summary wraps below it. */
 const SUMMARY_BASIS_PX = 120;
 /** The absent hero: two short strokes, set smaller than a reading and without a degree sign, so they read as one
@@ -59,7 +71,9 @@ export class AgrToday extends LitElement {
     skeletonStyles,
     typographyStyles,
     numStyles,
+    focusRingStyles,
     visuallyHiddenStyles,
+    headerActionStyles,
     css`
       p,
       dl,
@@ -74,6 +88,29 @@ export class AgrToday extends LitElement {
       }
       .sun .time {
         color: var(--agr-ink);
+      }
+      .details-icon {
+        display: none;
+      }
+      /* With the Offline pill the full header needs about 335 px. Below the threshold the sun item keeps its glyph and
+         time (the word stays readable to assistive technology) and Details keeps its name as an icon button, so the
+         header fits the narrowest Today panels on one line. The sun item and Details are slotted into agr-panel's
+         header, but their light-tree ancestor is this tree's panel container, which WebKit resolves (§6.1). */
+      @container panel (width < ${PANEL_CQ.todayHeaderCompact}px) {
+        .sun .sun-label {
+          ${visuallyHiddenDeclarations}
+        }
+        .details {
+          justify-content: center;
+          padding: 0;
+          margin-inline-end: -13px;
+        }
+        .details-text {
+          display: none;
+        }
+        .details-icon {
+          display: inline-flex;
+        }
       }
       .hero {
         display: flex;
@@ -320,9 +357,31 @@ export class AgrToday extends LitElement {
       centered
       .pill=${panelPill(this.services?.store)}
     >
-      ${vm?.sun ? renderSun(vm.sun) : nothing} ${content}
+      ${vm?.sun ? renderSun(vm.sun) : nothing} ${this.#renderDetails()} ${content}
     </agr-panel>`;
   }
+
+  /** Whenever weather is configured, after the sun item; its text and its icon swap with the panel width. */
+  #renderDetails(): TemplateResult | typeof nothing {
+    if (this.services?.config.weather === undefined) return nothing;
+    return html`<button
+      type="button"
+      slot="actions"
+      class="header-action details"
+      aria-label=${DETAILS_LABEL}
+      aria-haspopup="dialog"
+      data-focus-key=${DETAILS_FOCUS_KEY}
+      @click=${this.#onDetails}
+      @keydown=${suppressKeyRepeat}
+    >
+      <span class="details-icon" aria-hidden="true">${renderIcon('info', DETAILS_ICON_SIZE)}</span
+      ><span class="details-text">Details</span>
+    </button>`;
+  }
+
+  readonly #onDetails = contained('today-details-failed', (event: Event) => {
+    requestDrawer(this, { id: 'weather' }, event.currentTarget as HTMLElement);
+  });
 
   /** The anchor's shell while nothing is known: hero, condition and metrics placeholders above the strip's. */
   #renderLoading(): TemplateResult {
@@ -358,7 +417,8 @@ export class AgrToday extends LitElement {
 function renderSun(sun: NonNullable<TodayVM['sun']>): TemplateResult {
   const label = sun.kind === 'sunset' ? 'Sunset' : 'Sunrise';
   return html`<span slot="actions" class="sun t-meta"
-    >${renderIcon(sun.kind, SUN_ICON_SIZE)}<span>${label}</span> <span class="time num">${sun.time}</span></span
+    >${renderIcon(sun.kind, SUN_ICON_SIZE)}<span class="sun-label">${label}</span>
+    <span class="time num">${sun.time}</span></span
   >`;
 }
 

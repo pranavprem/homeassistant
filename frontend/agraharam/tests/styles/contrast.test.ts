@@ -30,6 +30,19 @@ const FILLED_PAIRS: readonly (readonly [string, string, string])[] = [
   ['muted', 'brass-tint', 'meta on a lit room chip'],
 ];
 
+/**
+ * Non-text graphics that carry meaning reach 3:1 (WCAG 1.4.11) on the surface they sit on: the sky radar's marks and
+ * its overhead ring on the inset disc (ARCHITECTURE.md §19). The range rings are decorative (--agr-radar-ring).
+ */
+const AA_NON_TEXT = 3;
+const NON_TEXT_PAIRS: readonly (readonly [string, string, string])[] = [
+  ['ink', 'surface-inset', 'live radar mark'],
+  ['muted', 'surface-inset', 'radar mark while not live'],
+  ['brass-ink', 'surface-inset', 'overhead or selected radar mark, overhead ring'],
+];
+/** The decorative range rings must still show as a hairline, yet stay quieter than any mark. */
+const RING_MIN = 1.3;
+
 function channel(value: number): number {
   const c = value / 255;
   return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
@@ -94,6 +107,16 @@ describe.each(Object.entries(THEMES))('token contrast, %s theme (§6.5)', (_name
 
   it.each(FILLED_PAIRS)('--agr-%s on --agr-%s (%s) reaches 4.5:1', (text, background) => {
     expect(contrast(color(theme, text), color(theme, background))).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  it.each(NON_TEXT_PAIRS)('--agr-%s graphics on --agr-%s (%s) reach 3:1', (graphic, background) => {
+    expect(contrast(color(theme, graphic), color(theme, background))).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+
+  it('draws the radar rings as a visible hairline that stays quieter than every mark', () => {
+    const ring = contrast(color(theme, 'radar-ring'), color(theme, 'surface-inset'));
+    expect(ring).toBeGreaterThanOrEqual(RING_MIN);
+    expect(ring).toBeLessThan(AA_NON_TEXT);
   });
 });
 

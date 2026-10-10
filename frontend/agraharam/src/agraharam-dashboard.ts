@@ -566,6 +566,8 @@ function renderSection(
       return html`<agr-health .services=${services} ?data-stretch=${stretch}></agr-health>`;
     case 'upcoming':
       return html`<agr-upcoming .services=${services} ?data-stretch=${stretch}></agr-upcoming>`;
+    case 'sky':
+      return html`<agr-sky .services=${services} ?data-stretch=${stretch}></agr-sky>`;
   }
 }
 

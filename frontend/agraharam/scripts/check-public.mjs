@@ -8,6 +8,9 @@
  *   --range <revs>     every blob under frontend/agraharam in every commit of a `git rev-list` range, for the
  *                      commits about to be pushed
  *
+ * The forbidden set includes the identifiers of real aircraft found in private sky proof files (rule 6); like every
+ * other part of the set, only their count is printed.
+ *
  * Private files are found through AGR_PRIVATE_DIR, else `<worktree root>/.dashboard-local`. A missing private
  * directory exits 2 unless --allow-missing-private is given, so a worktree without the private files can never
  * pass silently. Without private files (allowed missing, or a private directory holding none), there is no forbidden
@@ -118,7 +121,8 @@ export function checkPublic({ argv, cwd, env, out, err }) {
   const forbidden = buildForbiddenSet(sources, loadExemptions());
   out(
     `check-public: forbidden set from ${sources.fileCount} private file(s): ${forbidden.entityIds.size} entity IDs, ` +
-      `${forbidden.objectIds.size} object IDs, ${forbidden.denylistSize} denylist literals.`,
+      `${forbidden.objectIds.size} object IDs, ${forbidden.denylistSize} denylist literals, ` +
+      `${forbidden.aircraftSize} aircraft identifiers.`,
   );
 
   const targets = collectTargets({ repoRoot, cwd, options });
@@ -140,7 +144,8 @@ export function checkPublic({ argv, cwd, env, out, err }) {
   if (hitCount > 0) {
     err(
       `check-public: ${hitCount} hit(s) in ${targets.scan.length} scanned item(s). Replace real household values ` +
-        'with fictional *.demo_* data; values are never printed, open each path:line:column to see them.',
+        'with fictional *.demo_* data, and real aircraft (aircraft-id) with the fictional sky fixture patterns; ' +
+        'values are never printed, open each path:line:column to see them.',
     );
     return EXIT_HITS;
   }

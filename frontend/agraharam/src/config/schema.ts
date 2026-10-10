@@ -6,7 +6,7 @@
 export type EntityId = string & { readonly __brand: 'EntityId' };
 type EntityRefInput = string | { entity: string; name?: string };
 export type DemoScenarioId =
-  'normal' | 'degraded' | 'offline' | 'empty' | 'alert' | 'loading' | 'restricted' | 'starting' | 'dense';
+  'normal' | 'degraded' | 'offline' | 'empty' | 'alert' | 'loading' | 'restricted' | 'starting' | 'dense' | 'sky';
 export type SecurityActionRole =
   'disarm_hold' | 'silence_sound' | 'resume_auto' | 'hold_night' | 'hold_away' | 'hold_vacation' | 'prepare_departure';
 
@@ -116,6 +116,8 @@ export interface CardConfigInput {
   calendars?: EntityRefInput[]; // calendar.*
   shortcuts?: Partial<Record<ShortcutRole, string>>; // script.* only; each always asks for confirmation
   collections?: CollectionInput[]; // read-only readings, never actionable
+  /** Optional Sky panel (AIRSPACE.md §1): the collector's one sensor.* entity. Read-only, never actionable. */
+  airspace?: { entity: string };
 }
 
 export type BindingRole =
@@ -152,7 +154,8 @@ export type BindingRole =
   | 'studio_monitors'
   | 'calendar'
   | 'house_shortcut'
-  | 'collection';
+  | 'collection'
+  | 'airspace';
 
 function freezeDomainLists<K extends string>(
   table: Record<K, readonly string[]>,
@@ -219,6 +222,8 @@ export const DOMAINS_BY_ROLE: Readonly<Record<BindingRole, readonly string[]>> =
     'input_select',
     'event',
   ],
+  // The Sky collector publishes one MQTT sensor; nothing else carries its aircraft attributes (AIRSPACE.md §1).
+  airspace: ['sensor'],
 });
 
 /** Declared here (re-exported by src/ha/actions/types.ts) so src/config imports nothing outside itself. */
@@ -277,6 +282,10 @@ export interface Collection {
 export interface Ref {
   readonly entity: EntityId;
   readonly name?: string;
+}
+/** The Sky panel's binding (AIRSPACE.md §1): read-only, so it has no action family. */
+interface AirspaceBinding {
+  readonly entity: EntityId;
 }
 export interface ResolvedConfig {
   readonly title: string;
@@ -341,6 +350,8 @@ export interface ResolvedConfig {
   readonly calendars: readonly Ref[];
   readonly shortcuts: Readonly<Partial<Record<ShortcutRole, EntityId>>>; // {} when none are configured
   readonly collections: readonly Collection[]; // [] when none are configured
+  /** Absent (the key itself, not just undefined) when not configured, so existing configs resolve unchanged. */
+  readonly airspace?: AirspaceBinding;
   /** Configured entity → roles. Built once, deeply frozen, never extended. It is the ONLY input to the gateway
    *  allowlist. Derived IDs (vacuum battery) live in EntityStore's separate derived set (§4.5). Empty when
    *  demo is true: the root validates demoCardInput(scenario) separately (§4.2 rule 9). */

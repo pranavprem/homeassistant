@@ -253,6 +253,7 @@ export class HassHost implements HostRuntime {
       ...(hass.locale !== undefined && { locale: hass.locale }),
       serverTimeZone: hass.config.time_zone,
       temperatureUnit: hass.config.unit_system.temperature,
+      lengthUnit: hass.config.unit_system.length,
       // Feature-detected (§4.4): older frontends lack them, and the Intl fallback takes over.
       ...(formatEntityState !== undefined && {
         formatEntityState: (e, state) => formatEntityState.call(hass, e, state),

@@ -104,6 +104,10 @@ describe.each(SNAPSHOT.cases.map((item) => [item.id, item] as const))('%s', (_id
     expect(serialize(resolve(item.input).config)).toEqual(withNewDefaults(item.resolved));
   });
 
+  it('gains no airspace key at all: JSON would hide an undefined one (AIRSPACE.md §1)', () => {
+    expect(Object.hasOwn(resolve(item.input).config, 'airspace')).toBe(false);
+  });
+
   it('keeps the bindings (allowlist and subscriptions) and the runtime key unchanged', () => {
     const { config } = resolve(item.input);
     expect(serialize(config.bindings)).toEqual(item.resolved['bindings']);

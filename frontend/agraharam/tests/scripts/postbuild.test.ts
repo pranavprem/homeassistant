@@ -269,6 +269,31 @@ describe('postbuild: privacy and safety scan', () => {
     expect(scanBundleText('const a="http://www.w3.org/2000/svg",b="http://www.w3.org/1999/xlink";')).toEqual([]);
   });
 
+  it.each([
+    ['the tracking-site prefix before a closing quote', 'const a="https://globe.adsb.lol/?icao="+h;'],
+    ['the tracking-site prefix as the built bundle emits it', 'const Yj=`https://globe.adsb.lol/?icao=`;'],
+    ['the positions source in single quotes', "const a='https://www.adsb.lol/';"],
+    ['the routes source in a template literal', 'const a=`https://github.com/vradarserver/standing-data`;'],
+  ])('allows %s as an exact literal (AIRSPACE.md §9)', (_label, text) => {
+    expect(scanBundleText(text)).toEqual([]);
+  });
+
+  it.each([
+    ['another path on an allowed host', 'const a="https://www.adsb.lol/api";'],
+    ['the provider API host', 'const a="https://api.adsb.lol/";'],
+    ['plain http', 'const a="http://www.adsb.lol/";'],
+    ['a bare globe link', 'const a="https://globe.adsb.lol/";'],
+    ['a position parameter', 'const a="https://globe.adsb.lol/?lat=1";'],
+    ['a parameter after the address', 'const a="https://globe.adsb.lol/?icao=002a1b&lat=1";'],
+    ['a template expression after the tracking prefix', 'const a=`https://globe.adsb.lol/?icao=${h}`;'],
+    ['a parameter after a templated address', 'const a=`https://globe.adsb.lol/?icao=${h}&lat=1`;'],
+    ['a template expression after a source link', 'const a=`https://www.adsb.lol/${p}`;'],
+    ['a raw standing-data path', 'const a="https://github.com/vradarserver/standing-data/raw/main/x";'],
+    ['a longer repository name', 'const a="https://github.com/vradarserver/standing-data-x";'],
+  ])('still fails %s (AIRSPACE.md §9)', (_label, text) => {
+    expect(scanBundleText(text).map((hit) => hit.rule)).toEqual(['external-url']);
+  });
+
   it('reports positions and rules only, never the matched text', () => {
     expect(scanBundleText('x\n  y.toSorted()')).toEqual([{ line: 2, column: 4, rule: 'es2023-array-copy' }]);
   });

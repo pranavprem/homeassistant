@@ -139,8 +139,19 @@ function durationValue(entity: HassEntityLike, ctx: ReadingValueContext): Readin
 }
 
 function instantValue(state: string, ctx: ReadingValueContext, prefix: string): ReadingValue {
-  const ms = ISO_INSTANT_RE.test(state) ? Date.parse(state) : Number.NaN;
-  return Number.isFinite(ms) ? text(`${prefix}${whenText(new Date(ms), ctx)}`) : INVALID;
+  const ms = isoInstantMs(state);
+  return ms === undefined ? INVALID : text(`${prefix}${whenText(new Date(ms), ctx)}`);
+}
+
+/**
+ * The epoch ms of a strict ISO instant (ISO_INSTANT_RE: a date, a time and a zone), else undefined. The regex runs
+ * before Date.parse, which would otherwise guess at strings such as "Oct 9" or a zone-less local time. Shared with
+ * the Sky parser (AIRSPACE.md §2), so both read timestamps by one rule.
+ */
+export function isoInstantMs(value: unknown): number | undefined {
+  if (typeof value !== 'string' || !ISO_INSTANT_RE.test(value)) return undefined;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : undefined;
 }
 
 function dateValue(state: string, ctx: ReadingValueContext): ReadingValue {

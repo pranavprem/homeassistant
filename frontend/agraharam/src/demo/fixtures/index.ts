@@ -11,11 +11,22 @@ import { homeFixture } from './home.ts';
 import { mediaFixture } from './media.ts';
 import { peopleFixture } from './people.ts';
 import { securityFixture } from './security.ts';
+import { skyFixture } from './sky.ts';
 import { todayFixture } from './today.ts';
 import { upcomingFixture } from './upcoming.ts';
 
 type SectionFixtureName =
-  'people' | 'today' | 'comfort' | 'home' | 'cameras' | 'garage' | 'media' | 'upcoming' | 'security' | 'collections';
+  | 'people'
+  | 'today'
+  | 'comfort'
+  | 'home'
+  | 'cameras'
+  | 'garage'
+  | 'media'
+  | 'upcoming'
+  | 'security'
+  | 'collections'
+  | 'sky';
 
 export const SECTION_FIXTURES: Readonly<Record<SectionFixtureName, SectionFixture>> = Object.freeze({
   people: peopleFixture,
@@ -29,4 +40,6 @@ export const SECTION_FIXTURES: Readonly<Record<SectionFixtureName, SectionFixtur
   security: securityFixture,
   // House readings (§18): not a section of their own; the House panel and the readings drawer show them.
   collections: collectionsFixture,
+  // Sky (AIRSPACE.md §10): only the `sky` scenario configures it.
+  sky: skyFixture,
 });

@@ -25,7 +25,13 @@ import {
 } from '../../model/comfort.ts';
 import type { ComfortVM } from '../../model/types.ts';
 import { PANEL_CQ } from '../../styles/breakpoints.ts';
-import { focusRingStyles, sectionHostStyles, skeletonStyles, visuallyHiddenStyles } from '../../styles/shared.ts';
+import {
+  focusRingStyles,
+  headerActionStyles,
+  sectionHostStyles,
+  skeletonStyles,
+  visuallyHiddenStyles,
+} from '../../styles/shared.ts';
 import { defineOnce } from '../../util/define.ts';
 import { contained, log } from '../../util/log.ts';
 import '../primitives/agr-empty-state.ts';
@@ -70,6 +76,7 @@ export class AgrComfort extends LitElement {
     focusRingStyles,
     visuallyHiddenStyles,
     noticeStyles,
+    headerActionStyles,
     css`
       .tiles {
         display: grid;
@@ -99,27 +106,6 @@ export class AgrComfort extends LitElement {
       }
       .notice {
         margin-block-start: var(--agr-space-3);
-      }
-      /* The 44 px hit area overlaps the header's padding, so the header keeps its 24 px rhythm. */
-      .more {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--agr-space-1);
-        box-sizing: border-box;
-        min-inline-size: var(--agr-target);
-        min-block-size: var(--agr-target);
-        margin-block: -10px;
-        margin-inline-end: -8px;
-        padding: 0 var(--agr-space-2);
-        border: none;
-        border-radius: var(--agr-radius-control);
-        font: var(--agr-type-meta-strong);
-        color: var(--agr-olive-ink);
-        background: transparent;
-        cursor: pointer;
-      }
-      .more:hover {
-        background: var(--agr-surface-inset);
       }
     `,
   ];
@@ -214,7 +200,7 @@ export class AgrComfort extends LitElement {
     return html`<button
       type="button"
       slot="actions"
-      class="more"
+      class="header-action more"
       aria-haspopup="dialog"
       data-focus-key=${`${FOCUS_PREFIX}:more`}
       @click=${this.#openAll}

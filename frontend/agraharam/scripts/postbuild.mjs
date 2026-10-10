@@ -85,6 +85,18 @@ const BASE64_RUN_RE = /[A-Za-z0-9+/]*={0,2}/y;
 const STRING_QUOTES = new Set(['"', "'", '`']);
 /** The only URL prefix allowed in the bundle after its legal banner: the SVG namespace. */
 const ALLOWED_URL_PREFIX = 'http://www.w3.org/';
+/**
+ * The Sky feature's three outbound links (AIRSPACE.md §9), allowed only as these exact string literals: each must be
+ * followed immediately by a closing quote. The built bundle keeps the tracking-site prefix as a closed literal and
+ * appends the validated address at run time, so no template form is allowed: `${` after the prefix would let other
+ * parameters follow the address. Another path on these hosts, another host, `http://`, any other parameter or a
+ * longer literal still fails as `external-url`.
+ */
+export const ALLOWED_LINK_LITERALS = Object.freeze([
+  'https://globe.adsb.lol/?icao=',
+  'https://www.adsb.lol/',
+  'https://github.com/vradarserver/standing-data',
+]);
 /** Credentials, private paths and dev-only names that must never reach /local or /hacsfiles. */
 const FORBIDDEN_LITERALS = Object.freeze([
   'authSig',
@@ -135,7 +147,7 @@ export function scanBundleText(bundleText, { banner, fonts = [] } = {}) {
   }
   for (const match of text.matchAll(/https?:\/\//g)) {
     const index = match.index ?? 0;
-    if (index >= bannerEnd && !text.startsWith(ALLOWED_URL_PREFIX, index)) {
+    if (index >= bannerEnd && !text.startsWith(ALLOWED_URL_PREFIX, index) && !isAllowedLinkLiteral(text, index)) {
       hits.push({ ...locate(index), rule: 'external-url' });
     }
   }
@@ -145,6 +157,17 @@ export function scanBundleText(bundleText, { banner, fonts = [] } = {}) {
     }
   }
   return hits.sort((a, b) => a.line - b.line || a.column - b.column);
+}
+
+/**
+ * True when `text` at `index` holds one of ALLOWED_LINK_LITERALS exactly, ending its string literal.
+ * @param {string} text
+ * @param {number} index
+ */
+function isAllowedLinkLiteral(text, index) {
+  return ALLOWED_LINK_LITERALS.some(
+    (url) => text.startsWith(url, index) && STRING_QUOTES.has(text[index + url.length] ?? ''),
+  );
 }
 
 /**

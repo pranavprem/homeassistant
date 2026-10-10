@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DemoScenarioId } from '../../src/config/schema.ts';
+import type { DemoScenarioId, EntityId } from '../../src/config/schema.ts';
 import { validateConfig } from '../../src/config/validate.ts';
 import { demoCardInput, mergeConfigFragments } from '../../src/demo/configs.ts';
 import { demoEntity, fixtureClock, type SectionFixture } from '../../src/demo/fixture-types.ts';
@@ -16,6 +16,7 @@ const ALL_SCENARIOS: readonly DemoScenarioId[] = [
   'restricted',
   'starting',
   'dense',
+  'sky',
 ];
 
 afterEach(() => {
@@ -24,7 +25,7 @@ afterEach(() => {
 });
 
 describe('demo scenarios (§10.2)', () => {
-  it('lists exactly the nine scenarios', () => {
+  it('lists exactly the ten scenarios', () => {
     expect([...DEMO_SCENARIO_IDS].sort()).toEqual([...ALL_SCENARIOS].sort());
   });
 
@@ -78,6 +79,26 @@ describe('demo scenarios (§10.2)', () => {
       state.entity_id.startsWith('alarm_control_panel.'),
     );
     expect(alarm?.state).toBe('unknown');
+  });
+
+  it('configures airspace in the sky scenario only, which is otherwise the normal household (AIRSPACE.md §10)', () => {
+    for (const id of ALL_SCENARIOS.filter((scenario) => scenario !== 'sky')) {
+      expect(Object.hasOwn(demoCardInput(id), 'airspace'), id).toBe(false);
+      expect(
+        assembleScenario(id, fixtureClock(NOW)).states.some((state) => state.entity_id === 'sensor.demo_sky_airspace'),
+        id,
+      ).toBe(false);
+    }
+    const { airspace, ...household } = demoCardInput('sky');
+    expect(airspace).toEqual({ entity: 'sensor.demo_sky_airspace' });
+    expect(household).toEqual(demoCardInput('normal'));
+    const sky = assembleScenario('sky', fixtureClock(NOW));
+    const normal = assembleScenario('normal', fixtureClock(NOW));
+    expect(sky.spec).toEqual({ ...normal.spec, id: 'sky' });
+    expect(sky.states.filter((state) => state.entity_id !== 'sensor.demo_sky_airspace')).toEqual(normal.states);
+    const result = validateConfig(sky.input);
+    expect(result.ok && result.config.airspace).toEqual({ entity: 'sensor.demo_sky_airspace' });
+    expect(result.ok && result.config.bindings.get('sensor.demo_sky_airspace' as EntityId)).toEqual(['airspace']);
   });
 
   it('places every fixture time relative to the clock', () => {

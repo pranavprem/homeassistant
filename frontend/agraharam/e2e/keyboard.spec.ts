@@ -345,3 +345,126 @@ test('camera live view (snapshot fallback): Escape closes it and no further fall
   expect(await liveFetches()).toBe(afterClose);
   expect(await serviceCallsNow(page)).toEqual([]);
 });
+
+// -----------------------------------------------------------------------------------------------------------------
+// Sky and weather (AIRSPACE.md §6, §8): read-only drawers on the same keyboard rules. The sky drawer opens with the
+// nearest aircraft (the overhead DEMO214, ICAO 001a2b) expanded; its row is a disclosure button keyed by the hex.
+
+const NEAREST_ROW = 'sky:aircraft:001a2b';
+const NEAREST_LINK = 'sky:link:001a2b';
+/** Tab stops sampled after the drawer heading: Close, the scroll region, then the three Show choices. */
+const SKY_DRAWER_FIRST_STOPS = 6;
+/** A nearby aircraft whose place changes between Distance (4th) and Altitude (last) order. */
+const MOVED_ROW = 'sky:aircraft:000f12';
+
+async function rowExpanded(page: Page, focusKey: string): Promise<string | null> {
+  return control(page, focusKey).getAttribute('aria-expanded');
+}
+
+/** The data-key order of the sky drawer's rows (inside the drawer's shadow root). */
+async function skyRowOrder(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const root = window.__agrE2E.all('agr-sky-drawer')[0]?.shadowRoot;
+    return [...(root?.querySelectorAll('li.aircraft') ?? [])].map((row) => row.getAttribute('data-key') ?? '');
+  });
+}
+
+test('sky: Tab reaches Details, Enter opens the drawer on its heading, Overhead by keyboard, Enter toggles a row, Tab reaches its link, Escape restores focus', async ({
+  page,
+  browserName,
+}) => {
+  await open(page, { scenario: 'sky' });
+  await focusCardFrame(page);
+  await tabTo(page, browserName, 'sky:details');
+  expect((await focusInfo(page))?.focusVisible, 'keyboard focus matches :focus-visible').toBe(true);
+
+  await page.keyboard.press('Enter');
+  await expectDialogOpen(page);
+  await expect.poll(() => focusInfo(page)).toMatchObject({ tag: 'h2', text: 'Sky', inTopDialog: true });
+
+  // The radar is not focusable: after the drawer's own chrome (Close, and the body's scroll region when the body
+  // scrolls) the next Tab stops are the Show choices, in order.
+  const stops: string[] = [];
+  for (let press = 0; press < SKY_DRAWER_FIRST_STOPS; press += 1) {
+    await page.keyboard.press(tabKey(browserName));
+    const info = await focusInfo(page);
+    stops.push(info?.focusKey ?? (info?.tag === 'button' ? `button:${info.text}` : (info?.tag ?? '')));
+  }
+  const firstChoice = stops.indexOf('sky:view:nearby');
+  expect(firstChoice, stops.join(', ')).toBeGreaterThan(0);
+  expect(stops.slice(0, firstChoice).every((stop) => stop === 'button:Close' || stop === 'div')).toBe(true);
+  expect(stops.slice(firstChoice, firstChoice + 3)).toEqual([
+    'sky:view:nearby',
+    'sky:view:overhead',
+    'sky:view:recent',
+  ]);
+  await tabTo(page, browserName, 'sky:view:overhead');
+  for (const key of NAVIGATION_KEYS) await page.keyboard.press(key);
+  expect((await focusInfo(page))?.focusKey, 'navigation keys moved focus inside the group').toBe('sky:view:overhead');
+  await page.keyboard.press('Enter');
+  await expect(control(page, 'sky:view:overhead')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => skyRowOrder(page)).toEqual(['001a2b']);
+
+  await tabTo(page, browserName, NEAREST_ROW);
+  expect(await rowExpanded(page, NEAREST_ROW)).toBe('true');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => rowExpanded(page, NEAREST_ROW)).toBe('false');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => rowExpanded(page, NEAREST_ROW)).toBe('true');
+  expect((await focusInfo(page))?.focusKey, 'the row keeps focus while it toggles').toBe(NEAREST_ROW);
+
+  await page.keyboard.press(tabKey(browserName));
+  const link = await focusInfo(page);
+  expect(link).toMatchObject({ tag: 'a', focusKey: NEAREST_LINK, inTopDialog: true });
+  await expect(control(page, NEAREST_LINK)).toHaveAttribute('href', 'https://globe.adsb.lol/?icao=001a2b');
+
+  await page.keyboard.press('Escape');
+  await expectNoDialogOpen(page);
+  await expect.poll(async () => (await focusInfo(page))?.focusKey).toBe('sky:details');
+  await runPageTimers(page, QUIET_MS);
+  expect(await serviceCallsNow(page)).toEqual([]);
+});
+
+test("today: the header's Details opens the weather drawer on its heading, and Escape returns focus to it", async ({
+  page,
+  browserName,
+}) => {
+  await open(page, { scenario: 'sky' });
+  await focusCardFrame(page);
+  await tabTo(page, browserName, 'today:details');
+  await page.keyboard.press('Enter');
+  await expectDialogOpen(page);
+  await expect.poll(() => focusInfo(page)).toMatchObject({ tag: 'h2', text: 'Weather details', inTopDialog: true });
+
+  await page.keyboard.press('Escape');
+  await expectNoDialogOpen(page);
+  await expect.poll(async () => (await focusInfo(page))?.focusKey).toBe('today:details');
+  expect(await serviceCallsNow(page)).toEqual([]);
+});
+
+test('sky: re-sorting while a row has focus keeps focus on the same aircraft as the list re-orders', async ({
+  page,
+  browserName,
+}) => {
+  await open(page, { scenario: 'sky' });
+  await control(page, 'sky:details').click();
+  await expectDialogOpen(page);
+  await tabTo(page, browserName, MOVED_ROW);
+  const before = await skyRowOrder(page);
+  expect(before.indexOf('000f12')).toBe(3);
+
+  // The Sort group's own choice event: the list re-orders under the focused row (a pointer on Sort would itself
+  // take focus in Chromium, though not in Safari).
+  await page.evaluate(() => {
+    const sort = window.__agrE2E.all('agr-sky-drawer')[0]?.shadowRoot?.querySelector('agr-choice-group[label="Sort"]');
+    sort?.dispatchEvent(new CustomEvent('agr-choose', { detail: { value: 'altitude' } }));
+  });
+
+  await expect.poll(() => skyRowOrder(page)).not.toEqual(before);
+  expect((await skyRowOrder(page)).at(-1)).toBe('000f12');
+  await expect.poll(async () => (await focusInfo(page))?.focusKey).toBe(MOVED_ROW);
+  expect((await focusInfo(page))?.inTopDialog).toBe(true);
+  await page.keyboard.press('Escape');
+  await expectNoDialogOpen(page);
+  expect(await serviceCallsNow(page)).toEqual([]);
+});

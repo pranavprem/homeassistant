@@ -21,6 +21,7 @@ import './components/shared/agr-fan-controls.ts';
 import './components/header/agr-header.ts';
 import './components/header/agr-household-drawer.ts';
 import './components/today/agr-today.ts';
+import './components/today/agr-weather-drawer.ts';
 import './components/comfort/agr-comfort.ts';
 import './components/comfort/agr-climate-drawer.ts';
 import './components/home/agr-home.ts';
@@ -37,6 +38,8 @@ import './components/security/agr-security-drawer.ts';
 import './components/health/agr-health.ts';
 import './components/health/agr-health-drawer.ts';
 import './components/readings/agr-readings-drawer.ts';
+import './components/sky/agr-sky.ts';
+import './components/sky/agr-sky-drawer.ts';
 import './components/diagnostics/agr-diagnostics-drawer.ts';
 
 const CARD_ENTRY: CustomCardEntry = Object.freeze({

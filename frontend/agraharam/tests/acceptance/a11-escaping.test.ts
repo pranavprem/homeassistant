@@ -21,6 +21,15 @@ import {
   useAcceptanceTimers,
   type LiveCard,
 } from './support.ts';
+import {
+  chooseSky,
+  openSkyDrawer,
+  publishSky,
+  skyPayload,
+  skyRoot,
+  skyRowButtons,
+  type SkyPayload,
+} from './sky-support.ts';
 
 const IMG_PAYLOAD = '<img src=x onerror=alert(1)>';
 const SCRIPT_PAYLOAD = '<script>alert(1)</script>';
@@ -121,6 +130,89 @@ describe('markup in runtime text renders as text', () => {
     const home = renderedText(shadowOf(section(card, 'agr-home')));
     expect(home).toContain("Home Assistant didn't accept the request");
     expect(home).toContain(IMG_PAYLOAD);
+    expectNoInjectedElements(card);
+  });
+});
+
+// -----------------------------------------------------------------------------------------------------------------
+// Sky (AIRSPACE.md §2): the sensor's attributes are untrusted. Strings carrying markup are refused by the
+// parser (the label charset excludes < > " { } \\), so what can still arrive is punctuation and entity-like text: it
+// must render exactly as sent. If any of it went through an HTML parser, "&lt;" would decode to "<" and the text
+// would differ, so comparing the rendered text with the raw string proves a text binding.
+
+const ENTITY_TEXT = '&lt;img src=x onerror=alert(1)&gt;';
+const HOSTILE_ATTRIBUTION = `Positions & routes: ${ENTITY_TEXT} 'quoted' a=b`;
+const HOSTILE_AIRLINE = '&lt;b&gt;Example Air&lt;/b&gt;';
+const HOSTILE_ORIGIN_NAME = "Example International' onmouseover='alert(1)";
+const HOSTILE_SOURCE = 'VRS &amp; ADSB.lol';
+
+/** The fixture's first (nearest, overhead) aircraft with a reported route whose labels are hostile but valid. */
+function hostileRoutePayload(): SkyPayload {
+  const payload = skyPayload('normal');
+  const rows = payload['aircraft'] as readonly Readonly<Record<string, unknown>>[];
+  const first = rows[0] as Readonly<Record<string, unknown>>;
+  const route = {
+    ...(first['route'] as Readonly<Record<string, unknown>>),
+    airline: HOSTILE_AIRLINE,
+    origin_name: HOSTILE_ORIGIN_NAME,
+    source: HOSTILE_SOURCE,
+  };
+  return { ...payload, attribution: HOSTILE_ATTRIBUTION, aircraft: [{ ...first, route }, ...rows.slice(1)] };
+}
+
+describe('sky: untrusted sensor text renders as text', () => {
+  it('entity-like text and quotes in the attribution and route render exactly as sent, as text nodes', async () => {
+    const card = await mountLive({ scenario: 'sky' });
+    await publishSky(card, hostileRoutePayload());
+    const drawer = await openSkyDrawer(card);
+
+    expect(drawer.querySelector('.attribution')?.textContent).toBe(HOSTILE_ATTRIBUTION);
+    expect(drawer.querySelector('.route-airline')?.textContent).toBe(HOSTILE_AIRLINE);
+    expect(drawer.querySelector('.route-names')?.textContent).toBe(`${HOSTILE_ORIGIN_NAME} → Sample Regional`);
+    expect(renderedText(drawer.querySelector('.route-caption') as Element)).toBe(
+      `Reported route · unverified · ${HOSTILE_SOURCE}`,
+    );
+    for (const selector of ['.attribution', '.route-airline', '.route-names']) {
+      expect(drawer.querySelector(selector)?.children.length, `${selector} has element children`).toBe(0);
+    }
+    expect(deepQueryAll(drawer, '[onmouseover], [onerror], b, img')).toEqual([]);
+    expectNoInjectedElements(card);
+  });
+
+  it('the hostile builder payload: markup, bidi and zero-width strings never reach the screen, nothing is injected', async () => {
+    const card = await mountLive({ scenario: 'sky' });
+    await publishSky(card, skyPayload('hostile'));
+    const drawer = await openSkyDrawer(card);
+    // Open every row in every view, so each surviving label, route and caption is rendered.
+    const listed: Record<string, number> = {};
+    const texts = [renderedText(skyRoot(card))];
+    for (const view of ['nearby', 'overhead', 'recent']) {
+      await chooseSky(drawer, 'view', view);
+      listed[view] = skyRowButtons(drawer).length;
+      for (const row of skyRowButtons(drawer)) {
+        row.click();
+        await advance(0);
+        texts.push(renderedText(drawer));
+      }
+    }
+    const text = texts.join(' ');
+
+    // Valid rows survive (and are capped); the recent entry without last_seen is dropped.
+    expect(listed).toEqual({ nearby: expect.any(Number), overhead: expect.any(Number), recent: 0 });
+    expect(listed['nearby']).toBeGreaterThan(0);
+    expect(listed['nearby']).toBeLessThanOrEqual(50);
+    expect(text).not.toMatch(/<|>|script|alert/);
+    expect(text).not.toMatch(/[\u200b\u202e\u2028\u00a0]/);
+    expect(text).not.toMatch(/\b(lat|lon|latitude|longitude)\b/i);
+    // The payload's own valid attribution keeps its ampersand and quotes literally.
+    expect(drawer.querySelector('.attribution')?.textContent).toBe("Example positions & 'routes'");
+    // Prototype keys in the payload never reach Object.prototype.
+    expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
+    // Identifiers, keys and ids are built from the validated six-digit hex only.
+    for (const element of deepQueryAll(drawer, '[data-key], [aria-controls]')) {
+      const key = element.getAttribute('data-key') ?? element.getAttribute('aria-controls') ?? '';
+      expect(key).toMatch(/(^|-)[0-9a-f]{6}$|^(cloud|visibility|wind)/);
+    }
     expectNoInjectedElements(card);
   });
 });

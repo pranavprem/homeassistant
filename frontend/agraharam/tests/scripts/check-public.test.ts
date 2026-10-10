@@ -179,6 +179,81 @@ describe('check-public: one repo with every kind of planted value', () => {
   });
 });
 
+/**
+ * Rule 6 (AIRSPACE.md §9): a private sky proof file shaped like the collector's dry-run output. Every identifier is
+ * fictional (the sky fixture patterns: hex 000000–003fff, DEMO/TEST callsigns, N0 registrations).
+ */
+const SKY_PROOF = {
+  status: 'dry_run',
+  attributes: {
+    schema_version: 1,
+    aircraft: [
+      { hex: '002a1b', callsign: 'DEMO42', registration: 'N0DEMO', distance_km: 2.4, bearing_deg: 310 },
+      // Not an aircraft row: distance_km is a string, so nothing here is collected.
+      { hex: '001e2f', callsign: 'TEST77', distance_km: '1.5' },
+      // Not an aircraft row: the hex is not six hex digits.
+      { hex: '00zz12', callsign: 'TEST88', distance_km: 3 },
+    ],
+    // A two-letter callsign is too generic to forbid; the hex of the same row still is.
+    recent: [{ hex: '003c4d', callsign: 'TE', distance_km: 0.8, closest_distance_km: 0.6 }],
+  },
+};
+/** A second document repeating one identifier with other case and spacing: it is counted once. */
+const SKY_PROOF_COPY = { aircraft: [{ hex: '002A1B', callsign: ' demo42 ', distance_km: 2 }] };
+
+describe('check-public: aircraft identifiers from private sky proof files (rule 6)', () => {
+  let repo: TempRepo;
+  let result: RunResult;
+  const files: Record<string, string> = {
+    'src/sky-hex.ts': "const HEX = '002A1B';\n",
+    'docs/sky-callsign.md': 'Seen: demo42 overhead.\n',
+    'tests/sky-registration.test.ts': "const REG = 'N0DEMO';\n",
+    'src/sky-recent.ts': "const RECENT = '003c4d';\n",
+    'src/sky-not-collected.ts': "const A = 'TEST77';\nconst B = '001e2f';\nconst C = 'TEST88';\nconst D = 'TE';\n",
+    'src/sky-glued.ts': "const GLUED = 'DEMO421';\n",
+  };
+
+  beforeAll(() => {
+    repo = createTempRepo('agr-check-public-sky-');
+    repo.write('.dashboard-local/sky/source-proof.private.json', JSON.stringify(SKY_PROOF));
+    repo.write('.dashboard-local/sky/copy.private.json', JSON.stringify(SKY_PROOF_COPY));
+    for (const [path, content] of Object.entries(files)) repo.write(`${PKG}/${path}`, content);
+    result = runNodeScript(SCRIPT, [], repo.root);
+  });
+
+  afterAll(() => repo.remove());
+
+  const expectHit = (path: string, needle: string) => {
+    const content = files[path] as string;
+    expect(hitLines(result)).toContain(`${PKG}/${path}:${positionOf(content, needle)} aircraft-id`);
+  };
+
+  it('reports only the count of collected identifiers', () => {
+    expect(result.stdout).toContain('0 denylist literals, 4 aircraft identifiers.');
+  });
+
+  it('fails a hex, callsign or registration of a private aircraft row, case-insensitively', () => {
+    expect(result.status).toBe(1);
+    expectHit('src/sky-hex.ts', '002A1B');
+    expectHit('docs/sky-callsign.md', 'demo42');
+    expectHit('tests/sky-registration.test.ts', 'N0DEMO');
+    expectHit('src/sky-recent.ts', '003c4d');
+  });
+
+  it('ignores rows without a numeric distance or a 6-hex address, short callsigns and longer words', () => {
+    const lines = hitLines(result);
+    expect(lines.some((line) => line.includes('/src/sky-not-collected.ts:'))).toBe(false);
+    expect(lines.some((line) => line.includes('/src/sky-glued.ts:'))).toBe(false);
+    expect(lines).toHaveLength(4);
+  });
+
+  it('never prints an identifier', () => {
+    const output = (result.stdout + result.stderr).toLowerCase();
+    for (const identifier of ['002a1b', 'demo42', 'n0demo', '003c4d']) expect(output).not.toContain(identifier);
+    for (const line of hitLines(result)) expect(line).toMatch(/^\S.*:\d+:\d+ aircraft-id$/);
+  });
+});
+
 describe('check-public: private directory discovery (§16.10)', () => {
   it('exits 2 when the private directory is missing, naming AGR_PRIVATE_DIR and the escape hatch', () => {
     const repo = createTempRepo('agr-check-public-missing-');

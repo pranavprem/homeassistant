@@ -35,6 +35,14 @@ export class AgrDrawer extends AgrDialog {
     return this.headingElement();
   }
 
+  /**
+   * Moves focus to the heading: the last fallback of a drawer whose focused content disappeared (the sky drawer's
+   * aircraft rows and controls, AIRSPACE.md §6), so focus never falls out of the modal dialog onto the page.
+   */
+  focusHeading(): void {
+    this.headingElement()?.focus();
+  }
+
   protected override firstUpdated(): void {
     this.dialogElement()?.addEventListener('cancel', this.#onCancel);
     super.firstUpdated();

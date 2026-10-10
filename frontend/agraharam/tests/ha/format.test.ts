@@ -33,6 +33,14 @@ describe('createFormatter (§4.4)', () => {
     expect(createFormatter({ temperatureUnit: '°F' }).temperatureUnit).toBe('°F');
   });
 
+  it("takes the length unit from the HA unit system: only 'mi' means miles, anything else (or none) km", () => {
+    expect(createFormatter({ temperatureUnit: '°F', lengthUnit: 'mi' }).lengthUnit).toBe('mi');
+    expect(createFormatter({ temperatureUnit: '°C', lengthUnit: 'km' }).lengthUnit).toBe('km');
+    // Older HA versions may omit unit_system.length; an unexpected value never switches units either.
+    expect(createFormatter({ temperatureUnit: '°C' }).lengthUnit).toBe('km');
+    expect(createFormatter({ temperatureUnit: '°C', lengthUnit: 'MI' }).lengthUnit).toBe('km');
+  });
+
   it('formats a compact degree without a unit, and HA spacing with the unit an entity reports', () => {
     const formatter = createFormatter({ locale: locale(), temperatureUnit: '°C' });
     expect(formatter.temperature(69, undefined)).toBe('69°');
