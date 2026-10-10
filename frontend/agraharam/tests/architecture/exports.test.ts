@@ -44,6 +44,8 @@ const TEST_SEAMS: Readonly<Record<string, string>> = Object.freeze({
   'src/ha/hass/calendar.ts: MAX_SUMMARY_CHARS': 'the cap the event-summary tests measure',
   'src/ha/hass/camera.ts: LIVE_HELPERS_TIMEOUT_MS': 'tests advance the live-helpers timeout by it',
   'src/ha/resync.ts: RESYNC_GRACE_MS': 'tests advance the resync grace by it (§16.15)',
+  'src/components/sky/sky-clock.ts: SKY_TICK_MS':
+    'tests advance the sky clock by it (the AIRSPACE.md §5 liveness bounds)',
   'src/model/home/vacuums.ts: VACUUM_ERROR_MAX_CHARS': 'the cap the vacuum error-text tests measure',
   'src/model/security.ts: HEALTH_TEXT_MAX_CHARS': 'the cap the health-text tests measure',
   'src/styles/breakpoints.ts: BREAKPOINTS': 'the layout tests probe each side of every breakpoint',
@@ -92,6 +94,17 @@ const TEST_SEAMS: Readonly<Record<string, string>> = Object.freeze({
   'src/styles/layout.ts: WIDE_COLUMNS': 'the reference wide columns the budget tests sum',
   'src/styles/layout.ts: slackAllowances': 'the slack cap on measured columns, without a DOM',
   'src/util/time.ts: msUntilNextMinute': 'the minute ticker alignment at every second',
+  // Sky (AIRSPACE.md §10, ARCHITECTURE.md §19): fixture builders for every sky state, and the pure parser and
+  // geometry steps.
+  'src/demo/fixtures/sky.ts: skyEntity':
+    'the sky sensor in each fixture state; only the sky scenario uses normal (AIRSPACE.md §10)',
+  'src/demo/fixtures/sky.ts: skyAttributes': 'fixture payloads the parser and selector tests modify field by field',
+  'src/demo/fixtures/sky.ts: SKY_FIXTURE_KINDS': 'every fixture state, for the fictional-pattern and no-NaN tests',
+  'src/demo/fixtures/sky.ts: SkyFixtureKind': 'the builder kind the sky component tests take as a parameter',
+  'src/demo/fixtures/sky.ts: DEMO_SKY_AIRSPACE': 'the fictional sensor ID the sky component tests bind',
+  'src/model/airspace.ts: parseAirspace':
+    'the pure clock-independent parser, tested field by field with hostile payloads',
+  'src/model/radar.ts: radarPoint': 'radar geometry at the cardinal bearings and the clamp',
   // Types the tests annotate their fixtures with.
   'src/config/validate.ts: ValidationResult': 'the result type the validation tests narrow',
   'src/dev/fake-hass.ts: FakeHassObject': 'the fake hass type the acceptance tests transform',

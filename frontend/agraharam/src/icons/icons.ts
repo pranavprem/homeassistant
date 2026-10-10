@@ -5,6 +5,8 @@
  */
 import {
   AirVent,
+  ArrowDownRight,
+  ArrowUpRight,
   Battery,
   BatteryCharging,
   BedDouble,
@@ -35,6 +37,7 @@ import {
   DoorClosed,
   DoorOpen,
   Droplets,
+  ExternalLink,
   EyeOff,
   Fan,
   Flame,
@@ -51,6 +54,7 @@ import {
   Moon,
   Music,
   Pause,
+  Plane,
   Play,
   Plug,
   PlugZap,
@@ -193,4 +197,10 @@ export const ICONS = Object.freeze({
   router: Router,
   search: Search,
   'chevron-down': ChevronDown,
+  // Sky (ARCHITECTURE.md §19): the panel heading and state glyph, climbing and descending trends (level reuses
+  // minus), and the outbound source and aircraft links.
+  plane: Plane,
+  'arrow-up-right': ArrowUpRight,
+  'arrow-down-right': ArrowDownRight,
+  'external-link': ExternalLink,
 }) satisfies Readonly<Record<string, IconNode>>;

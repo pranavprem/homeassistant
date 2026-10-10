@@ -3,6 +3,8 @@
  * forecast only, sunset or sunrise from the sun entity, and the forecast strip. Pure: everything it reads comes in
  * through the input, including the forecast controller's snapshot.
  *
+ * Helpers the weather details selector shares (AIRSPACE.md §8) are exported rather than duplicated.
+ *
  * Honesty rules: values are never invented. No hourly data means a labelled daily fallback, never an hourly strip
  * interpolated from daily items; high/low never comes from hourly data; units come from the entity's attributes.
  */
@@ -91,17 +93,17 @@ function notConfigured(): TodayVM {
   };
 }
 
-function formatNumber(formatter: Formatter, value: number, digits = TEMPERATURE_DIGITS): string {
+export function formatNumber(formatter: Formatter, value: number, digits = TEMPERATURE_DIGITS): string {
   return formatter.number(value, { maximumFractionDigits: digits });
 }
 
 /** §4.6: weather values use the entity's own `*_unit` attributes; the HA unit system is only the fallback. */
-function withUnit(entity: HassEntityLike | undefined, formatter: Formatter): { unit?: string } {
+export function withUnit(entity: HassEntityLike | undefined, formatter: Formatter): { unit?: string } {
   const unit = stringAttribute(entity, 'temperature_unit') ?? formatter.temperatureUnit;
   return unit === '' ? {} : { unit };
 }
 
-function selectCondition(
+export function selectCondition(
   weather: NormalizedEntity,
   entity: HassEntityLike | undefined,
   formatter: Formatter,
@@ -245,7 +247,7 @@ function withSun(input: TodayInput, formatter: Formatter): Pick<TodayVM, 'sun'> 
 type NightTest = (ms: number) => boolean;
 
 /** Between sunset and sunrise over the next ~24 hours, from the sun entity's next events; undefined without one. */
-function nightTester(input: SelectorInput): NightTest | undefined {
+export function nightTester(input: SelectorInput): NightTest | undefined {
   const sunId = input.config.sun;
   if (sunId === undefined) return undefined;
   const sun = normalizeEntity(input.store, sunId);
@@ -431,12 +433,12 @@ function dayLabel(formatter: Formatter, at: Date, now: Date): string {
   return weekday === '' ? full : weekday;
 }
 
-function stringAttribute(entity: HassEntityLike | undefined, attribute: string): string | undefined {
+export function stringAttribute(entity: HassEntityLike | undefined, attribute: string): string | undefined {
   const value = entity?.attributes[attribute];
   return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
-function dateAttribute(entity: HassEntityLike | undefined, attribute: string): Date | undefined {
+export function dateAttribute(entity: HassEntityLike | undefined, attribute: string): Date | undefined {
   const value = stringAttribute(entity, attribute);
   if (value === undefined) return undefined;
   const ms = Date.parse(value);

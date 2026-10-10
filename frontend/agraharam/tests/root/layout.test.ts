@@ -21,7 +21,22 @@ import {
 import { CONTENT_BUDGET } from '../../src/model/budget.ts';
 import { configFrom } from '../helpers/services.ts';
 
-const ALL: ReadonlySet<SectionId> = new Set(NARROW_ORDER);
+/**
+ * Every section that existed before the optional sky, in the narrow order. The column tests below keep testing
+ * exactly what they tested then; the sky placement tests add the sky to these sets explicitly.
+ */
+const LEGACY_ORDER: readonly SectionId[] = Object.freeze<SectionId[]>([
+  'today',
+  'comfort',
+  'home',
+  'cameras',
+  'garage',
+  'media',
+  'health',
+  'upcoming',
+]);
+const ALL: ReadonlySet<SectionId> = new Set(LEGACY_ORDER);
+const withSky = (sections: Iterable<SectionId>): ReadonlySet<SectionId> => new Set<SectionId>([...sections, 'sky']);
 
 describe('layoutFor (§6.1)', () => {
   it.each([
@@ -83,7 +98,7 @@ describe('column membership (§6.2, §16.10)', () => {
 
   it('medium keeps the narrow order inside each column', () => {
     const subsets: SectionId[][] = [
-      [...NARROW_ORDER],
+      [...LEGACY_ORDER],
       ['today', 'comfort', 'home', 'media', 'health'],
       ['today', 'comfort', 'home', 'cameras', 'garage', 'media', 'health'],
       ['today', 'comfort', 'home', 'health', 'upcoming'],
@@ -157,7 +172,7 @@ describe('column membership (§6.2, §16.10)', () => {
   });
 
   it('narrow: one column in priority order', () => {
-    expect(columnsFor('narrow', ALL)).toEqual([NARROW_ORDER]);
+    expect(columnsFor('narrow', ALL)).toEqual([LEGACY_ORDER]);
   });
 
   it('omits hidden optional panels and falls back to the medium template when a wide column would be empty', () => {
@@ -234,6 +249,109 @@ describe('column membership (§6.2, §16.10)', () => {
       calendars: ['calendar.demo_household'],
     });
     expect([...visibleSections(full)].sort()).toEqual([...ALL].sort());
+  });
+});
+
+describe('the optional sky panel is a satellite (AIRSPACE.md §7)', () => {
+  it('sits in the narrow order after Media and before the quiet panels', () => {
+    expect(NARROW_ORDER).toEqual([
+      'today',
+      'comfort',
+      'home',
+      'cameras',
+      'garage',
+      'media',
+      'sky',
+      'health',
+      'upcoming',
+    ]);
+    expect(columnsFor('narrow', withSky(ALL))).toEqual([NARROW_ORDER]);
+  });
+
+  it('is visible only when an airspace entity is configured, and changes nothing else', () => {
+    expect(visibleSections(configFrom({})).has('sky')).toBe(false);
+    const sky = configFrom({ airspace: { entity: 'sensor.demo_sky_airspace' } });
+    expect([...visibleSections(sky)].sort()).toEqual(['comfort', 'health', 'home', 'sky', 'today']);
+  });
+
+  it('joins the shortest wide column after its raised panels and before its quiet ones', () => {
+    // No calendars, with cameras and garage: column 1 (Home, House) is the shortest by far.
+    const legacy: SectionId[] = ['today', 'comfort', 'home', 'cameras', 'garage', 'media', 'health'];
+    expect(columnsFor('wide', new Set(legacy))).toEqual([
+      ['home', 'health'],
+      ['today', 'comfort', 'media'],
+      ['cameras', 'garage'],
+    ]);
+    expect(columnsFor('wide', withSky(legacy))).toEqual([
+      ['home', 'sky', 'health'],
+      ['today', 'comfort', 'media'],
+      ['cameras', 'garage'],
+    ]);
+  });
+
+  it('takes the rightmost column on a tie: the full household, whose three columns all meet the 700 px budget', () => {
+    expect(columnsFor('wide', withSky(ALL))).toEqual([
+      ['home', 'upcoming', 'health'],
+      ['today', 'comfort', 'media'],
+      ['cameras', 'garage', 'sky'],
+    ]);
+  });
+
+  it('never decides wide versus medium: an empty wide column is not rescued by the sky', () => {
+    const fewer: SectionId[] = ['today', 'comfort', 'home', 'health'];
+    const columns = columnsFor('wide', withSky(fewer));
+    expect(columns).toHaveLength(2);
+    expect(columns.map((column) => column.filter((id) => id !== 'sky'))).toEqual(columnsFor('wide', new Set(fewer)));
+  });
+
+  it('never moves another panel: removing the sky gives the columns without it, in every mode', () => {
+    const households: SectionId[][] = [
+      [...LEGACY_ORDER],
+      ['today', 'comfort', 'home', 'cameras', 'garage', 'media', 'health'],
+      ['today', 'comfort', 'home', 'health', 'upcoming'],
+      ['today', 'comfort', 'home', 'health'],
+    ];
+    const heights = [PANEL_HEIGHT_TARGET_PX, { ...PANEL_HEIGHT_TARGET_PX, home: 680 }];
+    for (const household of households) {
+      for (const mode of ['wide', 'medium', 'narrow'] as const) {
+        for (const estimate of heights) {
+          const columns = columnsFor(mode, withSky(household), estimate);
+          expect(columns.flat().filter((id) => id === 'sky')).toHaveLength(1);
+          expect(columns.map((column) => column.filter((id) => id !== 'sky'))).toEqual(
+            columnsFor(mode, new Set(household), estimate),
+          );
+        }
+      }
+    }
+  });
+
+  it('medium: joins the shorter column before its quiet panels, keeping the narrow order inside each column', () => {
+    expect(columnsFor('medium', ALL)).toEqual([
+      ['today', 'comfort', 'home', 'upcoming'],
+      ['cameras', 'garage', 'media', 'health'],
+    ]);
+    const columns = columnsFor('medium', withSky(ALL));
+    expect(columns).toEqual([
+      ['today', 'comfort', 'home', 'upcoming'],
+      ['cameras', 'garage', 'media', 'sky', 'health'],
+    ]);
+    for (const column of columns) expect(column).toEqual(NARROW_ORDER.filter((id) => column.includes(id)));
+  });
+
+  it('never stretches: a column ends with its last raised panel taking the slack, not the sky', () => {
+    expect([...stretchedSections([['home', 'sky', 'health']])]).toEqual(['home']);
+    expect([...stretchedSections([['cameras', 'garage', 'sky']])]).toEqual(['garage']);
+    expect([...stretchedSections([['media', 'sky']])]).toEqual(['media']);
+    expect([...stretchedSections([['sky', 'health']])]).toEqual([]);
+    expect([...stretchedSections(columnsFor('wide', withSky(ALL)))].sort()).toEqual(['garage', 'home', 'today']);
+  });
+
+  it('places the sky scenario like the full household: below Garage in column 3', () => {
+    const sky = validateConfig(demoCardInput('sky'));
+    if (!sky.ok) throw new Error('the sky demo config must validate');
+    const visible = visibleSections(sky.config);
+    expect(visible.has('sky')).toBe(true);
+    expect(columnsFor('wide', visible, panelHeightEstimates(sky.config))[2]).toEqual(['cameras', 'garage', 'sky']);
   });
 });
 
@@ -315,7 +433,7 @@ describe('panel height estimates for medium balancing (§16.10)', () => {
       const result = validateConfig(demoCardInput(scenario));
       if (!result.ok) throw new Error(`the ${scenario} demo config must validate`);
       const estimates = panelHeightEstimates(result.config);
-      for (const id of NARROW_ORDER.filter((panel) => panel !== 'home' && panel !== 'health')) {
+      for (const id of LEGACY_ORDER.filter((panel) => panel !== 'home' && panel !== 'health')) {
         expect(estimates[id], `${scenario} ${id}`).toBe(PANEL_HEIGHT_TARGET_PX[id]);
       }
       const readings = result.config.collections.length > 0 ? 40 : 0;

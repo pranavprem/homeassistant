@@ -3,6 +3,7 @@
  * skeleton, section hosts and the native dialog surfaces used by agr-drawer and the agr-dialog base.
  */
 import { css } from 'lit';
+import { SIDE_SHEET_MIN_PX } from './breakpoints.ts';
 
 /** §5.4 rule 10: a 2 px focus ring on :focus-visible only. */
 export const focusRingStyles = css`
@@ -95,6 +96,35 @@ export const pendingSweepStyles = css`
     .sweep[data-phase='pending']::after {
       display: none;
     }
+  }
+`;
+
+/**
+ * A text button in a panel header's actions slot (Climate's "+N more", Today's and Sky's "Details"): olive-ink meta
+ * text on a 44 px hit area. The negative block margin lets the hit area overlap the header's padding, so the header
+ * keeps its 24 px rhythm. Each use carries a distinct accessible name ("N more climate devices", "Weather details",
+ * "Sky details"), because several of them can sit on one screen.
+ */
+export const headerActionStyles = css`
+  .header-action {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--agr-space-1);
+    box-sizing: border-box;
+    min-inline-size: var(--agr-target);
+    min-block-size: var(--agr-target);
+    margin-block: -10px;
+    margin-inline-end: -8px;
+    padding: 0 var(--agr-space-2);
+    border: none;
+    border-radius: var(--agr-radius-control);
+    font: var(--agr-type-meta-strong);
+    color: var(--agr-olive-ink);
+    background: transparent;
+    cursor: pointer;
+  }
+  .header-action:hover {
+    background: var(--agr-surface-inset);
   }
 `;
 
@@ -288,7 +318,7 @@ export const dialogStyles = css`
     background: var(--agr-surface-inset);
     cursor: pointer;
   }
-  /* Bottom sheet below 720 px (and always for data-sheet='bottom'). */
+  /* Bottom sheet below SIDE_SHEET_MIN_PX (and always for data-sheet='bottom'). */
   dialog.sheet {
     position: fixed;
     inset: auto 0 0 0;
@@ -303,8 +333,8 @@ export const dialogStyles = css`
       transform: translateY(24px);
     }
   }
-  /* Side sheet on the inline end at 720 px and wider. */
-  @media (width >= 720px) {
+  /* Side sheet on the inline end from SIDE_SHEET_MIN_PX. */
+  @media (width >= ${SIDE_SHEET_MIN_PX}px) {
     dialog.sheet:not([data-sheet='bottom']) {
       inset: 0 0 0 auto;
       inline-size: min(440px, 92vw);

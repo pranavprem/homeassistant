@@ -1,6 +1,7 @@
 # Household readings, lighting and vehicle appearance
 
-Optional additions to the card configuration. Every example is fictional.
+Optional additions to the card configuration. Every example is fictional. The optional, read-only Sky panel
+(`airspace`) is documented separately in [AIRSPACE.md](AIRSPACE.md).
 
 ## 1. Room lighting switches: `rooms[].switches`
 

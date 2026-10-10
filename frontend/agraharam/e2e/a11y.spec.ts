@@ -12,13 +12,15 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import type { Page, TestInfo } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { control, expectFontsLoaded, openHarness, type Theme } from './helpers/harness.ts';
+import { runPageTimers } from './helpers/calls.ts';
+import { control, expectFontsLoaded, openHarness, PINNED_NOW, type Theme } from './helpers/harness.ts';
 import { recordMetrics } from './helpers/metrics.ts';
 import type { DemoScenarioId } from '../src/config/schema.ts';
+import { SKY_TICK_MS } from '../src/components/sky/sky-clock.ts';
 
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const MIN_TARGET_PX = 44;
-const SCENARIOS: readonly DemoScenarioId[] = ['normal', 'degraded', 'offline', 'alert', 'restricted', 'dense'];
+const SCENARIOS: readonly DemoScenarioId[] = ['normal', 'degraded', 'offline', 'alert', 'restricted', 'dense', 'sky'];
 const THEMES: readonly Theme[] = ['light', 'dark'];
 const VIEWPORTS = [
   { id: '1440x900', width: 1440, height: 900 },
@@ -60,6 +62,10 @@ const OVERLAYS: readonly Overlay[] = [
   { name: 'camera live view', scenario: 'normal', open: ['camera:0:live'], viewports: ['1440x900'] },
   { name: 'home drawer', scenario: 'dense', open: ['home:all'], viewports: ['1440x900'] },
   { name: 'cameras drawer', scenario: 'dense', open: ['cameras:all'], viewports: ['1440x900'] },
+  // Sky (AIRSPACE.md §6): opens with the nearest aircraft expanded, so its outbound link is checked too.
+  { name: 'sky drawer', scenario: 'sky', open: ['sky:details'], viewports: ['1440x900', '390x844'] },
+  { name: 'sky drawer, Recent', scenario: 'sky', open: ['sky:details', 'sky:view:recent'], viewports: ['1440x900'] },
+  { name: 'weather drawer', scenario: 'sky', open: ['today:details'], viewports: ['1440x900', '390x844'] },
 ];
 
 interface AxeSummary {
@@ -190,6 +196,36 @@ test.describe('drawers and dialogs open', () => {
           await expectAccessible(page, testInfo, `${slug}-${theme}-${viewportId}`);
         });
       }
+    }
+  }
+});
+
+test.describe('the stale sky drawer (AIRSPACE.md §4: muted rows, hollow marks, the Not live banner)', () => {
+  /** The fixture snapshot is 15 s older than the pinned time; 4 minutes later it is stale but still drawn. */
+  const STALE_AFTER_PIN_MS = 4 * 60_000;
+
+  for (const viewport of VIEWPORTS) {
+    for (const theme of THEMES) {
+      test(`stale sky drawer, ${theme}, ${viewport.id}`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await openHarness(page, { scenario: 'sky', theme, host: 'fake-hass' });
+        await expectFontsLoaded(page);
+        await page.clock.setFixedTime(new Date(Date.parse(PINNED_NOW) + STALE_AFTER_PIN_MS));
+        await runPageTimers(page, SKY_TICK_MS);
+        await control(page, 'sky:details').click();
+        await expect.poll(() => page.evaluate(() => window.__agrE2E.topDialog() !== null)).toBe(true);
+        await page.evaluate(() => window.__agrE2E.animationsSettled());
+        const banner = await page.evaluate(
+          () =>
+            window.__agrE2E
+              .all('agr-sky-drawer')[0]
+              ?.shadowRoot?.querySelector('.banner')
+              ?.getAttribute('data-status') ?? null,
+        );
+        expect(banner, 'the drawer shows stale data').toBe('stale');
+
+        await expectAccessible(page, testInfo, `stale-sky-drawer-${theme}-${viewport.id}`);
+      });
     }
   }
 });

@@ -280,6 +280,26 @@ describe('fitness: browser floor and privacy (§1.2 item 11, §12.1 row 11)', ()
     expect(filesMatching(/(?:^|[^\w-])color:\s*var\(--agr-(?:olive|brass)\)/m)).toEqual([]);
   });
 
+  it('never fills SVG text with plain olive or brass either (the sky radar labels, ARCHITECTURE.md §19)', () => {
+    // Innermost `selector { body }` rules of every css template; SVG text is styled through a `text` selector.
+    const textRules: string[] = [];
+    const offenders: string[] = [];
+    for (const file of FILES) {
+      for (const template of file.code.matchAll(/css`([\s\S]*?)`/g)) {
+        for (const rule of (template[1] ?? '').matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+          const selector = (rule[1] ?? '').trim();
+          if (!/(?:^|[\s,>+~(])text(?![-\w])/.test(selector)) continue;
+          textRules.push(`${file.path}: ${selector}`);
+          if (/(?:^|[^\w-])fill:\s*var\(--agr-(?:olive|brass)\)/.test(rule[2] ?? '')) {
+            offenders.push(`${file.path}: ${selector}`);
+          }
+        }
+      }
+    }
+    expect(textRules.length, 'the scan found no SVG text rules').toBeGreaterThan(0);
+    expect(offenders).toEqual([]);
+  });
+
   it('names no Lucide aliases in the icon registry', () => {
     expect(filesMatching(/circle-help/).filter((path) => path === 'src/icons/icons.ts')).toEqual([]);
   });

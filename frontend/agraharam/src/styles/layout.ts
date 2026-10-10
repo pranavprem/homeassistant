@@ -10,7 +10,10 @@ import type { LayoutMode } from './breakpoints.ts';
 export type SectionId = PanelId;
 type Columns = readonly (readonly SectionId[])[];
 
-/** Phone priority flow: urgent status, today and comfort, quick controls, cameras and garage, then the rest. */
+/**
+ * Phone priority flow: urgent status, today and comfort, quick controls, cameras and garage, then the optional sky,
+ * then the quiet panels.
+ */
 export const NARROW_ORDER: readonly SectionId[] = Object.freeze([
   'today',
   'comfort',
@@ -18,6 +21,7 @@ export const NARROW_ORDER: readonly SectionId[] = Object.freeze([
   'cameras',
   'garage',
   'media',
+  'sky',
   'health',
   'upcoming',
 ]);
@@ -31,6 +35,15 @@ export const WIDE_COLUMNS: Columns = Object.freeze([
 
 /** Quiet panels (a translucent footnote surface) never stretch; hero and raised panels may (§6.2). */
 const QUIET_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>(['health', 'upcoming']);
+
+/**
+ * The optional sky panel (AIRSPACE.md §7) is a satellite: the columns are chosen exactly as without it, then it
+ * joins the shortest one, so configuring it never moves another panel and never decides wide versus medium.
+ */
+const SKY: SectionId = 'sky';
+
+/** Panels that never take their column's slack: the quiet panels, and the sky, whose rows have a fixed shape. */
+const NON_STRETCHING: ReadonlySet<SectionId> = new Set<SectionId>([...QUIET_SECTIONS, SKY]);
 
 /**
  * Panels that take their column's slack, in preference order: Today centres its hero, metrics and strip as one group
@@ -128,26 +141,56 @@ export function visibleSections(config: ResolvedConfig): ReadonlySet<SectionId> 
   if (config.garage !== undefined || config.vehicle !== undefined) visible.add('garage');
   if (config.media.length > 0) visible.add('media');
   if (config.calendars.length > 0) visible.add('upcoming');
+  if (config.airspace !== undefined) visible.add(SKY);
   return visible;
 }
 
 /**
  * The columns for a layout mode. A wide layout with an empty column falls back to the medium template. `heights`
  * balances the medium columns, and the wide ones when a column would be far taller than the rest: the budget
- * targets, or panelHeightEstimates(config) from the root.
+ * targets, or panelHeightEstimates(config) from the root. The sky, when visible, is placed last (withSatellite):
+ * every decision above is made without it, and narrow takes it at its NARROW_ORDER place.
  */
 export function columnsFor(
   mode: LayoutMode,
   visible: ReadonlySet<SectionId>,
   heights: Readonly<Record<SectionId, number>> = PANEL_HEIGHT_TARGET_PX,
 ): Columns {
-  const ordered = NARROW_ORDER.filter((id) => visible.has(id));
-  if (mode === 'narrow') return [ordered];
+  if (mode === 'narrow') return [NARROW_ORDER.filter((id) => visible.has(id))];
+  const ordered = NARROW_ORDER.filter((id) => id !== SKY && visible.has(id));
+  const columns = legacyColumnsFor(mode, ordered, heights);
+  return visible.has(SKY) ? withSatellite(columns, SKY, heights) : columns;
+}
+
+/** The columns without the sky, exactly as they were before it existed. */
+function legacyColumnsFor(
+  mode: Exclude<LayoutMode, 'narrow'>,
+  ordered: readonly SectionId[],
+  heights: Readonly<Record<SectionId, number>>,
+): Columns {
   if (mode === 'wide') {
-    const wide = WIDE_COLUMNS.map((column) => column.filter((id) => visible.has(id)));
+    const wide = WIDE_COLUMNS.map((column) => column.filter((id) => ordered.includes(id)));
     if (wide.every((column) => column.length > 0)) return balancedWideColumns(wide, heights);
   }
   return mediumColumns(ordered, heights);
+}
+
+/**
+ * Adds a satellite panel to the column with the lowest estimated stack, the rightmost on a tie, after that column's
+ * raised panels and before its quiet ones. Both the wide columns (raised first, quiet after) and the medium ones
+ * (NARROW_ORDER, where the sky precedes the quiet panels) keep their order rule, so DOM order still equals visual
+ * order.
+ */
+function withSatellite(columns: Columns, id: SectionId, heights: Readonly<Record<SectionId, number>>): Columns {
+  const stacks = columns.map((column) => stackHeight(column, heights));
+  const lowest = Math.min(...stacks);
+  const target = stacks.lastIndexOf(lowest);
+  return columns.map((column, index) => {
+    if (index !== target) return column;
+    const quietAt = column.findIndex((section) => QUIET_SECTIONS.has(section));
+    const at = quietAt === -1 ? column.length : quietAt;
+    return [...column.slice(0, at), id, ...column.slice(at)];
+  });
 }
 
 /**
@@ -291,13 +334,13 @@ export function emptySections(config: ResolvedConfig): ReadonlySet<SectionId> {
 
 /**
  * One panel per column takes the column's slack, so column bottoms align without a stretched quiet box (§6.2): the
- * preferred absorber if the column has one, otherwise the last hero or raised panel. A panel showing its empty state
- * never stretches (`empty`).
+ * preferred absorber if the column has one, otherwise the last hero or raised panel other than the sky. A panel
+ * showing its empty state never stretches (`empty`).
  */
 export function stretchedSections(columns: Columns, empty: ReadonlySet<SectionId> = new Set()): ReadonlySet<SectionId> {
   const stretched = new Set<SectionId>();
   for (const column of columns) {
-    const candidates = column.filter((id) => !QUIET_SECTIONS.has(id) && !empty.has(id));
+    const candidates = column.filter((id) => !NON_STRETCHING.has(id) && !empty.has(id));
     const absorber = ABSORBER_PREFERENCE.find((id) => candidates.includes(id)) ?? candidates[candidates.length - 1];
     if (absorber !== undefined) stretched.add(absorber);
   }

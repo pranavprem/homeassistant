@@ -136,6 +136,44 @@ test.describe('§6.1 viewport matrix (normal, host=fake-hass)', () => {
   }
 });
 
+test.describe('the same control check with the optional sky panel (sky scenario, AIRSPACE.md §7, §8)', () => {
+  for (const viewport of VIEWPORT_ROWS) {
+    test(`sky at ${viewport.id}: every control (Sky and Weather Details included) is on screen, inside its panel, unclipped, not overlapping`, async ({
+      page,
+    }) => {
+      const { controls } = await openAt(page, viewport, { scenario: 'sky' });
+      const keys = await page.evaluate(() =>
+        window.__agrE2E.all('[data-focus-key]').map((element) => element.getAttribute('data-focus-key')),
+      );
+
+      expect(keys).toEqual(expect.arrayContaining(['sky:details', 'today:details']));
+      expect(controls.count).toBeGreaterThan(10);
+      expect(controls.outsideViewport, 'controls outside the viewport').toEqual([]);
+      expect(controls.outsideSection, 'controls outside their panel').toEqual([]);
+      expect(controls.clipped, 'controls whose label is clipped').toEqual([]);
+      expect(controls.overlaps, 'overlapping controls').toEqual([]);
+    });
+  }
+});
+
+test.describe("Today's header keeps the Offline pill, the sun item and Details inside the panel (AIRSPACE.md §8)", () => {
+  for (const viewport of VIEWPORT_ROWS) {
+    test(`offline at ${viewport.id}: pill, sun item and Details inside the Today panel, unclipped, not overlapping`, async ({
+      page,
+    }) => {
+      await openAt(page, viewport, { scenario: 'offline' });
+      const header = await todayHeader(page);
+
+      expect(header.pill, 'the Offline pill').toBe('Offline');
+      expect(header.missing, 'header items not rendered').toEqual([]);
+      expect(header.outside, 'header items outside the Today panel').toEqual([]);
+      expect(header.clipped, 'header items whose content is clipped').toEqual([]);
+      expect(header.overlaps, 'overlapping header items').toEqual([]);
+      expect(header.offLine, 'header items not on the heading line').toEqual([]);
+    });
+  }
+});
+
 test.describe('the longest header labels never overflow at any §6.1 width', () => {
   // dense: "Armed vacation" (longest armed label); offline: stale pill with "Last known"; degraded: "Alarm state
   // unknown" (longest label of all, §16.10).
@@ -337,7 +375,7 @@ test.describe('§6.2.1 content budget gates (host=fake-hass, live-mode chrome)',
 test.describe('drawers and dialogs stay inside the 390×844 viewport', () => {
   const drawers: readonly {
     readonly name: string;
-    readonly scenario: 'normal' | 'dense';
+    readonly scenario: 'normal' | 'dense' | 'sky';
     readonly open: readonly string[];
   }[] = [
     { name: 'room drawer', scenario: 'normal', open: ['room:0:open'] },
@@ -352,6 +390,8 @@ test.describe('drawers and dialogs stay inside the 390×844 viewport', () => {
     { name: 'home drawer', scenario: 'dense', open: ['home:all'] },
     { name: 'cameras drawer', scenario: 'dense', open: ['cameras:all'] },
     { name: 'climate overflow drawer', scenario: 'dense', open: ['comfort:more'] },
+    { name: 'sky drawer', scenario: 'sky', open: ['sky:details'] },
+    { name: 'weather drawer', scenario: 'sky', open: ['today:details'] },
   ];
   for (const drawer of drawers) {
     test(`${drawer.name} (${drawer.scenario})`, async ({ page }) => {
@@ -407,6 +447,90 @@ async function securityPillText(page: Page): Promise<PillText> {
       labelCanWrap,
       labelClipped: label.scrollWidth > label.clientWidth + 1,
       insideHeader: pillBox.left >= headerBox.left - 0.5 && pillBox.right <= headerBox.right + 0.5,
+    };
+  });
+}
+
+interface TodayHeader {
+  readonly pill: string | null;
+  readonly missing: readonly string[];
+  readonly outside: readonly string[];
+  readonly clipped: readonly string[];
+  readonly overlaps: readonly string[];
+  /** Items whose vertical centre is off the heading's: the header wrapped instead of compacting. */
+  readonly offLine: readonly string[];
+}
+
+/**
+ * Today's header row as laid out: its heading, the shared Offline pill (in agr-panel's own tree), and the sun item
+ * and Details button slotted from agr-today. Each must sit inside the Today panel's box, show its content without
+ * clipping, not overlap another, and stay on the heading's line. (Details overhangs the header box on purpose: its
+ * 44 px target uses negative margins so the header keeps its 24 px rhythm, so the header's own scroll width is not
+ * a measure of overflow.)
+ */
+async function todayHeader(page: Page): Promise<TodayHeader> {
+  return page.evaluate(() => {
+    const tools = window.__agrE2E;
+    const today = tools.all('agr-today', tools.card().shadowRoot ?? document)[0];
+    const panel = today?.shadowRoot?.querySelector('agr-panel');
+    const panelRoot = panel?.shadowRoot;
+    if (today === undefined || panel === null || panel === undefined || panelRoot === null || panelRoot === undefined) {
+      throw new Error('the Today panel is not rendered');
+    }
+    const items: Record<string, Element | null> = {
+      heading: panelRoot.querySelector('h2'),
+      pill: panelRoot.querySelector('.pill'),
+      sun: today.shadowRoot?.querySelector('.sun') ?? null,
+      details: today.shadowRoot?.querySelector('[data-focus-key="today:details"]') ?? null,
+    };
+    const box = panel.getBoundingClientRect();
+    const missing: string[] = [];
+    const outside: string[] = [];
+    const clipped: string[] = [];
+    const overlaps: string[] = [];
+    const shown = Object.entries(items).flatMap(([name, element]) => {
+      const rect = element?.getBoundingClientRect();
+      if (element === null || element === undefined || rect === undefined || rect.width < 1 || rect.height < 1) {
+        missing.push(name);
+        return [];
+      }
+      if (rect.left < box.left - 0.5 || rect.right > box.right + 0.5 || rect.top < box.top - 0.5) {
+        outside.push(
+          `${name} ${Math.round(rect.left)}..${Math.round(rect.right)} in ${Math.round(box.left)}..${Math.round(box.right)}`,
+        );
+      }
+      if (element.scrollWidth > element.clientWidth + 1 && element.clientWidth > 0) {
+        clipped.push(`${name} ${element.scrollWidth} > ${element.clientWidth}`);
+      }
+      return [{ name, rect }];
+    });
+    for (let i = 0; i < shown.length; i += 1) {
+      for (let j = i + 1; j < shown.length; j += 1) {
+        const a = shown[i]!.rect;
+        const b = shown[j]!.rect;
+        const width = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const height = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (width > 1 && height > 1) overlaps.push(`${shown[i]!.name} overlaps ${shown[j]!.name}`);
+      }
+    }
+    const LINE_TOLERANCE_PX = 4;
+    const centre = (rect: DOMRect): number => rect.top + rect.height / 2;
+    const heading = shown.find((item) => item.name === 'heading');
+    const offLine =
+      heading === undefined
+        ? ['heading']
+        : shown
+            .filter((item) => Math.abs(centre(item.rect) - centre(heading.rect)) > LINE_TOLERANCE_PX)
+            .map(
+              (item) => `${item.name} centre ${Math.round(centre(item.rect))} vs ${Math.round(centre(heading.rect))}`,
+            );
+    return {
+      pill: (items['pill']?.textContent ?? '').trim() || null,
+      missing,
+      outside,
+      clipped,
+      overlaps,
+      offLine,
     };
   });
 }

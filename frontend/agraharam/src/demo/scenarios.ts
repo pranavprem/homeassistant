@@ -40,6 +40,8 @@ export const SCENARIO_SPECS: Readonly<Record<DemoScenarioId, ScenarioSpec>> = Ob
   // One service is missing while HA starts, so the preview shows the service-missing reason somewhere.
   starting: { ...BASE_SPEC, id: 'starting', haState: 'STARTING', missingServices: ['vacuum.start'] },
   dense: { ...BASE_SPEC, id: 'dense' },
+  // The normal household plus a normal sky (AIRSPACE.md §10); no other scenario configures airspace.
+  sky: { ...BASE_SPEC, id: 'sky' },
 });
 
 export const DEMO_SCENARIO_IDS: readonly DemoScenarioId[] = Object.freeze(
@@ -48,7 +50,7 @@ export const DEMO_SCENARIO_IDS: readonly DemoScenarioId[] = Object.freeze(
 
 type ForecastFixtures = AssembledScenario['forecasts'];
 
-/** Merges the nine section fixtures; a duplicate entity, behavior, forecast type or calendar is a fixture bug. */
+/** Merges the section fixtures; a duplicate entity, behavior, forecast type or calendar is a fixture bug. */
 export function assembleScenario(id: DemoScenarioId, clock: FixtureClock): AssembledScenario {
   const fixtures = Object.entries(SECTION_FIXTURES);
   const states = uniqueBy(

@@ -4755,3 +4755,53 @@ The optional contract is documented in [HOUSEHOLD.md](HOUSEHOLD.md).
 Verification includes legacy config snapshots, config validation, gateway/state/aggregate tests, readings/time
 formatting, full-card acceptance, three-browser built-bundle tests and fictional screenshots. Public-literal scans
 cover the working tree, staged blobs and every outgoing commit. No live device actions are part of verification.
+
+## 19. Sky (airspace)
+
+The optional contract, states, units, links and licensing are documented in [AIRSPACE.md](AIRSPACE.md); the
+collector that publishes the sensor is documented in [collector/README.md](../collector/README.md).
+
+- Files: `model/airspace.ts` (contract types, parser, status, link and source constants), `model/sky.ts` (panel
+  and drawer view models, units, copy), `model/radar.ts` (geometry), `model/weather-details.ts`;
+  `components/sky/` (`agr-sky`, `agr-sky-drawer`, `agr-sky-radar`, the shared aircraft card and `SkyClock`) and
+  `components/today/agr-weather-drawer.ts`; `demo/fixtures/sky.ts`, used by the new `sky` scenario only.
+- `airspace: { entity }` resolves to one read-only `sensor.*` binding with no action family. Absent, the key is
+  absent from `ResolvedConfig`, so existing configs, bindings and layouts are unchanged. Navigation (both "Details"
+  buttons, and the drawer's choice groups with the constant `ENABLED` availability) never consults the gateway,
+  `controls`, preview or permissions.
+- Parse, status and selectors are split by clock dependence. `parseAirspace` is pure, clock-independent and
+  memoized on entity identity; it reads named own fields only, checks finiteness, ranges, charsets and lengths, caps
+  arrays before work and never reads position keys. `airspaceState` reads the clock on every render and is never
+  cached; it maps every `normalizeEntity` status onto ten distinct states and layers offline only over live, empty
+  or stale data, and only while the store is disconnected or resyncing (`isConnected()`). An entity the reconnect
+  snapshot did not replace is judged by its own `updated_at` once HA is connected. The "absent since" time is
+  cleared by any other observation of the sensor (an envelope, unavailable, unknown or missing).
+  `createSkySelector` memoizes only the aircraft view models, the rows and the radar view model.
+- Liveness bounds: `SkyClock` re-renders every 10 s while connected and configured, and on visibility. Not live at
+  most 190 s after `updated_at` with no update; not drawn after 15 min 10 s; a future timestamp clears within 10 s
+  of entering the 60 s tolerance; waiting becomes "no aircraft data" at most 190 s after the card first saw the
+  sensor without attributes, through a per-store "absent since" time that holds no data. Each bound has a test.
+- Layout: Sky is a satellite. `columnsFor` chooses wide versus medium and balances the columns without it, then
+  inserts it into the column with the lowest estimated stack (rightmost on a tie), before that column's quiet
+  panels; narrow places it after Media. It never stretches (`NON_STRETCHING`), and `WIDE_COLUMNS` is unchanged.
+- Drawer accessibility: one stacked column whose DOM order is the reading order. Only the fixed banner sentences
+  and the search match count are `role="status"`; ages sit outside live regions. View and sort use
+  `agr-choice-group`. Rows are disclosure buttons keyed by the ICAO address, each detail directly after its row, one
+  expanded at a time. The radar is one `role="img"` with a summary name and unfocusable marks; a click expands the
+  row without moving focus (from Recent it switches to Nearby, since marks are current positions). Lost focus
+  returns to the same control if it remains, else, for a row, to the next row or the previous one, else the
+  heading. Today's header
+  gains a "Details" button (an icon button below `PANEL_CQ.todayHeaderCompact`) for the weather details drawer.
+- Build and scanning: `postbuild.mjs` allows exactly three link literals (`ALLOWED_LINK_LITERALS`), each followed by
+  a closing quote; the built bundle keeps the tracking prefix as a closed literal, so a template form (which could
+  carry further parameters) and any other URL still fail as `external-url`. `check-public` rule 6 adds the `hex`,
+  `callsign` and `registration` of aircraft-row-shaped objects in private files to the forbidden set (rule
+  `aircraft-id`, count only), and a unit test requires every aircraft identifier in `src`, `tests`, `e2e`, `docs`
+  and `install` to match the fictional patterns. The bundle now exceeds
+  the 720 KiB size warning; that is accepted rather than cutting features (§11.5).
+
+Verification covers parser bounds and hostile payloads, status precedence, each liveness bound with the clock
+advanced and no entity update, selectors, radar geometry, components (states, read-only navigation, links, focus
+recovery), weather details, config validation and compatibility snapshots, layout placement, the postbuild and
+leak-scanner rules, and built-bundle browser checks of the `sky` scenario. No live aircraft data and no device
+actions are part of verification.

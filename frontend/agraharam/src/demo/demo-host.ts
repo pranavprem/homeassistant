@@ -46,6 +46,7 @@ interface DemoHostOptions {
 /** Reads (snapshots, calendar, forecast) answer quickly but asynchronously, as the real ones do. */
 const READ_LATENCY_MS = 150;
 const DEMO_TEMPERATURE_UNIT = '°F'; // the fixtures are written in °F
+const DEMO_LENGTH_UNIT = 'mi'; // the same US household as FakeHass's unit system
 const HTTP_UNAUTHORIZED = 401;
 const HTTP_FORBIDDEN = 403;
 const HTTP_SERVICE_UNAVAILABLE = 503;
@@ -69,7 +70,10 @@ export class DemoHost implements HostRuntime {
   readonly port: ServicePort;
   readonly status: StatusBoard = createStatusBoard();
   readonly #options: Required<DemoHostOptions>;
-  readonly #formatter: Formatter = createFormatter({ temperatureUnit: DEMO_TEMPERATURE_UNIT });
+  readonly #formatter: Formatter = createFormatter({
+    temperatureUnit: DEMO_TEMPERATURE_UNIT,
+    lengthUnit: DEMO_LENGTH_UNIT,
+  });
   readonly #readTimers = new Set<ReturnType<typeof setTimeout>>();
   #scenario: DemoScenarioId;
   #assembled!: AssembledScenario;

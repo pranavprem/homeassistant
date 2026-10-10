@@ -68,9 +68,11 @@ export interface LiveOptions {
 /**
  * Per-test setup: fake timers, and an empty module-level in-flight registry. The registry deliberately outlives
  * card instances (§4.7), so without this a ticket from an earlier test would keep its target busy in the next.
+ * `fakeDate` also fakes Date, for gates that read the wall clock (the sky's freshness) and must clear as fake time
+ * passes with no update at all.
  */
-export function useAcceptanceTimers(): void {
-  vi.useFakeTimers({ toFake: [...FAKED_TIMERS] });
+export function useAcceptanceTimers(options: { readonly fakeDate?: boolean } = {}): void {
+  vi.useFakeTimers({ toFake: options.fakeDate === true ? [...FAKED_TIMERS, 'Date'] : [...FAKED_TIMERS] });
   INFLIGHT.clear(ALL_DEMO_TARGETS);
 }
 

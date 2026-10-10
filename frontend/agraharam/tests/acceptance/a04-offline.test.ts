@@ -9,6 +9,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AgrOverlayHost } from '../../src/components/shell/agr-overlay-host.ts';
+import type { EntityId } from '../../src/config/schema.ts';
 import { deepActive } from '../helpers/dom.ts';
 import {
   advance,
@@ -16,6 +17,7 @@ import {
   control,
   deepQueryAll,
   describedBy,
+  liveInput,
   mountLive,
   renderedText,
   section,
@@ -27,6 +29,22 @@ import {
   writeCalls,
   type LiveCard,
 } from './support.ts';
+import {
+  chooseSky,
+  closeOverlays as closeSkyOverlays,
+  openSkyDrawer,
+  openWeatherDrawer,
+  publishSky,
+  radarLive,
+  SKY,
+  skyBanner,
+  skyPanelLine,
+  skyPanelPill,
+  skyPayload,
+  skyRoot,
+  skyRowButtons,
+  type SkyPayload,
+} from './sky-support.ts';
 
 const PAUSED = 'Paused while Home Assistant is disconnected.';
 const RESYNCING = 'Paused until Home Assistant sends current states.';
@@ -284,5 +302,231 @@ describe('an unauthorized user sees the permission message and the control stays
     toggle.click();
     await advance(1_000);
     expect(serviceCalls(card.fake)).toHaveLength(1);
+  });
+});
+
+// -----------------------------------------------------------------------------------------------------------------
+// Sky (AIRSPACE.md §4, §6): offline is a layer over data only. Live, empty or stale data turns "offline"
+// and is never depicted live; an entity that is not data (unavailable, malformed, unsupported, missing) stays what it
+// is, under the shared Offline pill. Sky navigation and its view controls are not actions, so they stay usable.
+
+const OFFLINE_PILL = { label: 'Offline', tone: 'muted', icon: 'wifi-off' };
+const SKY_OFFLINE_LINE = 'Not live while Home Assistant is offline';
+
+/** Mounts the sky scenario, publishes `payload` (or keeps the fixture's), then drops the connection. */
+async function skyOffline(payload?: SkyPayload): Promise<LiveCard> {
+  const card = await mountLive({ scenario: 'sky' });
+  if (payload !== undefined) await publishSky(card, payload);
+  card.fake.disconnect();
+  await advance(0);
+  return card;
+}
+
+describe('sky: offline is a layer over live, empty and stale data, never shown as live', () => {
+  it('live data: the Offline pill and line, then the last list in the drawer, muted, hollow and unemphasised', async () => {
+    const card = await skyOffline();
+    expect(skyPanelPill(card)).toEqual(OFFLINE_PILL);
+    expect(skyPanelLine(card)).toBe(SKY_OFFLINE_LINE);
+    expect(skyRoot(card).querySelector('.count, .nearest')).toBeNull();
+
+    const drawer = await openSkyDrawer(card);
+    expect(drawer.querySelector('.banner')?.getAttribute('data-status')).toBe('offline');
+    expect(skyBanner(drawer)).toBe('Not live. Showing the last aircraft received.');
+    const rows = skyRowButtons(drawer);
+    expect(rows).toHaveLength(8);
+    expect(rows.filter((row) => !row.hasAttribute('data-muted'))).toEqual([]);
+    expect(drawer.querySelector('.chip, [data-overhead]')).toBeNull();
+    expect(radarLive(drawer)).toBe('false');
+    expect(drawer.querySelector('agr-sky-radar')?.shadowRoot?.querySelector('path.mark, .halo')).toBeNull();
+    // No row is opened as "the nearest overhead aircraft" while not live; one opened by hand says Last known.
+    rows[0]?.click();
+    await settle();
+    expect(renderedText(drawer.querySelector('.detail:not([hidden]) .detail-note') ?? drawer)).toBe('Last known');
+  });
+
+  it('empty data: the panel line, and a banner that says no aircraft were in the last update', async () => {
+    const card = await skyOffline(skyPayload('empty'));
+    expect(skyPanelLine(card)).toBe(SKY_OFFLINE_LINE);
+    expect(renderedText(skyRoot(card))).not.toContain('Quiet skies');
+    const drawer = await openSkyDrawer(card);
+    expect(skyBanner(drawer)).toBe('Not live. No aircraft were reported in the last update.');
+  });
+
+  it('stale data: offline wins over the Not live pill; past 15 minutes nothing is drawn at all', async () => {
+    const stale = await skyOffline(skyPayload('normal', 4));
+    expect(skyPanelPill(stale)).toEqual(OFFLINE_PILL);
+    expect(skyPanelLine(stale)).toBe(SKY_OFFLINE_LINE);
+    const drawer = await openSkyDrawer(stale);
+    expect(drawer.querySelector('.banner')?.getAttribute('data-status')).toBe('offline');
+    expect(renderedText(drawer.querySelector('.age') ?? drawer)).toBe('Last update 4 min ago');
+    expect(skyRowButtons(drawer)).toHaveLength(8);
+
+    const old = await skyOffline(skyPayload('normal', 16));
+    const oldDrawer = await openSkyDrawer(old);
+    expect(skyBanner(oldDrawer)).toBe('Not live. Aircraft return when Home Assistant reconnects.');
+    expect(skyRowButtons(oldDrawer)).toEqual([]);
+    expect(oldDrawer.querySelector('agr-sky-radar')).toBeNull();
+  });
+});
+
+describe('sky: an entity that is not data stays what it is while offline', () => {
+  it.each<[string, (card: LiveCard) => Promise<void>, string, string]>([
+    [
+      'unavailable',
+      async (card) => {
+        card.fake.setState(SKY, 'unavailable');
+        await settle();
+      },
+      'Aircraft data unavailable',
+      'The aircraft feed is not reporting. It returns when the collector publishes fresh data.',
+    ],
+    [
+      'malformed',
+      (card) => publishSky(card, { ...skyPayload('normal'), radius_km: 0 }),
+      'Sky data could not be read',
+      'The latest sky data was incomplete or invalid, so nothing is shown.',
+    ],
+    [
+      'unsupported',
+      (card) => publishSky(card, { ...skyPayload('normal'), schema_version: 2 }),
+      'Unsupported sky data',
+      'The sky sensor uses a newer data format than this dashboard understands. Update the dashboard.',
+    ],
+  ])('%s: its own line and banner under the Offline pill, and no aircraft', async (_status, make, line, banner) => {
+    const card = await mountLive({ scenario: 'sky' });
+    await make(card);
+    expect(skyPanelLine(card)).toBe(line);
+    card.fake.disconnect();
+    await advance(0);
+
+    expect(skyPanelPill(card)).toEqual(OFFLINE_PILL);
+    expect(skyPanelLine(card)).toBe(line);
+    const drawer = await openSkyDrawer(card);
+    expect(skyBanner(drawer)).toBe(banner);
+    expect(skyRowButtons(drawer)).toEqual([]);
+    expect(drawer.querySelector('agr-sky-radar')).toBeNull();
+  });
+
+  it('a sensor HA does not have stays "not found" while offline', async () => {
+    const card = await mountLive({
+      scenario: 'sky',
+      input: liveInput('sky', { airspace: { entity: 'sensor.demo_sky_gone' } }),
+    });
+    card.fake.disconnect();
+    await advance(0);
+    expect(skyPanelPill(card)).toEqual(OFFLINE_PILL);
+    expect(skyPanelLine(card)).toBe('Sky sensor not found');
+  });
+});
+
+describe('sky: offline only while HA is disconnected or resyncing', () => {
+  /**
+   * Publishes a payload `minutesOld`, drops the connection, deletes the sensor during the outage (the reconnect
+   * snapshot keeps its old object, so it is never refreshed) and reconnects until the resync barrier clears.
+   */
+  async function unrefreshedAfterReconnect(minutesOld: number): Promise<LiveCard> {
+    const card = await mountLive({ scenario: 'sky' });
+    await publishSky(card, skyPayload('normal', minutesOld));
+    card.fake.disconnect();
+    await advance(0);
+    expect(skyPanelLine(card)).toBe(SKY_OFFLINE_LINE);
+    card.fake.deleteDuringOutage(SKY);
+    card.fake.reconnect({ snapshotDelayMs: 0 });
+    await advance(5_000);
+    expect(card.services()?.reader.connection().phase).toBe('connected');
+    expect(card.services()?.store.freshSinceResync(SKY as EntityId)).toBe(false);
+    return card;
+  }
+
+  it('a sensor the reconnect snapshot did not replace reads stale by its own age, not offline', async () => {
+    const card = await unrefreshedAfterReconnect(4);
+    expect(skyPanelPill(card)).toEqual({ label: 'Not live', tone: 'attention' });
+    expect(skyPanelLine(card)).toBe('No fresh aircraft data');
+    const drawer = await openSkyDrawer(card);
+    expect(drawer.querySelector('.banner')?.getAttribute('data-status')).toBe('stale');
+    expect(skyRowButtons(drawer)).toHaveLength(8);
+    expect(radarLive(drawer)).toBe('false');
+  });
+
+  it('and is no longer drawn once that age passes 15 minutes', async () => {
+    const card = await unrefreshedAfterReconnect(16);
+    expect(skyPanelLine(card)).toBe('No fresh aircraft data');
+    const drawer = await openSkyDrawer(card);
+    expect(skyBanner(drawer)).toBe('No fresh aircraft data.');
+    expect(skyRowButtons(drawer)).toEqual([]);
+    expect(drawer.querySelector('agr-sky-radar')).toBeNull();
+  });
+});
+
+describe('sky: the resync barrier keeps the sky not live until current states arrive', () => {
+  it('between ready and the snapshot the panel stays not live; the snapshot brings the outage payload live', async () => {
+    const card = await mountLive({ scenario: 'sky' });
+    card.fake.disconnect();
+    await advance(0);
+    card.fake.queueOutageChange(SKY, '50', skyPayload('dense'));
+    card.fake.reconnect({ snapshotDelayMs: SNAPSHOT_DELAY_MS });
+    await advance(0);
+
+    expect(card.services()?.reader.connection().phase).toBe('resyncing');
+    expect(skyPanelPill(card)).toEqual(OFFLINE_PILL);
+    expect(skyPanelLine(card)).toBe(SKY_OFFLINE_LINE);
+    expect(skyRoot(card).querySelector('.count')).toBeNull();
+
+    await advance(SNAPSHOT_DELAY_MS);
+    expect(card.services()?.reader.connection().phase).toBe('connected');
+    expect(skyPanelPill(card)).toBeUndefined();
+    expect(renderedText(skyRoot(card).querySelector('.count') ?? skyRoot(card))).toBe('50');
+    expect(writeCalls(card.fake)).toEqual([]);
+  });
+});
+
+describe('sky: navigation and view controls are not actions, so they stay usable', () => {
+  it('offline: Sky and Weather Details open their drawers; Show and Sort change the view and send nothing', async () => {
+    const card = await skyOffline();
+    const details = control(skyRoot(card), 'sky:details');
+    expect(details.getAttribute('aria-disabled')).toBeNull();
+    const drawer = await openSkyDrawer(card);
+    for (const key of ['sky:view:nearby', 'sky:view:overhead', 'sky:view:recent', 'sky:sort:altitude']) {
+      expect(control(drawer, key).getAttribute('aria-disabled'), key).toBeNull();
+    }
+    await chooseSky(drawer, 'view', 'recent');
+    expect(skyRowButtons(drawer)).toHaveLength(3);
+    await chooseSky(drawer, 'sort', 'name');
+    expect(control(drawer, 'sky:sort:name').getAttribute('aria-pressed')).toBe('true');
+    await closeSkyOverlays(card);
+    const weather = await openWeatherDrawer(card);
+    expect(renderedText(weather)).toContain('Last known values while Home Assistant is offline.');
+    await closeSkyOverlays(card);
+    await advance(60_000);
+    expect(writeCalls(card.fake)).toEqual([]);
+  });
+
+  it('with controls off, a non-admin and the editor preview, both Details buttons and the view controls work', async () => {
+    const card = await mountLive({
+      scenario: 'sky',
+      input: liveInput('sky', { controls: false }),
+      transform: (hass) => ({ ...hass, user: { id: 'demo-guest', is_admin: false } }),
+    });
+    card.card.preview = true;
+    await settle();
+    expect(card.services()?.config.controls).toBe(false);
+    expect(card.services()?.preview).toBe(true);
+    expect(card.services()?.reader.isAdmin()).toBe(false);
+
+    expect(control(skyRoot(card), 'sky:details').getAttribute('aria-disabled')).toBeNull();
+    const drawer = await openSkyDrawer(card);
+    expect(control(drawer, 'sky:view:overhead').getAttribute('aria-disabled')).toBeNull();
+    await chooseSky(drawer, 'view', 'overhead');
+    expect(skyRowButtons(drawer)).toHaveLength(1);
+    const row = skyRowButtons(drawer)[0] as HTMLButtonElement;
+    expect(row.getAttribute('aria-disabled')).toBeNull();
+    expect(row.getAttribute('aria-expanded')).toBe('true');
+    row.click();
+    await settle();
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+    await closeSkyOverlays(card);
+    await openWeatherDrawer(card);
+    await closeSkyOverlays(card);
+    expect(writeCalls(card.fake)).toEqual([]);
   });
 });

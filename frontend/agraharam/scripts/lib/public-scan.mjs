@@ -5,8 +5,9 @@
  *
  * Two checks are built from these pieces:
  * - the forbidden set: every real entity ID found in the private `.dashboard-local/**\/*.json` files (keys and
- *   values, recursively), prose substrings with a known entity domain, bare compound object IDs and private
- *   denylist literals, minus the reviewed exemptions; public files must contain none of them;
+ *   values, recursively), prose substrings with a known entity domain, bare compound object IDs, private denylist
+ *   literals and the identifiers of real aircraft in private sky proof files, minus the reviewed exemptions; public
+ *   files must contain none of them;
  * - the public-literal check: every entity-ID-shaped literal in src (production code included), tests, e2e and
  *   install files, and in the built bundle, must be a fictional `*.demo_*` ID, a reviewed exemption or a §7.1
  *   catalog identifier (the caller passes `CATALOG_LITERALS` from `catalog-literals.mjs`, so this module needs no
@@ -144,6 +145,19 @@ export const MIN_BARE_OBJECT_ID_LENGTH = 8;
 export const DEMO_OBJECT_PREFIX = 'demo_';
 
 /**
+ * Rule 6 (AIRSPACE.md §9, ARCHITECTURE.md §19): a private object shaped like a collector aircraft row (a 6-hex
+ * `hex` string and a numeric `distance_km`) contributes these identifiers. Live sky data can locate the house through
+ * public ADS-B history, so a real flight copied into a fixture, test or doc must fail the scan like a real entity ID.
+ */
+export const AIRCRAFT_IDENTIFIER_KEYS = Object.freeze(['hex', 'callsign', 'registration']);
+
+/** Rule 6: shorter identifiers are too generic to forbid on their own (a two-letter callsign would hit prose). */
+export const MIN_AIRCRAFT_IDENTIFIER_LENGTH = 3;
+
+/** An ICAO 24-bit address as the collector emits it; case-insensitive because hand-edited proof files vary. */
+const AIRCRAFT_HEX_RE = /^[0-9a-f]{6}$/i;
+
+/**
  * Type-and-class or class-chain selectors in the card's Lit `css` templates (and so in the bundle's string literals)
  * that look like entity IDs: `button.tile`, `button.body`, `.text.short` and `.time.now`. They are allowed by exact
  * value only, never by context: `button`, `text` and `time` are real entity domains, so a rule such as "followed by
@@ -169,7 +183,8 @@ const DOTTED_RUN_RE = /[A-Za-z0-9_.]+/g;
  * @typedef {{ readonly entityIds: ReadonlySet<string>, readonly objectIds: ReadonlySet<string>,
  *             readonly serviceNames: ReadonlySet<string> }} Exemptions
  * @typedef {{ readonly entityIds: ReadonlySet<string>, readonly objectIds: ReadonlySet<string>,
- *             readonly denylist: RegExp | null, readonly denylistSize: number }} ForbiddenSet
+ *             readonly denylist: RegExp | null, readonly denylistSize: number,
+ *             readonly aircraft: RegExp | null, readonly aircraftSize: number }} ForbiddenSet
  * @typedef {{ readonly line: number, readonly column: number, readonly rule: string }} Hit
  * @typedef {{ readonly path: string, readonly line: number, readonly column: number, readonly rule: string }} FileHit
  */
@@ -213,7 +228,7 @@ export function parseExemptions(data) {
 }
 
 /**
- * Builds the forbidden set from parsed private documents (§11.1 rules 1 to 5).
+ * Builds the forbidden set from parsed private documents (§11.1 rules 1 to 5, plus rule 6 for aircraft).
  * @param {{ documents: readonly unknown[], denylist?: readonly string[] }} privateFiles
  * @param {Exemptions} exemptions
  * @returns {ForbiddenSet}
@@ -236,12 +251,47 @@ export function buildForbiddenSet(privateFiles, exemptions) {
     if (isCompoundObjectId(object) && !exemptions.objectIds.has(object)) objectIds.add(object);
   }
   const literals = [...new Set((privateFiles.denylist ?? []).map((line) => line.trim()).filter(Boolean))];
+  /** @type {Set<string>} */
+  const aircraft = new Set();
+  for (const document of privateFiles.documents) collectAircraftIdentifiers(document, aircraft);
   return Object.freeze({
     entityIds: Object.freeze(entityIds),
     objectIds: Object.freeze(objectIds),
     denylist: literals.length > 0 ? denylistPattern(literals) : null,
     denylistSize: literals.length,
+    aircraft: aircraft.size > 0 ? denylistPattern([...aircraft]) : null,
+    aircraftSize: aircraft.size,
   });
+}
+
+/**
+ * Rule 6: walks a parsed JSON value recursively and collects the `hex`, `callsign` and `registration` of every
+ * aircraft-row-shaped object, trimmed and lower-cased (they are matched like denylist literals, case-insensitively).
+ * @param {unknown} value
+ * @param {Set<string>} into
+ */
+function collectAircraftIdentifiers(value, into) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectAircraftIdentifiers(item, into);
+    return;
+  }
+  if (typeof value !== 'object' || value === null) return;
+  const record = /** @type {Record<string, unknown>} */ (value);
+  if (isAircraftRow(record)) {
+    for (const key of AIRCRAFT_IDENTIFIER_KEYS) {
+      const identifier = record[key];
+      if (typeof identifier !== 'string') continue;
+      const trimmed = identifier.trim();
+      if (trimmed.length >= MIN_AIRCRAFT_IDENTIFIER_LENGTH) into.add(trimmed.toLowerCase());
+    }
+  }
+  for (const item of Object.values(record)) collectAircraftIdentifiers(item, into);
+}
+
+/** @param {Record<string, unknown>} record */
+function isAircraftRow(record) {
+  const hex = record['hex'];
+  return typeof hex === 'string' && AIRCRAFT_HEX_RE.test(hex.trim()) && typeof record['distance_km'] === 'number';
 }
 
 /**
@@ -296,8 +346,8 @@ function isCompoundObjectId(object) {
 }
 
 /**
- * Rule 4: denylist literals, case-insensitive, bounded by non-word characters; inner spaces match any whitespace
- * run so a phrase broken across lines is still found.
+ * Rules 4 and 6: denylist literals, case-insensitive, bounded by non-word characters; inner spaces match any
+ * whitespace run so a phrase broken across lines is still found.
  * @param {readonly string[]} literals
  */
 function denylistPattern(literals) {
@@ -370,10 +420,13 @@ export function scanForForbidden(text, forbidden) {
       offset += segment.length + 1;
     }
   }
-  if (forbidden.denylist) {
-    for (const match of text.matchAll(forbidden.denylist)) {
-      hits.push({ ...locate(match.index ?? 0), rule: 'denylist' });
-    }
+  const literalRules = [
+    { pattern: forbidden.denylist, rule: 'denylist' },
+    { pattern: forbidden.aircraft, rule: 'aircraft-id' },
+  ];
+  for (const { pattern, rule } of literalRules) {
+    if (!pattern) continue;
+    for (const match of text.matchAll(pattern)) hits.push({ ...locate(match.index ?? 0), rule });
   }
   return hits.sort((a, b) => a.line - b.line || a.column - b.column);
 }

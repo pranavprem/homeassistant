@@ -184,14 +184,15 @@ describe('workflow: CI jobs', () => {
     expect(job('e2e').if).toBe("needs.changes.outputs.dashboard == 'true'");
     expect(needsOf('e2e')).toEqual(['changes', 'verify']);
     const verifyRuns = job('verify').steps.flatMap((step) => step.run ?? []);
-    expect(verifyRuns.slice(0, 5)).toEqual([
+    expect(verifyRuns.slice(0, 6)).toEqual([
       'npm ci --ignore-scripts',
       'npm run format:check',
       'npm run typecheck',
       'npm test',
+      "python3 -B -m unittest discover -s collector -p 'test_*.py'",
       'npm run build',
     ]);
-    expect(verifyRuns).toHaveLength(6);
+    expect(verifyRuns).toHaveLength(7);
     const e2eRuns = job('e2e').steps.flatMap((step) => step.run ?? []);
     expect(e2eRuns).toEqual([
       'npm ci --ignore-scripts',

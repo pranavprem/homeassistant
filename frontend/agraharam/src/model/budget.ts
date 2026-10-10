@@ -5,7 +5,7 @@
  */
 import type { ResolvedConfig } from '../config/schema.ts';
 
-export type PanelId = 'today' | 'comfort' | 'home' | 'cameras' | 'garage' | 'media' | 'health' | 'upcoming';
+export type PanelId = 'today' | 'comfort' | 'home' | 'cameras' | 'garage' | 'media' | 'health' | 'upcoming' | 'sky';
 
 export const CONTENT_BUDGET = Object.freeze({
   comfortTiles: 2, // one row of tiles: climate first, then air, then bed; "+N more" opens the climate drawer
@@ -17,6 +17,9 @@ export const CONTENT_BUDGET = Object.freeze({
   healthProblems: 3,
   upcomingEvents: 4, // today and tomorrow only
 } as const);
+
+/** A drawer list offers a search field from this many rows (readings §18, sky drawer AIRSPACE.md §6). */
+export const SEARCH_MIN_ROWS = 16;
 
 /**
  * Maximum panel heights in CSS px at 1440×900, sidebar collapsed, `normal` scenario. Each column sums to at most
@@ -31,6 +34,9 @@ export const PANEL_HEIGHT_TARGET_PX: Readonly<Record<PanelId, number>> = Object.
   media: 168,
   cameras: 380,
   garage: 304,
+  // Optional Sky satellite (AIRSPACE.md §7): header, count block, meta line and the nearest-aircraft inset. It is
+  // never part of WIDE_COLUMNS; the root places it after the legacy balance, so this only ranks columns for it.
+  sky: 184,
 });
 
 /**

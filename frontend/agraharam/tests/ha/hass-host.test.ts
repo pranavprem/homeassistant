@@ -512,6 +512,61 @@ describe('HassHost reads', () => {
   });
 });
 
+describe('HassHost formatter: the length unit from hass.config.unit_system.length (AIRSPACE.md §3)', () => {
+  const connection: ConnectionLike = { connected: true, subscribeMessage: () => Promise.reject(new Error('unused')) };
+
+  /** A hass whose unit system is exactly `unitSystem`, which may omit `length` as older HA versions do. */
+  function hassWithUnits(unitSystem: Readonly<Record<string, string>>): HassLike {
+    const base = registryHass({ connection, states: {} });
+    return { ...base, config: { ...base.config, unit_system: unitSystem as HassLike['config']['unit_system'] } };
+  }
+
+  it('reads miles from a US customary unit system (FakeHass) and kilometres from a metric one', () => {
+    const { host } = hostWithFake();
+    expect(host.reader.formatter().lengthUnit).toBe('mi');
+
+    const metric = new HassHost([LIGHT]);
+    metric.update(hassWithUnits({ temperature: '°C', length: 'km' }));
+    expect(metric.reader.formatter().lengthUnit).toBe('km');
+  });
+
+  it.each([
+    ['absent (an older HA)', { temperature: '°C' }],
+    ['empty', { temperature: '°C', length: '' }],
+    ['upper case', { temperature: '°F', length: 'MI' }],
+    ['another unit', { temperature: '°F', length: 'ft' }],
+  ])('reads kilometres when unit_system.length is %s', (_case, unitSystem) => {
+    const host = new HassHost([LIGHT]);
+    host.update(hassWithUnits(unitSystem));
+    expect(host.reader.formatter().lengthUnit).toBe('km');
+  });
+
+  it('defaults to kilometres before the first hass arrives', () => {
+    expect(new HassHost([LIGHT]).reader.formatter().lengthUnit).toBe('km');
+  });
+
+  it('keeps the formatter for the same unit system object, and rebuilds it and notifies locale when it changes', () => {
+    const host = new HassHost([LIGHT]);
+    const metric = { temperature: '°C', length: 'km' };
+    host.update(hassWithUnits(metric));
+    const first = host.reader.formatter();
+    const locale = vi.fn();
+    host.reader.store.subscribe([], ['locale'], locale);
+
+    host.update(hassWithUnits(metric)); // a new hass, the same unit_system object
+    expect(host.reader.formatter()).toBe(first);
+    expect(locale).not.toHaveBeenCalled();
+
+    host.update(hassWithUnits({ temperature: '°F', length: 'mi' })); // the user switched to US customary
+    const second = host.reader.formatter();
+    expect(locale).toHaveBeenCalledTimes(1);
+    expect(second).not.toBe(first);
+    expect(second.lengthUnit).toBe('mi');
+    expect(second.temperatureUnit).toBe('°F');
+    expect(first.lengthUnit).toBe('km');
+  });
+});
+
 describe('HassHost: registry-pending gate (§18 step 5b.1, liveness)', () => {
   beforeEach(() => {
     vi.useFakeTimers();

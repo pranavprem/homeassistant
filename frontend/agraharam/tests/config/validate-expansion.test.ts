@@ -1,6 +1,7 @@
 /**
  * Validation of the §18 additions (design §2): room switches (rules 11a–c, 4b), whole-house shortcuts (12a–b and
- * rule 4), the vehicle drawing (13) and read-only collections with their attention rules (14a–e, 15a–g). Every
+ * rule 4), the vehicle drawing (13) and read-only collections with their attention rules (14a–e, 15a–g), plus the
+ * optional Sky binding (AIRSPACE.md §1). Every
  * issue is checked by path and code; where the design fixes the wording, the whole message is checked too. All IDs
  * are fictional (`*.demo_*`).
  */
@@ -715,5 +716,65 @@ describe('the new keys in demo mode and with controls', () => {
       'vehicle.battery_sensor': 'required',
       'vehicle.range_sensor': 'required',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Airspace (AIRSPACE.md §1): one read-only sensor binding
+
+describe('airspace (AIRSPACE.md §1)', () => {
+  const SKY = 'sensor.demo_sky_airspace';
+
+  it('resolves { entity }, frozen, bound under the read-only airspace role only', () => {
+    const { config } = okConfig({ airspace: { entity: SKY } });
+    expect(config.airspace).toEqual({ entity: SKY });
+    expect(Object.isFrozen(config.airspace)).toBe(true);
+    expect(config.bindings.get(id(SKY))).toEqual(['airspace']);
+  });
+
+  it('adds no key and no binding when absent, so existing configs resolve unchanged', () => {
+    const { config } = okConfig({});
+    expect(Object.hasOwn(config, 'airspace')).toBe(false);
+    expect(config.bindings.size).toBe(0);
+  });
+
+  it('accepts sensors only, naming the expected domain', () => {
+    expect(onlyIssue({ airspace: { entity: 'binary_sensor.demo_sky' } })).toEqual({
+      path: 'airspace.entity',
+      code: 'wrong-domain',
+      message: 'airspace.entity: expected a sensor entity, got "binary_sensor.demo_sky".',
+    });
+    expect(codesAt({ airspace: { entity: 'not an id' } })).toEqual({ 'airspace.entity': 'invalid-entity-id' });
+  });
+
+  it('must be a mapping with exactly the key entity', () => {
+    expect(codesAt({ airspace: SKY })).toEqual({ airspace: 'wrong-type' });
+    expect(codesAt({ airspace: {} })).toEqual({ 'airspace.entity': 'required' });
+    expect(codesAt({ airspace: { entity: SKY, radius_km: 10 } })).toEqual({ 'airspace.radius_km': 'unknown-key' });
+    expect(codesAt({ airspace: { entiy: SKY } })).toEqual({
+      'airspace.entiy': 'unknown-key',
+      'airspace.entity': 'required',
+    });
+    expect(issuesOf({ airspace: { entiy: SKY } })[0]?.message).toContain('Did you mean "entity"?');
+  });
+
+  it('may share its sensor with a reading: read-only roles overlap freely', () => {
+    const { config } = okConfig({ airspace: { entity: SKY }, ...group([SKY]) });
+    expect(config.bindings.get(id(SKY))).toEqual(['collection', 'airspace']);
+  });
+
+  it('is ignored with a warning in demo mode, where the sky scenario is accepted', () => {
+    const result = validateConfig({
+      type: TYPE,
+      demo: true,
+      demo_scenario: 'sky',
+      airspace: { entity: 'light.demo_sky' },
+    });
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.config.demoScenario).toBe('sky');
+    expect(Object.hasOwn(result.config, 'airspace')).toBe(false);
+    expect(result.warnings.map((warning) => [warning.path, warning.code])).toEqual([
+      ['airspace.entity', 'ignored-in-demo'],
+    ]);
   });
 });

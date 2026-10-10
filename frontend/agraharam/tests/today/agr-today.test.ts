@@ -1,10 +1,13 @@
 /**
  * agr-today (§9.2): renders the hero, high/low, sunset and the strip from live store and forecast data,
- * refreshes on the 'clock' meta, writes the diagnostics status, escapes runtime text, and never acts.
+ * refreshes on the 'clock' meta, writes the diagnostics status, escapes runtime text, and never acts. Also the
+ * header's Weather details button and compact header, and the read-only weather drawer it opens (AIRSPACE.md §8).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '../../src/components/today/agr-today.ts';
+import '../../src/components/today/agr-weather-drawer.ts';
 import type { AgrToday } from '../../src/components/today/agr-today.ts';
+import type { AgrWeatherDrawer } from '../../src/components/today/agr-weather-drawer.ts';
 import type { DashboardServices } from '../../src/components/services.ts';
 import { WEATHER_FEATURE } from '../../src/ha/features.ts';
 import type { ForecastHandlers, ForecastItem, ForecastType, HostReader } from '../../src/ha/host.ts';
@@ -14,6 +17,7 @@ import { deepQuery, deepQueryAll, settle } from '../helpers/dom.ts';
 import { FakeGateway } from '../helpers/fake-gateway.ts';
 import { entityId, testEntity } from '../helpers/fake-store.ts';
 import { configFrom, fakeReader } from '../helpers/services.ts';
+import { PANEL_CQ } from '../../src/styles/breakpoints.ts';
 import { ManualStore } from './controller-host.ts';
 
 const WEATHER = entityId('weather.demo_home');
@@ -225,6 +229,50 @@ describe('agr-today', () => {
     expect(t.gateway.calls).toEqual([]);
   });
 
+  it('offers a Weather details button after the sun item, opening the weather drawer (AIRSPACE.md §8)', async () => {
+    const t = await mount([weather(), sun()]);
+    const requests: { id: string; trigger: HTMLElement }[] = [];
+    t.element.addEventListener('agr-open-drawer', (event) => {
+      requests.push({ id: event.detail.request.id, trigger: event.detail.trigger });
+    });
+    const slotted = [...t.root.querySelectorAll('agr-panel > [slot="actions"]')];
+    expect(slotted.map((element) => element.className)).toEqual(['sun t-meta', 'header-action details']);
+    const details = t.root.querySelector<HTMLButtonElement>('button.details') as HTMLButtonElement;
+    expect(details.getAttribute('aria-label')).toBe('Weather details');
+    expect(details.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(details.getAttribute('data-focus-key')).toBe('today:details');
+    expect(details.querySelector('.details-text')?.textContent).toBe('Details');
+    expect(details.querySelector('.details-icon')?.getAttribute('aria-hidden')).toBe('true');
+    details.click();
+    expect(requests).toEqual([{ id: 'weather', trigger: details }]);
+    expect(t.gateway.calls).toEqual([]);
+  });
+
+  it('keeps the Details button while the weather is unavailable or offline, and has none without weather', async () => {
+    const unavailable = await mount([testEntity(WEATHER, 'unavailable'), sun()]);
+    expect(unavailable.root.querySelector('button.details')).not.toBeNull();
+    unavailable.manual.setConnected(false);
+    await settle();
+    expect(unavailable.root.querySelector('button.details')).not.toBeNull();
+    const none = await mount([], configFrom({}));
+    expect(none.root.querySelector('button.details')).toBeNull();
+  });
+
+  it('compacts the header below PANEL_CQ.todayHeaderCompact: the sun word hidden, Details as an icon', async () => {
+    const t = await mount([weather(), sun()]);
+    // happy-dom has no layout: the rule itself is checked; the e2e header checks measure it in real engines.
+    const css = (t.element.constructor as unknown as { elementStyles: { cssText: string }[] }).elementStyles
+      .map((style) => style.cssText)
+      .join('\n');
+    const compact = css.slice(css.indexOf(`@container panel (width < ${PANEL_CQ.todayHeaderCompact}px)`));
+    expect(compact.length).toBeLessThan(css.length);
+    expect(compact).toMatch(/\.sun \.sun-label\s*\{[^}]*clip-path: inset\(50%\)/);
+    expect(compact).toMatch(/\.details-text\s*\{\s*display: none;/);
+    expect(compact).toMatch(/\.details-icon\s*\{\s*display: inline-flex;/);
+    // The word stays in the text for assistive technology.
+    expect(text(t.root, '.sun')).toMatch(/^Sunset \d{1,2}:\d{2}/);
+  });
+
   it('dims last known values while disconnected and pauses the forecast', async () => {
     const t = await mount([weather(), sun()]);
     t.manual.setConnected(false);
@@ -234,5 +282,84 @@ describe('agr-today', () => {
     const strip = deepQuery(t.root, 'agr-forecast-strip')?.shadowRoot as ShadowRoot;
     expect(text(strip, '.note')).toBe('Forecast resumes when Home Assistant reconnects.');
     expect(t.forecasts.size).toBe(0);
+  });
+});
+
+describe('agr-weather-drawer (AIRSPACE.md §8)', () => {
+  async function mountWeatherDrawer(
+    states: readonly HassEntityLike[],
+    config = configFrom({ weather: WEATHER, sun: SUN }),
+  ) {
+    const t = await mount(states, config);
+    const drawer = document.createElement('agr-weather-drawer') as AgrWeatherDrawer;
+    drawer.services = t.services;
+    drawer.request = { id: 'weather' };
+    document.body.append(drawer);
+    await settle();
+    return { ...t, drawer, drawerRoot: drawer.shadowRoot as ShadowRoot };
+  }
+
+  const EXTENDED = {
+    dew_point: 51,
+    cloud_coverage: 40,
+    uv_index: 6,
+    wind_bearing: 315,
+    wind_gust_speed: 14,
+    visibility: 10,
+    visibility_unit: 'mi',
+    pressure: 30.02,
+    pressure_unit: 'inHg',
+  };
+
+  it('leads with the condition and temperature, then the reported conditions and the next sun events', async () => {
+    const { drawerRoot } = await mountWeatherDrawer([weather(EXTENDED), sun()]);
+    expect(drawerRoot.querySelector('agr-drawer')?.heading).toBe('Weather details');
+    expect(text(drawerRoot, '.temperature')).toBe('69°F');
+    expect(text(drawerRoot, '.condition')).toBe('Partly cloudy');
+    const rows = [...drawerRoot.querySelectorAll('[aria-labelledby="weather-now"] .row')];
+    const byKey = new Map(
+      rows.map((row) => [row.getAttribute('data-key'), (row.textContent ?? '').replace(/\s+/g, ' ').trim()]),
+    );
+    expect(byKey.get('uv')).toMatch(/^UV.* 6 · High$/);
+    expect(byKey.get('humidity')).toMatch(/52%$/);
+    expect(byKey.has('cloud-cover')).toBe(true);
+    const sunRows = [...drawerRoot.querySelectorAll('[aria-labelledby="weather-sun"] .row')].map((row) =>
+      row.getAttribute('data-key'),
+    );
+    expect(sunRows.sort()).toEqual(['sunrise', 'sunset']);
+    // The weather entity's friendly name is often a place: never shown.
+    expect(drawerRoot.textContent).not.toContain('Home');
+  });
+
+  it('reads a null metric as No data, never 0, and omits one the source never reports', async () => {
+    const { drawerRoot } = await mountWeatherDrawer([weather({ uv_index: null }), sun()]);
+    const uv = drawerRoot.querySelector('[data-key="uv"]');
+    expect(uv?.querySelector('.value')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('— No data');
+    expect(drawerRoot.querySelector('[data-key="visibility"]')).toBeNull();
+  });
+
+  it('shows an unavailable entity as its state with no values', async () => {
+    const { drawerRoot } = await mountWeatherDrawer([testEntity(WEATHER, 'unavailable'), sun()]);
+    expect(text(drawerRoot, '.reason')).toBe('Weather unavailable');
+    expect(drawerRoot.querySelector('[aria-labelledby="weather-now"]')).toBeNull();
+  });
+
+  it('dims the last known values while offline and says so', async () => {
+    const { drawerRoot, manual } = await mountWeatherDrawer([weather(EXTENDED), sun()]);
+    manual.setConnected(false);
+    await settle();
+    expect(drawerRoot.querySelector('.temperature')?.classList.contains('stale')).toBe(true);
+    expect(text(drawerRoot, '.note')).toBe('Last known values while Home Assistant is offline.');
+    expect(drawerRoot.textContent).toContain('last known');
+  });
+
+  it('escapes runtime text and never acts', async () => {
+    const payload = '<img src=x onerror=alert(1)>';
+    const { drawerRoot, gateway } = await mountWeatherDrawer([
+      weather({ friendly_name: payload, visibility_unit: payload, visibility: 3 }),
+      sun(),
+    ]);
+    expect(deepQueryAll(drawerRoot, 'img, script')).toEqual([]);
+    expect(gateway.calls).toEqual([]);
   });
 });

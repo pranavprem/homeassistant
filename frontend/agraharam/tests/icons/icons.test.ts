@@ -49,4 +49,10 @@ describe('curated icon set (§6.5)', () => {
     expect(svg?.getAttribute('width')).toBe('24');
     expect(svg?.children.length).toBe(ALL_ICONS[name].length);
   });
+
+  it('carries the Sky glyphs (ARCHITECTURE.md §19): heading, trends and outbound links', () => {
+    for (const name of ['plane', 'arrow-up-right', 'arrow-down-right', 'minus', 'external-link']) {
+      expect(Object.hasOwn(ICONS, name), name).toBe(true);
+    }
+  });
 });

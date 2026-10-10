@@ -72,6 +72,8 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+      - name: Offline Sky collector behavior (standard library only)
+        run: python3 -B -m unittest discover -s collector -p 'test_*.py'
       - name: Build (postbuild scans the built bundle's string literals too)
         run: npm run build
       - name: Public-literal check of the working tree and of every commit under test (CI has no private files)

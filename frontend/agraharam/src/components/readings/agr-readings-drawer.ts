@@ -13,6 +13,7 @@ import { property, state } from 'lit/decorators.js';
 import { EntityController } from '../../ha/entity-controller.ts';
 import type { MetaKind } from '../../ha/host.ts';
 import { renderIcon } from '../../icons/render-icon.ts';
+import { SEARCH_MIN_ROWS } from '../../model/budget.ts';
 import { ABSENT_GLYPH } from '../../model/display.ts';
 import {
   collectionEntityIds,
@@ -39,8 +40,6 @@ type AgrReadingsDrawerRequest = Extract<DrawerRequest, { id: 'readings' }>;
 /** 'registry' for display precision; 'clock' so "Today" and "Tomorrow" roll over at midnight. */
 const READINGS_META: readonly MetaKind[] = Object.freeze(['connection', 'locale', 'registry', 'clock']);
 const HEADING = 'House readings';
-/** Below this many rows every group fits without searching. */
-const SEARCH_MIN_ROWS = 16;
 const SEARCH_MAX_CHARS = 60;
 const SEARCH_LABEL = 'Find a reading';
 const ICON_PX = 18;

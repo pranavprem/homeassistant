@@ -55,6 +55,7 @@ const darkTokens = css`
   --agr-danger: #e8897c;
   --agr-danger-tint: #43231f;
   --agr-line: #363a31;
+  --agr-radar-ring: #4b5143;
   --agr-surface-quiet: rgb(33 36 30 / 0.45);
   --agr-focus: #cfe0bd;
   --agr-shadow-panel: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -20px rgb(0 0 0 / 0.6);
@@ -90,6 +91,9 @@ export const tokenStyles = css`
     --agr-danger: #a4453d;
     --agr-danger-tint: #f3dcd7;
     --agr-line: #d6d3c3;
+    /* The sky radar's range rings (ARCHITECTURE.md §19): a decorative hairline on the inset disc, a step firmer than
+       the line token so the rings read at 1 px. Meaning is carried by the marks and the brass-ink overhead ring. */
+    --agr-radar-ring: #c8c4ae;
     /* Quiet panels: the surface at 45 % over the canvas, a footnote tone instead of a 1.19:1 wireframe border.
        A literal, because color-mix() is below the browser floor (§1.2 item 11). */
     --agr-surface-quiet: rgb(245 243 233 / 0.45);

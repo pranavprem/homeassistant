@@ -30,6 +30,17 @@ import {
   type LiveCard,
   type UnhandledTracker,
 } from './support.ts';
+import {
+  chooseSky,
+  closeOverlays as closeSkyOverlays,
+  openSkyDrawer,
+  openWeatherDrawer,
+  publishSky,
+  SKY,
+  skyPayload,
+  skyRoot,
+  skyRowButtons,
+} from './sky-support.ts';
 
 const WEATHER = 'weather.demo_home';
 const ALARM = 'alarm_control_panel.demo_home';
@@ -361,5 +372,139 @@ describe('demo mode: the real hass is never called (row 1e)', () => {
     const totals = await exerciseEverything(card);
     expect(totals.confirms).toBeGreaterThan(0);
     expect(fake.calls).toEqual([]);
+  });
+});
+
+// -----------------------------------------------------------------------------------------------------------------
+// Sky (AIRSPACE.md §1, ARCHITECTURE.md §19): the optional panel and both read-only drawers never write, in either mode.
+
+/** Events through which a card asks Home Assistant to act or to open its own dialogs; the sky raises none. */
+const HA_REQUEST_EVENTS = ['hass-more-info', 'hass-action', 'hass-notification', 'll-custom'] as const;
+const SKY_VIEWS = ['overhead', 'recent', 'nearby'] as const;
+const SKY_SORTS = ['altitude', 'name', 'distance'] as const;
+/** Six sky clock ticks (10 s each): the panel and the drawer re-render without any entity update. */
+const SKY_TICKS_MS = 60_000;
+
+/** Counts the HA request events that reach the document from anywhere in the card. */
+function trackHaRequests(): { readonly count: () => number; dispose(): void } {
+  let count = 0;
+  const onEvent = (): void => {
+    count += 1;
+  };
+  for (const type of HA_REQUEST_EVENTS) document.addEventListener(type, onEvent, { capture: true });
+  return {
+    count: () => count,
+    dispose: () => {
+      for (const type of HA_REQUEST_EVENTS) document.removeEventListener(type, onEvent, { capture: true });
+    },
+  };
+}
+
+/**
+ * Opens the sky drawer from the panel, walks every view and sort, expands and collapses every listed row, chooses a
+ * radar mark, lets the sky clock tick, closes it; then opens and closes the weather drawer from Today's header.
+ * Returns how many controls were pressed, so a test can prove the exercise was real.
+ */
+async function exerciseSky(card: MountedCard): Promise<number> {
+  let presses = 0;
+  const drawer = await openSkyDrawer(card);
+  presses += 1;
+  for (const view of SKY_VIEWS) {
+    await chooseSky(drawer, 'view', view);
+    presses += 1;
+    for (const sort of view === 'recent' ? ['latest', ...SKY_SORTS] : SKY_SORTS) {
+      await chooseSky(drawer, 'sort', sort);
+      presses += 1;
+    }
+    for (const row of skyRowButtons(drawer)) {
+      row.focus();
+      row.click(); // expand
+      row.click(); // collapse
+      await settle();
+      presses += 2;
+    }
+  }
+  const mark = drawer.querySelector('agr-sky-radar')?.shadowRoot?.querySelector('g.aircraft .hit');
+  mark?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  presses += mark === null || mark === undefined ? 0 : 1;
+  await advance(SKY_TICKS_MS);
+  await closeSkyOverlays(card);
+  await openWeatherDrawer(card);
+  presses += 1;
+  await advance(SKY_TICKS_MS);
+  await closeSkyOverlays(card);
+  return presses;
+}
+
+describe('sky: the panel and the sky and weather drawers never write (AIRSPACE.md §1)', () => {
+  let requests: ReturnType<typeof trackHaRequests>;
+
+  beforeEach(() => {
+    requests = trackHaRequests();
+  });
+
+  afterEach(() => {
+    expect(requests.count(), 'HA request events (more-info, actions)').toBe(0);
+    requests.dispose();
+  });
+
+  it('live: mounting, every view, sort and row, a radar mark, the clock and fresh payloads call nothing', async () => {
+    const card = await mountLive({ scenario: 'sky' });
+    await advance(1_000);
+    const before = card.fake.calls.length;
+
+    const presses = await exerciseSky(card);
+    await publishSky(card, skyPayload('dense'));
+    await exerciseSky(card);
+    await publishSky(card, skyPayload('empty'));
+    await advance(SKY_TICKS_MS);
+
+    expect(presses).toBeGreaterThan(20);
+    expectNoMutation(card.fake);
+    // Nothing the sky did reached Home Assistant at all: no read names the sensor, and no write or read was added
+    // by the exercise beyond the card's own scheduled reads (forecast, calendar), which never name it either.
+    const added = card.fake.calls.slice(before);
+    expect(added.filter((call) => JSON.stringify(call.args).includes(SKY))).toEqual([]);
+    expect(added.filter((call) => call.method === 'callService')).toEqual([]);
+  });
+
+  it('live with controls off, a non-admin and the editor preview: the same exercise calls nothing', async () => {
+    const card = await mountLive({
+      scenario: 'sky',
+      input: liveInput('sky', { controls: false }),
+      transform: (hass) => ({ ...hass, user: { id: 'demo-guest', is_admin: false } }),
+    });
+    card.card.preview = true;
+    await advance(1_000);
+    expect(await exerciseSky(card)).toBeGreaterThan(20);
+    expectNoMutation(card.fake);
+  });
+
+  it('live: a disconnect and a two-step reconnect with the sky drawer open call nothing', async () => {
+    const card = await mountLive({ scenario: 'sky' });
+    const drawer = await openSkyDrawer(card);
+    skyRowButtons(drawer)[0]?.click();
+    card.fake.disconnect();
+    await advance(SKY_TICKS_MS);
+    card.fake.queueOutageChange(SKY, '50', skyPayload('dense'));
+    card.fake.reconnect({ snapshotDelayMs: 400 });
+    await advance(5_000);
+    expect(skyRowButtons(drawer)).toHaveLength(50);
+    await closeSkyOverlays(card);
+    expectNoMutation(card.fake);
+  });
+
+  it('demo: the same exercise leaves every FakeHass spy at 0 and records no gateway action', async () => {
+    const fake = new FakeHass('sky');
+    const card = await mountCard({ config: { demo: true, demo_scenario: 'sky' }, fake });
+    await advance(2_000);
+    expect(skyRoot(card).querySelector('agr-panel')).not.toBeNull();
+
+    expect(await exerciseSky(card)).toBeGreaterThan(20);
+    await advance(70_000);
+
+    expect(fake.calls).toEqual([]);
+    expect(card.services()?.reader.kind).toBe('demo');
+    expect(card.services()?.gateway.recent()).toEqual([]);
   });
 });

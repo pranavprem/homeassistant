@@ -4,7 +4,7 @@
  * formatters are built once per Formatter (number formats once per options key), which lives until the 'locale'
  * meta changes.
  */
-import type { ClockParts, DateStyle, Formatter } from './host.ts';
+import type { ClockParts, DateStyle, Formatter, LengthUnit } from './host.ts';
 import type { HassEntityLike, LocaleLike } from './types.ts';
 
 interface FormatterSource {
@@ -13,6 +13,8 @@ interface FormatterSource {
   /** hass.config.time_zone, used when the profile asks for server time. */
   readonly serverTimeZone?: string;
   readonly temperatureUnit: string;
+  /** hass.config.unit_system.length; anything but 'mi' (including an absent value on older HA) reads as km. */
+  readonly lengthUnit?: string;
   readonly formatEntityState?: (stateObj: HassEntityLike, state?: string) => string;
   readonly formatEntityAttributeValue?: (stateObj: HassEntityLike, attribute: string, value?: unknown) => string;
 }
@@ -107,6 +109,7 @@ export function createFormatter(source: FormatterSource): Formatter {
 
   return Object.freeze({
     temperatureUnit: source.temperatureUnit,
+    lengthUnit: lengthUnitOf(source.lengthUnit),
     translatesStates: source.formatEntityState !== undefined,
     entityState(entity: HassEntityLike): string {
       return source.formatEntityState?.(entity) ?? fallbackEntityState(entity, number, withUnit);
@@ -135,6 +138,11 @@ export function createFormatter(source: FormatterSource): Formatter {
       wallTimeFormat.format(Date.UTC(WALL_TIME_DAY.year, WALL_TIME_DAY.monthIndex, WALL_TIME_DAY.day, hour, minute)),
     duration: formatDuration,
   });
+}
+
+/** HA's length units are exactly 'km' and 'mi'; only an explicit 'mi' switches distances to miles. */
+function lengthUnitOf(unit: string | undefined): LengthUnit {
+  return unit === 'mi' ? 'mi' : 'km';
 }
 
 /** The hour (0–23) in the formatter's zone; falls back to the device's hour if the parts cannot be read. */

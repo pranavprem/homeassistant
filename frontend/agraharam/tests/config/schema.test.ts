@@ -68,6 +68,10 @@ describe('DOMAINS_BY_ROLE', () => {
     }
   });
 
+  it('allows only sensors for the Sky collector binding (AIRSPACE.md §1)', () => {
+    expect(DOMAINS_BY_ROLE.airspace).toEqual(['sensor']);
+  });
+
   it('allows exactly the privacy domains whose states are on/off', () => {
     expect(DOMAINS_BY_ROLE.camera_privacy).toEqual(['switch', 'binary_sensor', 'input_boolean']);
   });
@@ -95,6 +99,11 @@ describe('ACTIONABLE_ROLE_FAMILY', () => {
       house_shortcut: 'shortcut',
     });
     expect(Object.isFrozen(ACTIONABLE_ROLE_FAMILY)).toBe(true);
+  });
+
+  it('never makes the Sky sensor actionable: airspace has no action family', () => {
+    expect(Object.hasOwn(ACTIONABLE_ROLE_FAMILY, 'airspace')).toBe(false);
+    expect(ACTIONABLE_ROLE_FAMILY.airspace).toBeUndefined();
   });
 
   it('never makes readings actionable: collection has no action family', () => {

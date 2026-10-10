@@ -29,8 +29,12 @@ export interface ClockParts {
   readonly hm: string;
   readonly period?: string;
 } // "5:51", "PM"
+/** The two length units HA's unit systems use (hass.config.unit_system.length). */
+export type LengthUnit = 'km' | 'mi';
 export interface Formatter {
   readonly temperatureUnit: string; // hass.config.unit_system.temperature
+  /** hass.config.unit_system.length: 'mi' for US customary, else 'km' (also when an older HA omits it). */
+  readonly lengthUnit: LengthUnit;
   /** True when HA's own formatEntityState backs entityState(): translated, with registry precision. House readings
    *  word states themselves only when it is false (demo, tests, older frontends, §18). */
   readonly translatesStates: boolean;
